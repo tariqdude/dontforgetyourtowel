@@ -100,6 +100,13 @@ describe('EnhancedContactForm', () => {
   it('should submit successfully when valid', async () => {
     new EnhancedContactForm();
 
+    let clickedHref = '';
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement
+    ) {
+      clickedHref = this.href;
+    });
+
     // Fill form
     const setVal = (name: string, val: string) => {
       const el = form.querySelector(`[name="${name}"]`) as HTMLInputElement;
@@ -118,8 +125,8 @@ describe('EnhancedContactForm', () => {
     // Submit
     form.dispatchEvent(new Event('submit', { cancelable: true }));
 
-    // Should redirect to mailto
-    expect(window.location.href).toContain('mailto:');
-    expect(window.location.href).toContain('john%40example.com');
+    // Should trigger a mailto link
+    expect(clickedHref).toContain('mailto:');
+    expect(clickedHref).toContain('john%40example.com');
   });
 });

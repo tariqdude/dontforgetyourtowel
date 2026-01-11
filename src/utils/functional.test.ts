@@ -393,7 +393,9 @@ describe('Functional Programming Utilities', () => {
       expect(fn).toHaveBeenCalledTimes(2);
     });
 
-    it('should debounce', async () => {
+    it('should debounce', () => {
+      vi.useFakeTimers();
+
       const fn = vi.fn();
       const debounced = debounce(fn, 50);
 
@@ -403,11 +405,19 @@ describe('Functional Programming Utilities', () => {
 
       expect(fn).not.toHaveBeenCalled();
 
-      await new Promise(r => setTimeout(r, 100));
+      vi.advanceTimersByTime(49);
+      expect(fn).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(1);
       expect(fn).toHaveBeenCalledTimes(1);
+
+      vi.useRealTimers();
     });
 
-    it('should throttle', async () => {
+    it('should throttle', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(0));
+
       const fn = vi.fn();
       const throttled = throttle(fn, 50);
 
@@ -417,9 +427,12 @@ describe('Functional Programming Utilities', () => {
 
       expect(fn).toHaveBeenCalledTimes(1);
 
-      await new Promise(r => setTimeout(r, 100));
+      // After the wait window, the next call should be allowed.
+      vi.advanceTimersByTime(51);
       throttled();
       expect(fn).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
     });
 
     it('should call once', () => {

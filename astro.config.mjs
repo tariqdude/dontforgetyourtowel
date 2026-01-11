@@ -40,7 +40,14 @@ export default defineConfig({
       applyBaseStyles: false,
       configFile: './tailwind.config.ts',
     }),
-    preact(),
-    solid(),
+    // Avoid ambiguous JSX renderer selection when multiple frameworks are enabled.
+    // We intentionally keep both integrations, but scope them to distinct directories.
+    preact({
+      include: ['src/components/**/*.jsx', 'src/components/**/*.tsx'],
+      exclude: ['src/components/solid/**'],
+    }),
+    solid({
+      include: ['src/components/solid/**/*'],
+    }),
   ],
 });

@@ -181,7 +181,13 @@ ${message}`;
       const mailtoLink = `mailto:${encodeURIComponent(CONTACT_EMAIL)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
       // Open mailto
-      window.location.href = mailtoLink;
+      const mailtoAnchor = document.createElement('a');
+      mailtoAnchor.href = mailtoLink;
+      mailtoAnchor.rel = 'noreferrer';
+      mailtoAnchor.style.display = 'none';
+      document.body.appendChild(mailtoAnchor);
+      mailtoAnchor.click();
+      mailtoAnchor.remove();
 
       // Show success notification using our store
       notify.success('Opening your email client...');

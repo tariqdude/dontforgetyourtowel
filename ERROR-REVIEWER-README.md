@@ -279,44 +279,31 @@ jobs:
 
 ## 🔧 Configuration
 
-Create `.error-reviewer.js` in your project root:
+The CLI loads configuration from a JSON file named `.analyzer.json` in your project root.
 
-```javascript
-module.exports = {
-  errorReviewer: {
-    // File patterns
-    ignore: ['node_modules', 'dist', '.astro'],
-    include: ['**/*.{ts,tsx,js,jsx,astro,vue,svelte}'],
+This file is **optional** and can be **partial**—any omitted fields fall back to defaults defined by the analyzer schema.
 
-    // Analysis configuration
-    frameworks: ['astro', 'react', 'vue', 'svelte'],
-    enabledCheckers: [
-      'syntax',
-      'types',
-      'security',
-      'performance',
-      'accessibility',
-      'seo',
-      'git',
-      'deployment',
-    ],
+### Minimal `.analyzer.json`
 
-    // Thresholds
-    severityThreshold: 'low',
-    complexityThreshold: 15,
-    duplicateThreshold: 3,
-
-    // Integrations
-    githubIntegration: true,
-    deploymentChecks: true,
-    autoFix: false,
-
-    // Output
-    outputFormat: 'terminal',
-    verbose: false,
-  },
-};
+```json
+{
+  "ignore": [
+    "**/node_modules/**",
+    "**/.git/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/.astro/**"
+  ],
+  "include": ["**/*.{ts,tsx,js,jsx,astro,vue,svelte,md,mdx}"]
+}
 ```
+
+### Full configuration (optional)
+
+You can also provide any of the supported fields (e.g. `enabledAnalyzers`, `severityThreshold`, `outputFormat`, `enableCache`, etc.).
+CLI flags override config values.
+
+For the authoritative list of supported keys and defaults, see the schema in `src/config/schema.ts`.
 
 ## 🎯 Best Practices
 

@@ -6,6 +6,45 @@ import { logger } from './logger';
 
 const execPromise = promisify(exec);
 
+/**
+ * Some commands (notably `astro build`) are not safe to run concurrently against
+ * the same project output directories on all platforms.
+ *
+ * The analyzer runs multiple modules in parallel; several of those modules can
+ * trigger builds (e.g. deployment readiness + bundle dry-run). On Windows this
+ * can intermittently fail with missing build artifacts like `dist/renderers.mjs`.
+ *
+ * To keep analysis deterministic, we serialize Astro builds within this process.
+ */
+const ASTRO_BUILD_LOCK_RE = /\bastro\s+build\b/i;
+
+function isAstroBuildCommand(command: string): boolean {
+  const trimmed = command.trim();
+  return trimmed === 'npm run build' || ASTRO_BUILD_LOCK_RE.test(trimmed);
+}
+
+let astroBuildQueue: Promise<void> = Promise.resolve();
+
+async function withAstroBuildLock<T>(
+  command: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  const previous = astroBuildQueue;
+  let release: () => void;
+  astroBuildQueue = new Promise<void>(resolve => {
+    release = resolve;
+  });
+
+  await previous;
+  logger.debug('Acquired Astro build lock', { command });
+  try {
+    return await fn();
+  } finally {
+    release!();
+    logger.debug('Released Astro build lock', { command });
+  }
+}
+
 interface CommandResult {
   stdout: string;
   stderr: string;
@@ -41,6 +80,23 @@ const sleep = (ms: number): Promise<void> =>
  * Execute a command with retry support and enhanced error handling
  */
 export async function executeCommand(
+  command: string,
+  options: CommandOptions = {}
+): Promise<CommandResult> {
+  if (isAstroBuildCommand(command)) {
+    return withAstroBuildLock(command, () =>
+      executeCommandInternal(command, options)
+    );
+  }
+
+  return executeCommandInternal(command, options);
+}
+
+/**
+ * Internal implementation of executeCommand.
+ * Exported wrapper may apply process-local locks for certain commands.
+ */
+async function executeCommandInternal(
   command: string,
   options: CommandOptions = {}
 ): Promise<CommandResult> {
