@@ -17,6 +17,7 @@ class EnhancedHeader {
   private header: HTMLElement | null;
   private focusTrap: ReturnType<typeof createFocusTrap> | null = null;
   private cleanupFunctions: (() => void)[] = [];
+  private scrollYBeforeOpen = 0;
 
   constructor() {
     this.toggle = document.getElementById(
@@ -125,8 +126,12 @@ class EnhancedHeader {
           }
 
           // Optional: Hide header on scroll down, show on scroll up
-          if (y > lastScrollY && y > 100) {
-            this.header!.classList.add('header-hidden');
+          if (!this.isMenuOpen()) {
+            if (y > lastScrollY && y > 100) {
+              this.header!.classList.add('header-hidden');
+            } else {
+              this.header!.classList.remove('header-hidden');
+            }
           } else {
             this.header!.classList.remove('header-hidden');
           }
@@ -153,6 +158,8 @@ class EnhancedHeader {
     this.menu!.removeAttribute('hidden');
     this.toggle!.setAttribute('aria-expanded', 'true');
 
+    this.lockScroll();
+
     // Create focus trap for accessibility
     this.focusTrap = createFocusTrap(this.menu!, {
       escapeDeactivates: true,
@@ -173,6 +180,8 @@ class EnhancedHeader {
   private closeMenu(): void {
     this.menu!.setAttribute('hidden', '');
     this.toggle!.setAttribute('aria-expanded', 'false');
+
+    this.unlockScroll();
 
     // Deactivate focus trap
     if (this.focusTrap) {
@@ -195,6 +204,42 @@ class EnhancedHeader {
     if (this.focusTrap) {
       this.focusTrap.deactivate();
       this.focusTrap = null;
+    }
+
+    this.unlockScroll();
+  }
+
+  private isMenuOpen(): boolean {
+    return !!this.menu && !this.menu.hasAttribute('hidden');
+  }
+
+  private lockScroll(): void {
+    // iOS-friendly scroll lock: fix the body and restore position on close.
+    // Keeps the background from scrolling behind an open mobile menu.
+    this.scrollYBeforeOpen = window.scrollY || 0;
+
+    document.body.classList.add('mobile-menu-open');
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${this.scrollYBeforeOpen}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    document.body.style.width = '100%';
+  }
+
+  private unlockScroll(): void {
+    if (!document.body.classList.contains('mobile-menu-open')) return;
+
+    document.body.classList.remove('mobile-menu-open');
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.left = '';
+    document.body.style.right = '';
+    document.body.style.width = '';
+
+    const userAgent = window.navigator?.userAgent ?? '';
+    const isJsdom = userAgent.toLowerCase().includes('jsdom');
+    if (!isJsdom && typeof window.scrollTo === 'function') {
+      window.scrollTo(0, this.scrollYBeforeOpen);
     }
   }
 }

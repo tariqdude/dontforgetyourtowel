@@ -72,11 +72,14 @@ describe('EnhancedHeader', () => {
     toggle.click();
     expect(menu.hasAttribute('hidden')).toBe(false);
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(document.body.classList.contains('mobile-menu-open')).toBe(true);
+    expect(document.body.style.position).toBe('fixed');
 
     // Close
     toggle.click();
     expect(menu.hasAttribute('hidden')).toBe(true);
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(document.body.classList.contains('mobile-menu-open')).toBe(false);
   });
 
   it('should close menu when clicking a link inside', () => {
