@@ -9,6 +9,9 @@ type CartLine = {
 };
 
 type CheckoutStep = 'cart' | 'shipping' | 'payment' | 'confirm';
+type ViewMode = 'grid' | 'list';
+type Currency = 'USD' | 'EUR';
+type ShippingMethod = 'standard' | 'express';
 
 type DemoFlags = {
   reducedMotion: boolean;
@@ -16,18 +19,23 @@ type DemoFlags = {
   paused: boolean;
 };
 
-const CART_STORAGE_KEY = 'demo-lab:ecommerce-cart:v1';
-const PREFS_STORAGE_KEY = 'demo-lab:ecommerce-prefs:v1';
+type Prefs = {
+  tags: string[];
+  sort: 'featured' | 'price-asc' | 'price-desc';
+  view: ViewMode;
+  currency: Currency;
+  priceMinCents?: number;
+  priceMaxCents?: number;
+  wishlist: string[];
+  recent: string[];
+  shippingMethod: ShippingMethod;
+};
+
+const CART_STORAGE_KEY = 'demo-shop:ecommerce-cart:v1';
+const PREFS_STORAGE_KEY = 'demo-shop:ecommerce-prefs:v2';
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
-}
-
-function formatMoney(cents: number) {
-  return (cents / 100).toLocaleString(undefined, {
-    style: 'currency',
-    currency: 'USD',
-  });
 }
 
 function getDemoFlags(): DemoFlags {
@@ -58,7 +66,8 @@ function useBodyScrollLock(locked: boolean) {
     const prevPaddingRight = document.body.style.paddingRight;
 
     // Avoid layout shift when scrollbar disappears.
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    const scrollbarWidth =
+      window.innerWidth - document.documentElement.clientWidth;
     if (scrollbarWidth > 0) {
       document.body.style.paddingRight = `${scrollbarWidth}px`;
     }
@@ -78,10 +87,15 @@ function getFocusableElements(root: HTMLElement): HTMLElement[] {
   const nodes = root.querySelectorAll<HTMLElement>(
     'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
   );
-  return Array.from(nodes).filter(el => !el.hasAttribute('disabled') && !el.getAttribute('aria-hidden'));
+  return Array.from(nodes).filter(
+    el => !el.hasAttribute('disabled') && !el.getAttribute('aria-hidden')
+  );
 }
 
-function useFocusTrap(enabled: boolean, dialogRef: { current: HTMLElement | null }) {
+function useFocusTrap(
+  enabled: boolean,
+  dialogRef: { current: HTMLElement | null }
+) {
   useEffect(() => {
     if (!enabled) return;
     const dialog = dialogRef.current;
@@ -122,7 +136,6 @@ function useFocusTrap(enabled: boolean, dialogRef: { current: HTMLElement | null
 
 function vibrateLight() {
   try {
-    // Small haptic hint on supported devices.
     navigator.vibrate?.(8);
   } catch {
     // ignore
@@ -143,9 +156,20 @@ function computeSubtotal(lines: CartLine[]) {
   return lines.reduce((sum, l) => sum + computeLineTotal(l), 0);
 }
 
-function computeShipping(subtotalCents: number) {
-  // A realistic demo rule: free over $100.
-  return subtotalCents >= 10000 ? 0 : 995;
+function computeShipping(args: {
+  subtotalCents: number;
+  method: ShippingMethod;
+  freeShipping: boolean;
+}) {
+  if (args.freeShipping) return 0;
+
+  // Standard shipping: free over $100, otherwise $9.95
+  if (args.method === 'standard') {
+    return args.subtotalCents >= 10000 ? 0 : 995;
+  }
+
+  // Express: fixed for demo.
+  return 1995;
 }
 
 function computeTax(subtotalCents: number) {
@@ -164,7 +188,10 @@ function Rating({ value }: { value: number }) {
   ];
 
   return (
-    <span class="inline-flex items-center gap-1" aria-label={`${value.toFixed(1)} out of 5 stars`}>
+    <span
+      class="inline-flex items-center gap-1"
+      aria-label={`${value.toFixed(1)} out of 5 stars`}
+    >
       {stars.map((t, i) => (
         <span key={`${t}-${i}`} aria-hidden="true" class="text-yellow-300/90">
           {t === 'full' ? '★' : t === 'half' ? '⯪' : '☆'}
@@ -174,7 +201,15 @@ function Rating({ value }: { value: number }) {
   );
 }
 
-function Swatch({ color, selected, onSelect }: { color: { id: string; label: string; swatch?: string }; selected: boolean; onSelect: () => void }) {
+function Swatch({
+  color,
+  selected,
+  onSelect,
+}: {
+  color: { id: string; label: string; swatch?: string };
+  selected: boolean;
+  onSelect: () => void;
+}) {
   return (
     <button
       type="button"
@@ -197,7 +232,15 @@ function Swatch({ color, selected, onSelect }: { color: { id: string; label: str
   );
 }
 
-function Chip({ label, selected, onToggle }: { label: string; selected: boolean; onToggle: () => void }) {
+function Chip({
+  label,
+  selected,
+  onToggle,
+}: {
+  label: string;
+  selected: boolean;
+  onToggle: () => void;
+}) {
   return (
     <button
       type="button"
@@ -215,18 +258,42 @@ function Chip({ label, selected, onToggle }: { label: string; selected: boolean;
 }
 
 export default function EcommerceShowcase() {
-  const [flags, setFlags] = useState<DemoFlags>({ reducedMotion: false, perfMode: false, paused: false });
+  const [flags, setFlags] = useState<DemoFlags>({
+    reducedMotion: false,
+    perfMode: false,
+    paused: false,
+  });
 
-  const [fuse, setFuse] = useState<import('fuse.js').default<DemoProduct> | null>(
-    null
-  );
+  const [fuse, setFuse] = useState<
+    import('fuse.js').default<DemoProduct> | null
+  >(null);
 
   const [query, setQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [sort, setSort] = useState<'featured' | 'price-asc' | 'price-desc'>('featured');
+  const [sort, setSort] = useState<'featured' | 'price-asc' | 'price-desc'>(
+    'featured'
+  );
+  const [view, setView] = useState<ViewMode>('grid');
+  const [currency, setCurrency] = useState<Currency>('USD');
+
+  const allPrices = useMemo(
+    () => demoProducts.map(p => p.priceCents).sort((a, b) => a - b),
+    []
+  );
+  const priceFloor = allPrices[0] ?? 0;
+  const priceCeil = allPrices[allPrices.length - 1] ?? 0;
+  const [priceMinCents, setPriceMinCents] = useState(priceFloor);
+  const [priceMaxCents, setPriceMaxCents] = useState(priceCeil);
+
+  const [wishlist, setWishlist] = useState<string[]>([]);
+  const [recent, setRecent] = useState<string[]>([]);
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [compareOpen, setCompareOpen] = useState(false);
 
   const [cartOpen, setCartOpen] = useState(false);
-  const [quickViewProductId, setQuickViewProductId] = useState<string | null>(null);
+  const [quickViewProductId, setQuickViewProductId] = useState<string | null>(
+    null
+  );
   const [quickViewImageIndex, setQuickViewImageIndex] = useState(0);
   const [quickViewColorId, setQuickViewColorId] = useState<string>('');
   const [quickViewSizeId, setQuickViewSizeId] = useState<string>('');
@@ -234,26 +301,43 @@ export default function EcommerceShowcase() {
   const [cartLines, setCartLines] = useState<CartLine[]>([]);
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>('cart');
   const [promoCode, setPromoCode] = useState('');
+  const [shippingMethod, setShippingMethod] =
+    useState<ShippingMethod>('standard');
+  const [shippingZip, setShippingZip] = useState('');
+
+  const [toast, setToast] = useState<string | null>(null);
 
   const cartDialogRef = useRef<HTMLDivElement | null>(null);
   const quickViewDialogRef = useRef<HTMLDivElement | null>(null);
+  const compareDialogRef = useRef<HTMLDivElement | null>(null);
+  const searchRef = useRef<HTMLInputElement | null>(null);
 
-  useBodyScrollLock(cartOpen || quickViewProductId !== null);
+  useBodyScrollLock(cartOpen || quickViewProductId !== null || compareOpen);
   useFocusTrap(cartOpen, cartDialogRef);
   useFocusTrap(quickViewProductId !== null, quickViewDialogRef);
+  useFocusTrap(compareOpen, compareDialogRef);
 
   // Load persisted state once.
   useEffect(() => {
-    const savedCart = safeParseJson<CartLine[]>(localStorage.getItem(CART_STORAGE_KEY));
+    const savedCart = safeParseJson<CartLine[]>(
+      localStorage.getItem(CART_STORAGE_KEY)
+    );
     if (Array.isArray(savedCart)) {
       setCartLines(savedCart);
     }
 
-    const prefs = safeParseJson<{ tags: string[]; sort: typeof sort }>(
-      localStorage.getItem(PREFS_STORAGE_KEY)
-    );
+    const prefs = safeParseJson<Prefs>(localStorage.getItem(PREFS_STORAGE_KEY));
     if (prefs?.tags) setSelectedTags(prefs.tags);
     if (prefs?.sort) setSort(prefs.sort);
+    if (prefs?.view) setView(prefs.view);
+    if (prefs?.currency) setCurrency(prefs.currency);
+    if (typeof prefs?.priceMinCents === 'number')
+      setPriceMinCents(prefs.priceMinCents);
+    if (typeof prefs?.priceMaxCents === 'number')
+      setPriceMaxCents(prefs.priceMaxCents);
+    if (Array.isArray(prefs?.wishlist)) setWishlist(prefs.wishlist);
+    if (Array.isArray(prefs?.recent)) setRecent(prefs.recent);
+    if (prefs?.shippingMethod) setShippingMethod(prefs.shippingMethod);
   }, []);
 
   // Persist cart.
@@ -268,11 +352,34 @@ export default function EcommerceShowcase() {
   // Persist preferences.
   useEffect(() => {
     try {
-      localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify({ tags: selectedTags, sort }));
+      localStorage.setItem(
+        PREFS_STORAGE_KEY,
+        JSON.stringify({
+          tags: selectedTags,
+          sort,
+          view,
+          currency,
+          priceMinCents,
+          priceMaxCents,
+          wishlist,
+          recent,
+          shippingMethod,
+        } satisfies Prefs)
+      );
     } catch {
       // ignore
     }
-  }, [selectedTags, sort]);
+  }, [
+    selectedTags,
+    sort,
+    view,
+    currency,
+    priceMinCents,
+    priceMaxCents,
+    wishlist,
+    recent,
+    shippingMethod,
+  ]);
 
   // Track demo-lab flags (pause / reduced motion / perf).
   useEffect(() => {
@@ -280,10 +387,71 @@ export default function EcommerceShowcase() {
     update();
 
     const observer = new MutationObserver(() => update());
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-demo-paused', 'data-demo-reduced-motion', 'data-demo-perf'] });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: [
+        'data-demo-paused',
+        'data-demo-reduced-motion',
+        'data-demo-perf',
+      ],
+    });
 
     return () => observer.disconnect();
   }, []);
+
+  // Toast auto-dismiss.
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 1800);
+    return () => window.clearTimeout(t);
+  }, [toast]);
+
+  // Keyboard shortcuts: '/' focuses search, 'c' opens cart, Esc closes overlays.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      const isTypingField =
+        tag === 'input' ||
+        tag === 'textarea' ||
+        (target as HTMLElement | null)?.isContentEditable;
+
+      if (e.key === 'Escape') {
+        if (quickViewProductId) {
+          e.preventDefault();
+          setQuickViewProductId(null);
+          return;
+        }
+        if (compareOpen) {
+          e.preventDefault();
+          setCompareOpen(false);
+          return;
+        }
+        if (cartOpen) {
+          e.preventDefault();
+          setCartOpen(false);
+        }
+        return;
+      }
+
+      if (isTypingField) return;
+
+      if (e.key === '/') {
+        e.preventDefault();
+        searchRef.current?.focus?.();
+      }
+
+      if (e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        setCartOpen(true);
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [cartOpen, compareOpen, quickViewProductId]);
 
   const allTags = useMemo(() => {
     const tags = new Set<string>();
@@ -314,14 +482,20 @@ export default function EcommerceShowcase() {
     };
 
     const w = window as Window & {
-      requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => number;
+      requestIdleCallback?: (
+        cb: () => void,
+        opts?: { timeout?: number }
+      ) => number;
       cancelIdleCallback?: (handle: number) => void;
     };
 
     if (typeof w.requestIdleCallback === 'function') {
-      const id = w.requestIdleCallback(() => {
-        void loadFuse();
-      }, { timeout: 1200 });
+      const id = w.requestIdleCallback(
+        () => {
+          void loadFuse();
+        },
+        { timeout: 1200 }
+      );
       return () => {
         active = false;
         w.cancelIdleCallback?.(id);
@@ -346,7 +520,8 @@ export default function EcommerceShowcase() {
         ? fuse.search(normalizedQuery).map(r => r.item)
         : normalizedQuery.length >= 2
           ? demoProducts.filter(p => {
-              const hay = `${p.name} ${p.brand} ${p.description} ${p.tags.join(' ')}`.toLowerCase();
+              const hay =
+                `${p.name} ${p.brand} ${p.description} ${p.tags.join(' ')}`.toLowerCase();
               return hay.includes(normalizedQuery.toLowerCase());
             })
           : demoProducts;
@@ -355,21 +530,42 @@ export default function EcommerceShowcase() {
       ? base.filter(p => selectedTags.every(t => p.tags.includes(t)))
       : base;
 
-    const sorted = [...tagFiltered];
+    const priceFiltered = tagFiltered.filter(
+      p => p.priceCents >= priceMinCents && p.priceCents <= priceMaxCents
+    );
+
+    const sorted = [...priceFiltered];
     sorted.sort((a, b) => {
       if (sort === 'price-asc') return a.priceCents - b.priceCents;
       if (sort === 'price-desc') return b.priceCents - a.priceCents;
       // featured first, then rating.
-      return Number(Boolean(b.featured)) - Number(Boolean(a.featured)) || b.rating - a.rating;
+      return (
+        Number(Boolean(b.featured)) - Number(Boolean(a.featured)) ||
+        b.rating - a.rating
+      );
     });
 
     return sorted;
-  }, [fuse, query, selectedTags, sort]);
+  }, [fuse, query, selectedTags, sort, priceMinCents, priceMaxCents]);
 
-  const cartCount = useMemo(() => cartLines.reduce((sum, l) => sum + l.qty, 0), [cartLines]);
+  const cartCount = useMemo(
+    () => cartLines.reduce((sum, l) => sum + l.qty, 0),
+    [cartLines]
+  );
 
   const subtotalCents = useMemo(() => computeSubtotal(cartLines), [cartLines]);
-  const shippingCents = useMemo(() => computeShipping(subtotalCents), [subtotalCents]);
+  const hasShipFreePromo = useMemo(() => {
+    const normalized = promoCode.trim().toUpperCase();
+    return normalized === 'SHIPFREE';
+  }, [promoCode]);
+
+  const shippingCents = useMemo(() => {
+    return computeShipping({
+      subtotalCents,
+      method: shippingMethod,
+      freeShipping: hasShipFreePromo,
+    });
+  }, [subtotalCents, shippingMethod, hasShipFreePromo]);
   const taxCents = useMemo(() => computeTax(subtotalCents), [subtotalCents]);
 
   const promoDiscountCents = useMemo(() => {
@@ -377,15 +573,53 @@ export default function EcommerceShowcase() {
     if (!normalized) return 0;
     // Demo promo: 10% off.
     if (normalized === 'WOW10') return Math.round(subtotalCents * 0.1);
+    if (normalized === 'VIP20')
+      return Math.min(2500, Math.round(subtotalCents * 0.2));
     return 0;
   }, [promoCode, subtotalCents]);
 
   const totalCents = useMemo(() => {
-    return Math.max(0, subtotalCents - promoDiscountCents) + shippingCents + taxCents;
+    return (
+      Math.max(0, subtotalCents - promoDiscountCents) + shippingCents + taxCents
+    );
   }, [subtotalCents, promoDiscountCents, shippingCents, taxCents]);
 
+  const money = useMemo(() => {
+    // Fixed demo conversion (not a live rate).
+    const rate = currency === 'EUR' ? 0.92 : 1;
+    const fmt = new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: 2,
+    });
+
+    return (cents: number) => fmt.format((cents / 100) * rate);
+  }, [currency]);
+
   function toggleTag(tag: string) {
-    setSelectedTags(prev => (prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]));
+    setSelectedTags(prev =>
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
+  }
+
+  function toggleWishlist(productId: string) {
+    setWishlist(prev =>
+      prev.includes(productId)
+        ? prev.filter(id => id !== productId)
+        : [...prev, productId]
+    );
+    vibrateLight();
+  }
+
+  function toggleCompare(productId: string) {
+    setCompareIds(prev => {
+      if (prev.includes(productId)) return prev.filter(id => id !== productId);
+      if (prev.length >= 3) {
+        setToast('Compare supports up to 3 items.');
+        return prev;
+      }
+      return [...prev, productId];
+    });
   }
 
   function openQuickView(product: DemoProduct) {
@@ -393,6 +627,11 @@ export default function EcommerceShowcase() {
     setQuickViewImageIndex(0);
     setQuickViewColorId(product.colors[0]?.id ?? '');
     setQuickViewSizeId(product.sizes[0]?.id ?? '');
+
+    setRecent(prev => {
+      const next = [product.id, ...prev.filter(id => id !== product.id)];
+      return next.slice(0, 8);
+    });
   }
 
   function closeQuickView() {
@@ -400,17 +639,29 @@ export default function EcommerceShowcase() {
     setCheckoutStep('cart');
   }
 
-  function addToCart(product: DemoProduct, opts?: { colorId?: string; sizeId?: string; qty?: number }) {
+  function addToCart(
+    product: DemoProduct,
+    opts?: { colorId?: string; sizeId?: string; qty?: number }
+  ) {
     const colorId = opts?.colorId ?? product.colors[0]?.id ?? 'default';
     const sizeId = opts?.sizeId ?? product.sizes[0]?.id ?? 'default';
     const qty = clamp(opts?.qty ?? 1, 1, 99);
 
     setCartLines(prev => {
-      const index = prev.findIndex(l => l.productId === product.id && l.colorId === colorId && l.sizeId === sizeId);
-      if (index === -1) return [...prev, { productId: product.id, qty, colorId, sizeId }];
+      const index = prev.findIndex(
+        l =>
+          l.productId === product.id &&
+          l.colorId === colorId &&
+          l.sizeId === sizeId
+      );
+      if (index === -1)
+        return [...prev, { productId: product.id, qty, colorId, sizeId }];
 
       const next = [...prev];
-      next[index] = { ...next[index], qty: clamp(next[index].qty + qty, 1, 99) };
+      next[index] = {
+        ...next[index],
+        qty: clamp(next[index].qty + qty, 1, 99),
+      };
       return next;
     });
 
@@ -444,7 +695,11 @@ export default function EcommerceShowcase() {
   }
 
   // Swipe handling for image carousel.
-  const swipe = useRef<{ startX: number; startY: number; active: boolean } | null>(null);
+  const swipe = useRef<{
+    startX: number;
+    startY: number;
+    active: boolean;
+  } | null>(null);
   function onPointerDown(e: PointerEvent) {
     if (flags.paused) return;
     swipe.current = { startX: e.clientX, startY: e.clientY, active: true };
@@ -465,7 +720,26 @@ export default function EcommerceShowcase() {
     }
   }
 
-  const quickViewProduct = quickViewProductId ? getProductById(quickViewProductId) : undefined;
+  const quickViewProduct = quickViewProductId
+    ? getProductById(quickViewProductId)
+    : undefined;
+
+  const compareProducts = useMemo(
+    () =>
+      compareIds.map(id => getProductById(id)).filter(Boolean) as DemoProduct[],
+    [compareIds]
+  );
+
+  const wishlistProducts = useMemo(
+    () =>
+      wishlist.map(id => getProductById(id)).filter(Boolean) as DemoProduct[],
+    [wishlist]
+  );
+
+  const recentProducts = useMemo(
+    () => recent.map(id => getProductById(id)).filter(Boolean) as DemoProduct[],
+    [recent]
+  );
 
   return (
     <section
@@ -477,11 +751,16 @@ export default function EcommerceShowcase() {
       <div class="rounded-2xl border border-white/10 bg-zinc-950/40 p-5">
         <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div class="space-y-2">
-            <p class="font-mono text-xs uppercase tracking-widest text-zinc-400">E-commerce showcase</p>
-            <h3 class="font-display text-2xl font-semibold text-white">A full shopping flow — isolated to this page</h3>
+            <p class="font-mono text-xs uppercase tracking-widest text-zinc-400">
+              E-commerce showcase
+            </p>
+            <h3 class="font-display text-2xl font-semibold text-white">
+              A full shopping flow — isolated to this page
+            </h3>
             <p class="max-w-[80ch] text-sm leading-relaxed text-zinc-300">
-              Product search, filters, mobile-first gallery, quick view, cart, promo codes, and a simulated checkout.
-              Nothing here touches the rest of the site.
+              Search, filters, wishlist, compare, mobile-first gallery, quick
+              view, cart, promo codes, and a simulated checkout. Nothing here
+              touches the rest of the site.
             </p>
           </div>
 
@@ -494,8 +773,33 @@ export default function EcommerceShowcase() {
               aria-label={`Open cart (${cartCount} items)`}
             >
               Cart
-              <span class="ml-2 rounded-full bg-white/10 px-2 py-1 text-xs" aria-hidden="true">
+              <span
+                class="ml-2 rounded-full bg-white/10 px-2 py-1 text-xs"
+                aria-hidden="true"
+              >
                 {cartCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              class="min-h-touch inline-flex items-center justify-center rounded-lg border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-accent-400"
+              onClick={() => {
+                if (compareIds.length === 0) {
+                  setToast('Pick 1–3 items to compare.');
+                  return;
+                }
+                setCompareOpen(true);
+              }}
+              data-ecom="compare-open"
+              aria-label={`Open compare (${compareIds.length} selected)`}
+            >
+              Compare
+              <span
+                class="ml-2 rounded-full bg-white/10 px-2 py-1 text-xs"
+                aria-hidden="true"
+              >
+                {compareIds.length}
               </span>
             </button>
 
@@ -506,6 +810,8 @@ export default function EcommerceShowcase() {
                 setQuery('');
                 setSelectedTags([]);
                 setSort('featured');
+                setPriceMinCents(priceFloor);
+                setPriceMaxCents(priceCeil);
               }}
             >
               Reset
@@ -515,7 +821,9 @@ export default function EcommerceShowcase() {
 
         <div class="mt-5 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
           <div class="relative" role="search">
-            <label class="sr-only" htmlFor="demo-ecom-search">Search products</label>
+            <label class="sr-only" htmlFor="demo-ecom-search">
+              Search products
+            </label>
             <input
               id="demo-ecom-search"
               type="search"
@@ -524,7 +832,10 @@ export default function EcommerceShowcase() {
               placeholder="Search products, tags, materials…"
               aria-label="Search products"
               value={query}
-              onInput={e => setQuery((e.currentTarget as HTMLInputElement).value)}
+              onInput={e =>
+                setQuery((e.currentTarget as HTMLInputElement).value)
+              }
+              ref={searchRef}
               class="min-h-touch w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 pr-4 text-sm text-zinc-100 placeholder-zinc-500 outline-none transition focus:ring-2 focus:ring-accent-400"
               autoComplete="off"
               spellcheck={false}
@@ -532,101 +843,560 @@ export default function EcommerceShowcase() {
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
-            <label class="sr-only" for="demo-ecom-sort">Sort</label>
+            <label class="sr-only" for="demo-ecom-sort">
+              Sort
+            </label>
             <select
               id="demo-ecom-sort"
               class="min-h-touch rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-zinc-100 outline-none focus:ring-2 focus:ring-accent-400"
               value={sort}
-              onChange={e => setSort((e.currentTarget as HTMLSelectElement).value as typeof sort)}
+              onChange={e =>
+                setSort(
+                  (e.currentTarget as HTMLSelectElement).value as typeof sort
+                )
+              }
             >
               <option value="featured">Featured</option>
               <option value="price-asc">Price: low to high</option>
               <option value="price-desc">Price: high to low</option>
             </select>
+
+            <label class="sr-only" for="demo-ecom-view">
+              View
+            </label>
+            <select
+              id="demo-ecom-view"
+              class="min-h-touch rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-zinc-100 outline-none focus:ring-2 focus:ring-accent-400"
+              value={view}
+              onChange={e =>
+                setView(
+                  (e.currentTarget as HTMLSelectElement).value as ViewMode
+                )
+              }
+              aria-label="View mode"
+            >
+              <option value="grid">Grid</option>
+              <option value="list">List</option>
+            </select>
+
+            <label class="sr-only" for="demo-ecom-currency">
+              Currency
+            </label>
+            <select
+              id="demo-ecom-currency"
+              class="min-h-touch rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-zinc-100 outline-none focus:ring-2 focus:ring-accent-400"
+              value={currency}
+              onChange={e =>
+                setCurrency(
+                  (e.currentTarget as HTMLSelectElement).value as Currency
+                )
+              }
+              aria-label="Currency"
+            >
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+            </select>
           </div>
         </div>
 
-        <div class="mt-4 flex gap-2 overflow-x-auto pb-2" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div class="mt-4 grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-4 md:grid-cols-2">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-widest text-zinc-400">
+              Price range
+            </p>
+            <div class="mt-2 grid gap-2">
+              <div class="flex items-center justify-between text-xs text-zinc-300">
+                <span>{money(priceMinCents)}</span>
+                <span>{money(priceMaxCents)}</span>
+              </div>
+              <div class="grid gap-2">
+                <label class="sr-only" htmlFor="demo-ecom-price-min">
+                  Minimum price
+                </label>
+                <input
+                  id="demo-ecom-price-min"
+                  type="range"
+                  min={priceFloor}
+                  max={priceCeil}
+                  step={100}
+                  value={priceMinCents}
+                  onInput={e => {
+                    const v = Number(
+                      (e.currentTarget as HTMLInputElement).value
+                    );
+                    setPriceMinCents(Math.min(v, priceMaxCents));
+                  }}
+                  class="w-full accent-[color:rgba(99,102,241,0.9)]"
+                  aria-label="Minimum price"
+                />
+                <label class="sr-only" htmlFor="demo-ecom-price-max">
+                  Maximum price
+                </label>
+                <input
+                  id="demo-ecom-price-max"
+                  type="range"
+                  min={priceFloor}
+                  max={priceCeil}
+                  step={100}
+                  value={priceMaxCents}
+                  onInput={e => {
+                    const v = Number(
+                      (e.currentTarget as HTMLInputElement).value
+                    );
+                    setPriceMaxCents(Math.max(v, priceMinCents));
+                  }}
+                  class="w-full accent-[color:rgba(99,102,241,0.9)]"
+                  aria-label="Maximum price"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-widest text-zinc-400">
+              Power tips
+            </p>
+            <ul class="mt-2 space-y-1 text-xs text-zinc-300">
+              <li>
+                <span class="font-mono text-zinc-200">/</span> focuses search
+              </li>
+              <li>
+                <span class="font-mono text-zinc-200">C</span> opens cart
+              </li>
+              <li>
+                <span class="font-mono text-zinc-200">Esc</span> closes panels
+              </li>
+              <li>
+                Promo codes: <span class="font-mono text-zinc-200">WOW10</span>,{' '}
+                <span class="font-mono text-zinc-200">VIP20</span>,{' '}
+                <span class="font-mono text-zinc-200">SHIPFREE</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div
+          class="mt-4 flex gap-2 overflow-x-auto pb-2"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
           {allTags.map(tag => (
-            <Chip key={tag} label={tag} selected={selectedTags.includes(tag)} onToggle={() => toggleTag(tag)} />
+            <Chip
+              key={tag}
+              label={tag}
+              selected={selectedTags.includes(tag)}
+              onToggle={() => toggleTag(tag)}
+            />
           ))}
         </div>
+
+        {wishlistProducts.length ? (
+          <div class="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
+            <p class="text-xs font-semibold uppercase tracking-widest text-zinc-400">
+              Wishlist
+            </p>
+            <div class="mt-3 flex gap-3 overflow-x-auto pb-2">
+              {wishlistProducts.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  class="min-h-touch flex shrink-0 items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-sm text-zinc-100 hover:bg-white/10"
+                  onClick={() => openQuickView(p)}
+                >
+                  <img
+                    src={p.images[0]}
+                    alt=""
+                    class="h-10 w-12 rounded-lg border border-white/10 object-cover"
+                    loading="lazy"
+                  />
+                  <span class="whitespace-nowrap font-semibold">{p.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {recentProducts.length ? (
+          <div class="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
+            <p class="text-xs font-semibold uppercase tracking-widest text-zinc-400">
+              Recently viewed
+            </p>
+            <div class="mt-3 flex gap-3 overflow-x-auto pb-2">
+              {recentProducts.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  class="min-h-touch flex shrink-0 items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-sm text-zinc-100 hover:bg-white/10"
+                  onClick={() => openQuickView(p)}
+                >
+                  <img
+                    src={p.images[0]}
+                    alt=""
+                    class="h-10 w-12 rounded-lg border border-white/10 object-cover"
+                    loading="lazy"
+                  />
+                  <span class="whitespace-nowrap font-semibold">{p.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
 
-      <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div
+        class={
+          view === 'grid'
+            ? 'mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3'
+            : 'mt-6 grid gap-4'
+        }
+      >
         {filteredProducts.map(product => (
-          <article key={product.id} class="rounded-2xl border border-white/10 bg-zinc-950/30 overflow-hidden">
-            <button
-              type="button"
-              class="block w-full text-left"
-              onClick={() => openQuickView(product)}
-              aria-label={`Open quick view: ${product.name}`}
-              data-ecom="product-open"
-              data-product-id={product.id}
-            >
-              <div class="relative">
-                <img
-                  src={product.images[0]}
-                  alt={`${product.name} hero`}
-                  loading="lazy"
-                  class="aspect-[4/3] w-full object-cover"
-                />
-                <div class="absolute left-3 top-3 flex flex-wrap gap-2">
-                  {product.tags.slice(0, 2).map(t => (
-                    <span key={t} class="rounded-full border border-white/10 bg-black/40 px-3 py-1 text-xs font-semibold text-zinc-200">
-                      {t}
-                    </span>
-                  ))}
+          <article
+            key={product.id}
+            class={
+              view === 'grid'
+                ? 'overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/30'
+                : 'overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/30 md:flex'
+            }
+          >
+            <div class={view === 'grid' ? '' : 'md:w-[320px]'}>
+              <button
+                type="button"
+                class="block w-full text-left"
+                onClick={() => openQuickView(product)}
+                aria-label={`Open quick view: ${product.name}`}
+                data-ecom="product-open"
+                data-product-id={product.id}
+              >
+                <div class="relative">
+                  <img
+                    src={product.images[0]}
+                    alt={`${product.name} hero`}
+                    loading="lazy"
+                    class={
+                      view === 'grid'
+                        ? 'aspect-[4/3] w-full object-cover'
+                        : 'aspect-[16/10] w-full object-cover'
+                    }
+                  />
+                  <div class="absolute left-3 top-3 flex flex-wrap gap-2">
+                    {product.tags.slice(0, 2).map(t => (
+                      <span
+                        key={t}
+                        class="rounded-full border border-white/10 bg-black/40 px-3 py-1 text-xs font-semibold text-zinc-200"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-              <div class="p-4 space-y-2">
+              </button>
+            </div>
+
+            <div class={view === 'grid' ? '' : 'md:flex-1'}>
+              <div class="space-y-2 p-4">
                 <div class="flex items-start justify-between gap-3">
                   <div>
                     <p class="text-xs text-zinc-400">{product.brand}</p>
-                    <h4 class="text-base font-semibold text-white">{product.name}</h4>
+                    <h4 class="text-base font-semibold text-white">
+                      {product.name}
+                    </h4>
                   </div>
                   <div class="text-right">
-                    <p class="text-sm font-semibold text-white">{formatMoney(product.priceCents)}</p>
+                    <p class="text-sm font-semibold text-white">
+                      {money(product.priceCents)}
+                    </p>
                     {product.compareAtCents ? (
-                      <p class="text-xs text-zinc-400 line-through">{formatMoney(product.compareAtCents)}</p>
+                      <p class="text-xs text-zinc-400 line-through">
+                        {money(product.compareAtCents)}
+                      </p>
                     ) : null}
                   </div>
                 </div>
 
-                <div class="flex items-center justify-between">
+                <div class="flex flex-wrap items-center justify-between gap-3">
                   <div class="flex items-center gap-2">
                     <Rating value={product.rating} />
-                    <span class="text-xs text-zinc-400">({product.reviewCount})</span>
+                    <span class="text-xs text-zinc-400">
+                      ({product.reviewCount})
+                    </span>
+                    {typeof product.inventory === 'number' ? (
+                      <span class="text-xs text-zinc-500">
+                        · {product.inventory} in stock
+                      </span>
+                    ) : null}
                   </div>
-                  <span class="text-xs text-zinc-400">Tap for details</span>
+
+                  <div class="flex items-center gap-2">
+                    <button
+                      type="button"
+                      class="min-h-touch min-w-touch rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-accent-400"
+                      onClick={e => {
+                        e.stopPropagation();
+                        toggleWishlist(product.id);
+                      }}
+                      aria-pressed={wishlist.includes(product.id)}
+                      aria-label={
+                        wishlist.includes(product.id)
+                          ? `Remove ${product.name} from wishlist`
+                          : `Add ${product.name} to wishlist`
+                      }
+                    >
+                      {wishlist.includes(product.id) ? '♥' : '♡'}
+                    </button>
+
+                    <button
+                      type="button"
+                      class={
+                        compareIds.includes(product.id)
+                          ? 'min-h-touch min-w-touch rounded-xl border border-accent-400 bg-accent-500/15 px-4 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-accent-400'
+                          : 'min-h-touch min-w-touch rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-accent-400'
+                      }
+                      onClick={e => {
+                        e.stopPropagation();
+                        toggleCompare(product.id);
+                      }}
+                      aria-pressed={compareIds.includes(product.id)}
+                      aria-label={
+                        compareIds.includes(product.id)
+                          ? `Remove ${product.name} from compare`
+                          : `Add ${product.name} to compare`
+                      }
+                      data-ecom="compare-toggle"
+                    >
+                      Compare
+                    </button>
+                  </div>
+                </div>
+
+                {view === 'list' ? (
+                  <p class="text-sm leading-relaxed text-zinc-300">
+                    {product.description}
+                  </p>
+                ) : null}
+              </div>
+
+              <div class="border-t border-white/10 p-4">
+                <div class="grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    class="min-h-touch w-full rounded-xl bg-accent-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-400"
+                    onClick={() => {
+                      addToCart(product);
+                      setCartOpen(true);
+                    }}
+                    data-ecom="add-to-cart"
+                    data-product-id={product.id}
+                  >
+                    Add to cart
+                  </button>
+                  <button
+                    type="button"
+                    class="min-h-touch w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-accent-400"
+                    onClick={() => openQuickView(product)}
+                  >
+                    Quick view
+                  </button>
                 </div>
               </div>
-            </button>
-
-            <div class="border-t border-white/10 p-4">
-              <button
-                type="button"
-                class="min-h-touch w-full rounded-xl bg-accent-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-400"
-                onClick={() => {
-                  addToCart(product);
-                  setCartOpen(true);
-                }}
-                data-ecom="add-to-cart"
-                data-product-id={product.id}
-              >
-                Add to cart
-              </button>
             </div>
           </article>
         ))}
       </div>
 
+      {/* Compare modal */}
+      {compareOpen ? (
+        <div class="fixed inset-0 z-[85]">
+          <div
+            class="absolute inset-0 bg-black/70"
+            onClick={() => setCompareOpen(false)}
+            aria-hidden="true"
+          />
+          <div
+            class="safe-area-inset-bottom absolute inset-x-0 bottom-0 max-h-[92vh] rounded-t-3xl border border-white/10 bg-zinc-950/95 md:inset-0 md:m-auto md:max-h-[84vh] md:w-[min(980px,92vw)] md:rounded-3xl"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Compare products"
+            ref={compareDialogRef}
+            data-ecom="compare"
+          >
+            <div class="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
+              <div>
+                <p class="text-base font-semibold text-white">Compare</p>
+                <p class="text-xs text-zinc-400">
+                  {compareProducts.length} selected
+                </p>
+              </div>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  class="min-h-touch rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-accent-400"
+                  onClick={() => setCompareIds([])}
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  class="min-h-touch min-w-touch rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-accent-400"
+                  onClick={() => setCompareOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+            <div class="max-h-[calc(92vh-72px)] overflow-y-auto px-5 py-5">
+              {compareProducts.length === 0 ? (
+                <div class="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-zinc-200">
+                  Select products with the “Compare” button.
+                </div>
+              ) : (
+                <div class="space-y-4">
+                  <div class="grid gap-3 md:grid-cols-3">
+                    {compareProducts.map(p => (
+                      <div
+                        key={p.id}
+                        class="rounded-2xl border border-white/10 bg-black/30 p-4"
+                      >
+                        <div class="flex items-start justify-between gap-3">
+                          <div>
+                            <p class="text-xs text-zinc-400">{p.brand}</p>
+                            <p class="text-base font-semibold text-white">
+                              {p.name}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            class="min-h-touch rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white hover:bg-white/10"
+                            onClick={() =>
+                              setCompareIds(prev =>
+                                prev.filter(id => id !== p.id)
+                              )
+                            }
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        <img
+                          src={p.images[0]}
+                          alt=""
+                          class="mt-3 aspect-[4/3] w-full rounded-xl border border-white/10 object-cover"
+                          loading="lazy"
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div class="rounded-2xl border border-white/10 bg-black/30 p-4">
+                    <div class="grid gap-3 md:grid-cols-3">
+                      <div class="text-xs font-semibold uppercase tracking-widest text-zinc-400">
+                        Price
+                      </div>
+                      {compareProducts.map(p => (
+                        <div
+                          key={`${p.id}-price`}
+                          class="text-sm text-zinc-100"
+                        >
+                          <span class="font-semibold">
+                            {money(p.priceCents)}
+                          </span>
+                          {p.compareAtCents ? (
+                            <span class="ml-2 text-xs text-zinc-500 line-through">
+                              {money(p.compareAtCents)}
+                            </span>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                    <div class="mt-3 grid gap-3 md:grid-cols-3">
+                      <div class="text-xs font-semibold uppercase tracking-widest text-zinc-400">
+                        Rating
+                      </div>
+                      {compareProducts.map(p => (
+                        <div
+                          key={`${p.id}-rating`}
+                          class="text-sm text-zinc-100"
+                        >
+                          <Rating value={p.rating} />
+                          <span class="ml-2 text-xs text-zinc-400">
+                            {p.reviewCount} reviews
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div class="mt-3 grid gap-3 md:grid-cols-3">
+                      <div class="text-xs font-semibold uppercase tracking-widest text-zinc-400">
+                        Highlights
+                      </div>
+                      {compareProducts.map(p => (
+                        <div
+                          key={`${p.id}-bullets`}
+                          class="text-sm text-zinc-200"
+                        >
+                          <ul class="space-y-1">
+                            {p.bullets.slice(0, 3).map(b => (
+                              <li key={b} class="flex gap-2">
+                                <span
+                                  aria-hidden="true"
+                                  class="text-accent-400"
+                                >
+                                  •
+                                </span>
+                                <span>{b}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+
+                    {compareProducts.some(p => p.specs) ? (
+                      <div class="mt-3 grid gap-3 md:grid-cols-3">
+                        <div class="text-xs font-semibold uppercase tracking-widest text-zinc-400">
+                          Specs
+                        </div>
+                        {compareProducts.map(p => (
+                          <div
+                            key={`${p.id}-specs`}
+                            class="text-sm text-zinc-200"
+                          >
+                            <ul class="space-y-1">
+                              {Object.entries(p.specs ?? {})
+                                .slice(0, 4)
+                                .map(([k, v]) => (
+                                  <li
+                                    key={k}
+                                    class="flex items-start justify-between gap-3"
+                                  >
+                                    <span class="text-zinc-400">{k}</span>
+                                    <span class="text-right text-zinc-100">
+                                      {v}
+                                    </span>
+                                  </li>
+                                ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {/* Quick view */}
       {quickViewProduct ? (
         <div class="fixed inset-0 z-[80]">
-          <div class="absolute inset-0 bg-black/70" onClick={closeQuickView} aria-hidden="true" />
           <div
-            class="absolute inset-x-0 bottom-0 max-h-[92vh] rounded-t-3xl border border-white/10 bg-zinc-950/95 safe-area-inset-bottom md:inset-0 md:m-auto md:max-h-[84vh] md:w-[min(980px,92vw)] md:rounded-3xl"
+            class="absolute inset-0 bg-black/70"
+            onClick={closeQuickView}
+            aria-hidden="true"
+          />
+          <div
+            class="safe-area-inset-bottom absolute inset-x-0 bottom-0 max-h-[92vh] rounded-t-3xl border border-white/10 bg-zinc-950/95 md:inset-0 md:m-auto md:max-h-[84vh] md:w-[min(980px,92vw)] md:rounded-3xl"
             role="dialog"
             aria-modal="true"
             aria-label={`${quickViewProduct.name} quick view`}
@@ -635,7 +1405,9 @@ export default function EcommerceShowcase() {
             <div class="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
               <div>
                 <p class="text-xs text-zinc-400">{quickViewProduct.brand}</p>
-                <p class="text-base font-semibold text-white">{quickViewProduct.name}</p>
+                <p class="text-base font-semibold text-white">
+                  {quickViewProduct.name}
+                </p>
               </div>
               <button
                 type="button"
@@ -650,8 +1422,12 @@ export default function EcommerceShowcase() {
               <div class="space-y-3">
                 <div
                   class="relative overflow-hidden rounded-2xl border border-white/10 bg-black/30"
-                  onPointerDown={e => onPointerDown(e as unknown as PointerEvent)}
-                  onPointerUp={e => onPointerUp(quickViewProduct, e as unknown as PointerEvent)}
+                  onPointerDown={e =>
+                    onPointerDown(e as unknown as PointerEvent)
+                  }
+                  onPointerUp={e =>
+                    onPointerUp(quickViewProduct, e as unknown as PointerEvent)
+                  }
                 >
                   <img
                     src={quickViewProduct.images[quickViewImageIndex]}
@@ -668,8 +1444,12 @@ export default function EcommerceShowcase() {
                     >
                       Prev
                     </button>
-                    <span class="rounded-full border border-white/10 bg-black/40 px-3 py-1 text-xs text-zinc-200" aria-hidden="true">
-                      {quickViewImageIndex + 1} / {quickViewProduct.images.length}
+                    <span
+                      class="rounded-full border border-white/10 bg-black/40 px-3 py-1 text-xs text-zinc-200"
+                      aria-hidden="true"
+                    >
+                      {quickViewImageIndex + 1} /{' '}
+                      {quickViewProduct.images.length}
                     </span>
                     <button
                       type="button"
@@ -691,7 +1471,12 @@ export default function EcommerceShowcase() {
                       onClick={() => setQuickViewImageIndex(i)}
                       aria-label={`View image ${i + 1}`}
                     >
-                      <img src={src} alt="" class="aspect-[4/3] w-full object-cover" loading="lazy" />
+                      <img
+                        src={src}
+                        alt=""
+                        class="aspect-[4/3] w-full object-cover"
+                        loading="lazy"
+                      />
                     </button>
                   ))}
                 </div>
@@ -702,14 +1487,22 @@ export default function EcommerceShowcase() {
                   <div class="space-y-1">
                     <div class="flex items-center gap-2">
                       <Rating value={quickViewProduct.rating} />
-                      <span class="text-xs text-zinc-400">{quickViewProduct.reviewCount} reviews</span>
+                      <span class="text-xs text-zinc-400">
+                        {quickViewProduct.reviewCount} reviews
+                      </span>
                     </div>
-                    <p class="text-sm text-zinc-300">{quickViewProduct.description}</p>
+                    <p class="text-sm text-zinc-300">
+                      {quickViewProduct.description}
+                    </p>
                   </div>
                   <div class="text-right">
-                    <p class="text-xl font-semibold text-white">{formatMoney(quickViewProduct.priceCents)}</p>
+                    <p class="text-xl font-semibold text-white">
+                      {money(quickViewProduct.priceCents)}
+                    </p>
                     {quickViewProduct.compareAtCents ? (
-                      <p class="text-xs text-zinc-400 line-through">{formatMoney(quickViewProduct.compareAtCents)}</p>
+                      <p class="text-xs text-zinc-400 line-through">
+                        {money(quickViewProduct.compareAtCents)}
+                      </p>
                     ) : null}
                   </div>
                 </div>
@@ -717,14 +1510,18 @@ export default function EcommerceShowcase() {
                 <ul class="space-y-2 text-sm text-zinc-300">
                   {quickViewProduct.bullets.map(b => (
                     <li key={b} class="flex gap-2">
-                      <span aria-hidden="true" class="text-accent-400">•</span>
+                      <span aria-hidden="true" class="text-accent-400">
+                        •
+                      </span>
                       <span>{b}</span>
                     </li>
                   ))}
                 </ul>
 
                 <div class="space-y-3">
-                  <p class="text-xs font-semibold uppercase tracking-widest text-zinc-400">Color</p>
+                  <p class="text-xs font-semibold uppercase tracking-widest text-zinc-400">
+                    Color
+                  </p>
                   <div class="flex flex-wrap gap-2">
                     {quickViewProduct.colors.map(c => (
                       <Swatch
@@ -738,7 +1535,9 @@ export default function EcommerceShowcase() {
                 </div>
 
                 <div class="space-y-3">
-                  <p class="text-xs font-semibold uppercase tracking-widest text-zinc-400">Size</p>
+                  <p class="text-xs font-semibold uppercase tracking-widest text-zinc-400">
+                    Size
+                  </p>
                   <div class="flex flex-wrap gap-2">
                     {quickViewProduct.sizes.map(s => (
                       <button
@@ -763,7 +1562,11 @@ export default function EcommerceShowcase() {
                     type="button"
                     class="min-h-touch rounded-xl bg-accent-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-400"
                     onClick={() => {
-                      addToCart(quickViewProduct, { colorId: quickViewColorId, sizeId: quickViewSizeId, qty: 1 });
+                      addToCart(quickViewProduct, {
+                        colorId: quickViewColorId,
+                        sizeId: quickViewSizeId,
+                        qty: 1,
+                      });
                       setCartOpen(true);
                       closeQuickView();
                     }}
@@ -782,8 +1585,36 @@ export default function EcommerceShowcase() {
                   </button>
                 </div>
 
+                <div class="grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    class="min-h-touch rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-accent-400"
+                    onClick={() => toggleWishlist(quickViewProduct.id)}
+                    aria-pressed={wishlist.includes(quickViewProduct.id)}
+                  >
+                    {wishlist.includes(quickViewProduct.id)
+                      ? '♥ Wishlisted'
+                      : '♡ Add to wishlist'}
+                  </button>
+                  <button
+                    type="button"
+                    class={
+                      compareIds.includes(quickViewProduct.id)
+                        ? 'min-h-touch rounded-xl border border-accent-400 bg-accent-500/15 px-4 py-3 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-accent-400'
+                        : 'min-h-touch rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-accent-400'
+                    }
+                    onClick={() => toggleCompare(quickViewProduct.id)}
+                    aria-pressed={compareIds.includes(quickViewProduct.id)}
+                  >
+                    {compareIds.includes(quickViewProduct.id)
+                      ? '✓ In compare'
+                      : 'Add to compare'}
+                  </button>
+                </div>
+
                 <p class="text-xs text-zinc-500">
-                  Demo checkout only. Use promo code <span class="font-mono text-zinc-300">WOW10</span>.
+                  Demo checkout only. Use promo code{' '}
+                  <span class="font-mono text-zinc-300">WOW10</span>.
                 </p>
               </div>
             </div>
@@ -794,9 +1625,13 @@ export default function EcommerceShowcase() {
       {/* Cart drawer / sheet */}
       {cartOpen ? (
         <div class="fixed inset-0 z-[90]">
-          <div class="absolute inset-0 bg-black/70" onClick={() => setCartOpen(false)} aria-hidden="true" />
           <div
-            class="absolute inset-x-0 bottom-0 max-h-[92vh] rounded-t-3xl border border-white/10 bg-zinc-950/95 safe-area-inset-bottom md:inset-y-0 md:right-0 md:left-auto md:w-[min(520px,92vw)] md:rounded-l-3xl md:rounded-tr-none"
+            class="absolute inset-0 bg-black/70"
+            onClick={() => setCartOpen(false)}
+            aria-hidden="true"
+          />
+          <div
+            class="safe-area-inset-bottom absolute inset-x-0 bottom-0 max-h-[92vh] rounded-t-3xl border border-white/10 bg-zinc-950/95 md:inset-y-0 md:left-auto md:right-0 md:w-[min(520px,92vw)] md:rounded-l-3xl md:rounded-tr-none"
             role="dialog"
             aria-modal="true"
             aria-label="Shopping cart"
@@ -806,7 +1641,9 @@ export default function EcommerceShowcase() {
             <div class="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
               <div>
                 <p class="text-base font-semibold text-white">Cart</p>
-                <p class="text-xs text-zinc-400">{cartCount} item{cartCount === 1 ? '' : 's'}</p>
+                <p class="text-xs text-zinc-400">
+                  {cartCount} item{cartCount === 1 ? '' : 's'}
+                </p>
               </div>
               <button
                 type="button"
@@ -822,7 +1659,8 @@ export default function EcommerceShowcase() {
                 <>
                   {cartLines.length === 0 ? (
                     <div class="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-zinc-200">
-                      Your cart is empty. Add a product to see the full checkout flow.
+                      Your cart is empty. Add a product to see the full checkout
+                      flow.
                     </div>
                   ) : (
                     <div class="space-y-4">
@@ -830,31 +1668,45 @@ export default function EcommerceShowcase() {
                         const product = getProductById(line.productId);
                         if (!product) return null;
 
-                        const color = product.colors.find(c => c.id === line.colorId);
-                        const size = product.sizes.find(s => s.id === line.sizeId);
+                        const color = product.colors.find(
+                          c => c.id === line.colorId
+                        );
+                        const size = product.sizes.find(
+                          s => s.id === line.sizeId
+                        );
 
                         return (
-                          <div key={`${line.productId}-${line.colorId}-${line.sizeId}`} class="rounded-2xl border border-white/10 bg-black/30 p-4">
+                          <div
+                            key={`${line.productId}-${line.colorId}-${line.sizeId}`}
+                            class="rounded-2xl border border-white/10 bg-black/30 p-4"
+                          >
                             <div class="flex gap-4">
                               <img
                                 src={product.images[0]}
                                 alt=""
-                                class="h-20 w-24 rounded-xl object-cover border border-white/10"
+                                class="h-20 w-24 rounded-xl border border-white/10 object-cover"
                                 loading="lazy"
                               />
                               <div class="flex-1">
                                 <div class="flex items-start justify-between gap-3">
                                   <div>
-                                    <p class="text-sm font-semibold text-white">{product.name}</p>
+                                    <p class="text-sm font-semibold text-white">
+                                      {product.name}
+                                    </p>
                                     <p class="mt-1 text-xs text-zinc-400">
-                                      {color?.label ?? 'Color'} · {size?.label ?? 'Size'}
+                                      {color?.label ?? 'Color'} ·{' '}
+                                      {size?.label ?? 'Size'}
                                     </p>
                                   </div>
-                                  <p class="text-sm font-semibold text-white">{formatMoney(product.priceCents * line.qty)}</p>
+                                  <p class="text-sm font-semibold text-white">
+                                    {money(product.priceCents * line.qty)}
+                                  </p>
                                 </div>
 
                                 <div class="mt-3 flex items-center justify-between gap-3">
-                                  <label class="sr-only" htmlFor={`qty-${idx}`}>Quantity</label>
+                                  <label class="sr-only" htmlFor={`qty-${idx}`}>
+                                    Quantity
+                                  </label>
                                   <input
                                     id={`qty-${idx}`}
                                     type="number"
@@ -863,7 +1715,15 @@ export default function EcommerceShowcase() {
                                     max={99}
                                     aria-label="Quantity"
                                     value={line.qty}
-                                    onInput={e => setLineQty(idx, Number((e.currentTarget as HTMLInputElement).value))}
+                                    onInput={e =>
+                                      setLineQty(
+                                        idx,
+                                        Number(
+                                          (e.currentTarget as HTMLInputElement)
+                                            .value
+                                        )
+                                      )
+                                    }
                                     class="min-h-touch w-24 rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-accent-400"
                                     data-ecom="qty"
                                   />
@@ -881,36 +1741,94 @@ export default function EcommerceShowcase() {
                         );
                       })}
 
-                      <div class="rounded-2xl border border-white/10 bg-black/30 p-4 space-y-3">
+                      <div class="space-y-3 rounded-2xl border border-white/10 bg-black/30 p-4">
                         <div class="flex items-center justify-between text-sm">
                           <span class="text-zinc-300">Subtotal</span>
-                          <span class="text-white font-semibold">{formatMoney(subtotalCents)}</span>
+                          <span class="font-semibold text-white">
+                            {money(subtotalCents)}
+                          </span>
                         </div>
                         <div class="flex items-center justify-between text-sm">
                           <span class="text-zinc-300">Promo</span>
-                          <span class="text-white font-semibold">-{formatMoney(promoDiscountCents)}</span>
+                          <span class="font-semibold text-white">
+                            -{money(promoDiscountCents)}
+                          </span>
+                        </div>
+                        <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                          <label
+                            class="sr-only"
+                            htmlFor="demo-ecom-shipping-method"
+                          >
+                            Shipping method
+                          </label>
+                          <select
+                            id="demo-ecom-shipping-method"
+                            class="min-h-touch rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-zinc-100 outline-none focus:ring-2 focus:ring-accent-400"
+                            value={shippingMethod}
+                            onChange={e =>
+                              setShippingMethod(
+                                (e.currentTarget as HTMLSelectElement)
+                                  .value as ShippingMethod
+                              )
+                            }
+                            aria-label="Shipping method"
+                          >
+                            <option value="standard">Standard</option>
+                            <option value="express">Express</option>
+                          </select>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="ZIP (estimator)"
+                            aria-label="ZIP code"
+                            value={shippingZip}
+                            onInput={e =>
+                              setShippingZip(
+                                (e.currentTarget as HTMLInputElement).value
+                              )
+                            }
+                            class="min-h-touch rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-zinc-100 placeholder-zinc-500 outline-none focus:ring-2 focus:ring-accent-400"
+                            autoComplete="postal-code"
+                          />
                         </div>
                         <div class="flex items-center justify-between text-sm">
                           <span class="text-zinc-300">Shipping</span>
-                          <span class="text-white font-semibold">{shippingCents === 0 ? 'Free' : formatMoney(shippingCents)}</span>
+                          <span class="font-semibold text-white">
+                            {shippingCents === 0
+                              ? 'Free'
+                              : money(shippingCents)}
+                          </span>
                         </div>
                         <div class="flex items-center justify-between text-sm">
                           <span class="text-zinc-300">Tax</span>
-                          <span class="text-white font-semibold">{formatMoney(taxCents)}</span>
+                          <span class="font-semibold text-white">
+                            {money(taxCents)}
+                          </span>
                         </div>
                         <div class="flex items-center justify-between border-t border-white/10 pt-3">
-                          <span class="text-sm font-semibold text-zinc-200">Total</span>
-                          <span class="text-lg font-semibold text-white" data-ecom="total">{formatMoney(totalCents)}</span>
+                          <span class="text-sm font-semibold text-zinc-200">
+                            Total
+                          </span>
+                          <span
+                            class="text-lg font-semibold text-white"
+                            data-ecom="total"
+                          >
+                            {money(totalCents)}
+                          </span>
                         </div>
 
                         <div class="grid gap-2 sm:grid-cols-2">
                           <input
                             type="text"
                             inputMode="text"
-                            placeholder="Promo code (WOW10)"
+                            placeholder="Promo code (WOW10 / VIP20 / SHIPFREE)"
                             aria-label="Promo code"
                             value={promoCode}
-                            onInput={e => setPromoCode((e.currentTarget as HTMLInputElement).value)}
+                            onInput={e =>
+                              setPromoCode(
+                                (e.currentTarget as HTMLInputElement).value
+                              )
+                            }
                             class="min-h-touch rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-zinc-100 placeholder-zinc-500 outline-none focus:ring-2 focus:ring-accent-400"
                           />
                           <button
@@ -940,12 +1858,40 @@ export default function EcommerceShowcase() {
                 <div class="space-y-4">
                   <p class="text-sm text-zinc-300">Shipping details (demo)</p>
                   <div class="grid gap-3">
-                    <input aria-label="Full name" class="min-h-touch rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-accent-400" placeholder="Full name" autoComplete="name" />
-                    <input aria-label="Email" class="min-h-touch rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-accent-400" placeholder="Email" type="email" inputMode="email" autoComplete="email" />
-                    <input aria-label="Address" class="min-h-touch rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-accent-400" placeholder="Address" autoComplete="street-address" />
+                    <input
+                      aria-label="Full name"
+                      class="min-h-touch rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-accent-400"
+                      placeholder="Full name"
+                      autoComplete="name"
+                    />
+                    <input
+                      aria-label="Email"
+                      class="min-h-touch rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-accent-400"
+                      placeholder="Email"
+                      type="email"
+                      inputMode="email"
+                      autoComplete="email"
+                    />
+                    <input
+                      aria-label="Address"
+                      class="min-h-touch rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-accent-400"
+                      placeholder="Address"
+                      autoComplete="street-address"
+                    />
                     <div class="grid grid-cols-2 gap-3">
-                      <input aria-label="City" class="min-h-touch rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-accent-400" placeholder="City" autoComplete="address-level2" />
-                      <input aria-label="ZIP" class="min-h-touch rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-accent-400" placeholder="ZIP" inputMode="numeric" autoComplete="postal-code" />
+                      <input
+                        aria-label="City"
+                        class="min-h-touch rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-accent-400"
+                        placeholder="City"
+                        autoComplete="address-level2"
+                      />
+                      <input
+                        aria-label="ZIP"
+                        class="min-h-touch rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-accent-400"
+                        placeholder="ZIP"
+                        inputMode="numeric"
+                        autoComplete="postal-code"
+                      />
                     </div>
                   </div>
 
@@ -972,10 +1918,28 @@ export default function EcommerceShowcase() {
                 <div class="space-y-4">
                   <p class="text-sm text-zinc-300">Payment (demo)</p>
                   <div class="grid gap-3">
-                    <input aria-label="Card number" class="min-h-touch rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-accent-400" placeholder="Card number" inputMode="numeric" autoComplete="cc-number" />
+                    <input
+                      aria-label="Card number"
+                      class="min-h-touch rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-accent-400"
+                      placeholder="Card number"
+                      inputMode="numeric"
+                      autoComplete="cc-number"
+                    />
                     <div class="grid grid-cols-2 gap-3">
-                      <input aria-label="Expiry date" class="min-h-touch rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-accent-400" placeholder="MM/YY" inputMode="numeric" autoComplete="cc-exp" />
-                      <input aria-label="Security code" class="min-h-touch rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-accent-400" placeholder="CVC" inputMode="numeric" autoComplete="cc-csc" />
+                      <input
+                        aria-label="Expiry date"
+                        class="min-h-touch rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-accent-400"
+                        placeholder="MM/YY"
+                        inputMode="numeric"
+                        autoComplete="cc-exp"
+                      />
+                      <input
+                        aria-label="Security code"
+                        class="min-h-touch rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-accent-400"
+                        placeholder="CVC"
+                        inputMode="numeric"
+                        autoComplete="cc-csc"
+                      />
                     </div>
                   </div>
 
@@ -1001,12 +1965,15 @@ export default function EcommerceShowcase() {
               {checkoutStep === 'confirm' ? (
                 <div class="space-y-4">
                   <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
-                    <p class="text-base font-semibold text-white">Order confirmed (demo)</p>
+                    <p class="text-base font-semibold text-white">
+                      Order confirmed (demo)
+                    </p>
                     <p class="mt-2 text-sm text-zinc-300">
                       This is a simulated checkout for demonstration purposes.
                     </p>
                     <p class="mt-3 text-sm text-zinc-200">
-                      Total charged: <span class="font-semibold">{formatMoney(totalCents)}</span>
+                      Total charged:{' '}
+                      <span class="font-semibold">{money(totalCents)}</span>
                     </p>
                   </div>
 
@@ -1042,6 +2009,14 @@ export default function EcommerceShowcase() {
           }
         `}
       </style>
+
+      {toast ? (
+        <div class="fixed bottom-6 left-0 right-0 z-[95] flex justify-center px-4">
+          <div class="rounded-full border border-white/10 bg-black/80 px-4 py-2 text-sm font-semibold text-zinc-100 backdrop-blur">
+            {toast}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

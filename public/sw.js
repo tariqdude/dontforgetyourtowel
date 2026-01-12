@@ -7,6 +7,7 @@ const STATIC_ASSET_PATHS = [
   'privacy/',
   'terms/',
   'demo-lab/',
+  'shop-demo/',
   'offline/',
   'manifest.webmanifest',
   'favicon.svg',

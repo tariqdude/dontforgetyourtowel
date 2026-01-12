@@ -70,6 +70,9 @@ test.describe('Interactivity Features', () => {
       // Offset sticky header
       await page.evaluate(() => window.scrollBy(0, -140));
 
+      // Give the client:visible island time to hydrate after it becomes visible.
+      await page.waitForTimeout(350);
+
       // Wait for the first question to actually render (client:only island)
       await expect(
         quiz.getByText(/what is your top priority right now\?/i)
@@ -80,21 +83,21 @@ test.describe('Interactivity Features', () => {
         name: /reduce it firefighting/i,
       });
       await expect(opt1).toBeVisible({ timeout: 10000 });
-      await opt1.dispatchEvent('click');
+      await opt1.click();
       await expect(
         quiz.getByText(/which risk feels most urgent\?/i)
       ).toBeVisible({ timeout: 10000 });
 
       const opt2 = quiz.getByRole('button', { name: /unpatched devices/i });
       await expect(opt2).toBeVisible({ timeout: 10000 });
-      await opt2.dispatchEvent('click');
+      await opt2.click();
       await expect(
         quiz.getByText(/how fast do you need results\?/i)
       ).toBeVisible({ timeout: 10000 });
 
       const opt3 = quiz.getByRole('button', { name: /this quarter/i });
       await expect(opt3).toBeVisible({ timeout: 10000 });
-      await opt3.dispatchEvent('click');
+      await opt3.click();
 
       await expect(quiz.getByText(/recommended starting point/i)).toBeVisible({
         timeout: 10000,
@@ -121,14 +124,16 @@ test.describe('Interactivity Features', () => {
         })
         .first();
 
+      await calculator.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(350);
+
       const totalValue = calculator.locator('p.text-4xl').first();
-      const before = await totalValue.textContent();
+      const before = (await totalValue.textContent())?.trim() ?? '';
+      expect(before).not.toEqual('');
 
-      await page.getByRole('button', { name: 'GOLD' }).click();
-      await page.waitForTimeout(150);
-
-      const after = await totalValue.textContent();
-      expect(after).not.toEqual(before);
+      // Pick a tier that differs from the default so the value must change.
+      await calculator.getByRole('button', { name: 'PLATINUM' }).click();
+      await expect(totalValue).not.toHaveText(before, { timeout: 10000 });
     });
 
     test('ROI calculator should compute savings and payback', async ({
@@ -141,12 +146,25 @@ test.describe('Interactivity Features', () => {
         page.getByRole('heading', { name: /roi calculator/i })
       ).toBeVisible();
 
-      await page.getByLabel(/current it cost/i).fill('10000');
-      await page.getByLabel(/estimated savings/i).fill('25');
-      await page.getByLabel(/one-time transition cost/i).fill('5000');
+      const roi = page
+        .locator('section')
+        .filter({ has: page.getByRole('heading', { name: /roi calculator/i }) })
+        .first();
 
-      await expect(page.getByText('$2,500')).toBeVisible();
-      await expect(page.getByText(/2\.0 months/i)).toBeVisible();
+      await roi.scrollIntoViewIfNeeded();
+
+      // Give the client:visible island time to hydrate after it becomes visible.
+      await page.waitForTimeout(350);
+
+      await roi.getByLabel(/current it cost/i).fill('10000');
+      await roi.getByLabel(/estimated savings/i).fill('25');
+      await roi.getByLabel(/one-time transition cost/i).fill('5000');
+
+      // 10,000 * 25% = 2,500 monthly savings; payback = 5,000 / 2,500 = 2.0 mo
+      await expect(roi.getByText('$2,500')).toBeVisible({ timeout: 10000 });
+      await expect(roi.getByText(/2\.0 months/i)).toBeVisible({
+        timeout: 10000,
+      });
     });
   });
 });

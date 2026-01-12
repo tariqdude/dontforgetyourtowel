@@ -17,6 +17,7 @@ export type DemoProduct = {
   brand: string;
   description: string;
   bullets: string[];
+  specs?: Record<string, string>;
   priceCents: number;
   compareAtCents?: number;
   rating: number; // 0-5
@@ -25,6 +26,7 @@ export type DemoProduct = {
   images: string[];
   colors: DemoProductVariant[];
   sizes: DemoProductVariant[];
+  inventory?: number;
   featured?: boolean;
 };
 
@@ -40,6 +42,12 @@ export const demoProducts: DemoProduct[] = [
       'Reinforced seams + hidden phone pocket',
       'Color-locked dye (fade resistant)',
     ],
+    specs: {
+      Material: 'Knit blend',
+      Fit: 'Relaxed',
+      Care: 'Machine wash cold',
+      Weight: 'Midweight',
+    },
     priceCents: 12900,
     compareAtCents: 15900,
     rating: 4.8,
@@ -58,6 +66,7 @@ export const demoProducts: DemoProduct[] = [
       { id: 'l', label: 'L' },
       { id: 'xl', label: 'XL' },
     ],
+    inventory: 42,
     featured: true,
   },
   {
@@ -71,6 +80,12 @@ export const demoProducts: DemoProduct[] = [
       'Breathable upper + stability collar',
       'Grip pattern tuned for city surfaces',
     ],
+    specs: {
+      Upper: 'Breathable mesh',
+      Sole: 'Responsive foam',
+      Drop: '8mm',
+      Use: 'City / daily miles',
+    },
     priceCents: 18900,
     compareAtCents: 21900,
     rating: 4.7,
@@ -89,6 +104,7 @@ export const demoProducts: DemoProduct[] = [
       { id: '11', label: '11' },
       { id: '12', label: '12' },
     ],
+    inventory: 18,
     featured: true,
   },
   {
@@ -102,6 +118,12 @@ export const demoProducts: DemoProduct[] = [
       'Water-repellent finish',
       'Quick-access key clip',
     ],
+    specs: {
+      Capacity: '14" laptop + daily carry',
+      Closure: 'Magnetic',
+      Finish: 'Water-repellent',
+      Pockets: 'Organizer + key clip',
+    },
     priceCents: 9900,
     rating: 4.6,
     reviewCount: 153,
@@ -112,6 +134,7 @@ export const demoProducts: DemoProduct[] = [
       { id: 'stone', label: 'Stone', swatch: '#cbd5e1' },
     ],
     sizes: [{ id: 'one', label: 'One size' }],
+    inventory: 66,
   },
   {
     id: 'lumen-mug',
@@ -120,6 +143,12 @@ export const demoProducts: DemoProduct[] = [
     description:
       'A ceramic mug with a balanced lip and a satisfying weight. The kind you “accidentally” use every day.',
     bullets: ['Dishwasher safe', 'Heat-retention glaze', 'Ergonomic handle'],
+    specs: {
+      Material: 'Ceramic',
+      Finish: 'Heat-retention glaze',
+      Care: 'Dishwasher safe',
+      Handle: 'Ergonomic',
+    },
     priceCents: 2400,
     rating: 4.9,
     reviewCount: 811,
@@ -134,5 +163,6 @@ export const demoProducts: DemoProduct[] = [
       { id: '12oz', label: '12oz' },
       { id: '16oz', label: '16oz' },
     ],
+    inventory: 120,
   },
 ];

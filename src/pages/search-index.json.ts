@@ -65,6 +65,14 @@ export async function GET() {
       tags: ['demo', 'lab', 'animations', 'motion'],
     },
     {
+      id: 'page-shop-demo',
+      title: 'Shop Demo',
+      description: 'A realistic e-commerce shopping experience demo',
+      category: 'Page',
+      url: 'shop-demo/',
+      tags: ['demo', 'shop', 'ecommerce', 'cart', 'checkout'],
+    },
+    {
       id: 'page-privacy',
       title: 'Privacy Policy',
       description: 'How we handle data and privacy',

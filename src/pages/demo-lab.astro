@@ -9,8 +9,6 @@ import InfinityTunnel from '../components/ui/InfinityTunnel.astro';
 import MatrixRain from '../components/ui/MatrixRain.astro';
 import DemoBentoMorphGrid from '../components/ui/DemoBentoMorphGrid.astro';
 
-import EcommerceShowcase from '../components/demo-lab/EcommerceShowcase';
-
 import { withBasePath } from '../utils/helpers';
 
 const toc = [
@@ -21,7 +19,6 @@ const toc = [
   { id: 'act-4', label: 'Act 4 — Matrix / Typography' },
   { id: 'act-5', label: 'Act 5 — Bento Morph Grid' },
   { id: 'act-6', label: 'Act 6 — Integration Proof' },
-  { id: 'act-7', label: 'Act 7 — E-commerce Showcase' },
 ];
 
 const pageTitle = 'Demo Lab';
@@ -274,26 +271,36 @@ const pageDescription =
       </ModernCard>
     </section>
 
-    <section id="act-7" class="scroll-mt-24 pb-20 pt-14">
-      <h2 class="font-display text-2xl font-semibold text-white">
-        Act 7 — E-commerce Showcase
-      </h2>
+    <section class="scroll-mt-24 pb-20 pt-14">
+      <h2 class="font-display text-2xl font-semibold text-white">Shop Demo</h2>
       <p class="mt-2 max-w-[75ch] text-sm text-zinc-300">
-        Repurposes “blog-like” patterns (hero media, metadata, search/filtering,
-        and structured content) into a realistic shopping experience — scoped to
-        this demo only.
+        The e-commerce showcase has graduated into its own dedicated page so it
+        can be bigger, deeper, and more realistic.
       </p>
-      <div class="demo-module mt-6" data-demo-module="ecommerce-showcase">
-        <EcommerceShowcase client:visible />
-        <noscript>
-          <div
-            class="mt-4 rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-zinc-200"
-          >
-            JavaScript is disabled. This demo will show a static product grid
-            without cart/checkout interactivity.
+      <ModernCard className="mt-6 p-6" variant="glass">
+        <div
+          class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div class="space-y-1">
+            <p
+              class="font-mono text-xs uppercase tracking-widest text-zinc-400"
+            >
+              New
+            </p>
+            <p class="text-sm text-zinc-200">
+              Open the dedicated shopping experience (wishlist, compare, cart,
+              and simulated checkout).
+            </p>
           </div>
-        </noscript>
-      </div>
+          <ModernButton
+            href={withBasePath('shop-demo/')}
+            variant="primary"
+            rounded="sm"
+          >
+            Open Shop Demo
+          </ModernButton>
+        </div>
+      </ModernCard>
     </section>
   </div>
 </MarketingLayout>

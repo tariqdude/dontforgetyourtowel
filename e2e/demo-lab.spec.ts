@@ -44,38 +44,4 @@ test.describe('Demo Lab', () => {
     await expect(html).toHaveAttribute('data-demo-perf', 'true');
     await expect(firstModule).toHaveAttribute('data-demo-perf', 'true');
   });
-
-  test('e-commerce showcase should add items to cart and persist', async ({
-    page,
-  }) => {
-    await page.goto('./demo-lab/');
-
-    // Scroll to the e-commerce module.
-    const ecommerceModule = page.locator(
-      '[data-demo-module="ecommerce-showcase"]'
-    );
-    await ecommerceModule.scrollIntoViewIfNeeded();
-
-    // Add a product to cart.
-    const addButton = page.locator('[data-ecom="add-to-cart"]').first();
-    await addButton.click();
-
-    // Cart should open and show at least one item.
-    const cart = page.locator('[data-ecom="cart"]');
-    await expect(cart).toBeVisible();
-    await expect(page.getByText(/\b1\sitem\b/i)).toBeVisible();
-
-    // Close cart.
-    await page.getByRole('button', { name: /^close$/i }).click();
-    await expect(cart).toBeHidden();
-
-    // Reload and re-open cart; item count should persist.
-    await page.reload();
-    await ecommerceModule.scrollIntoViewIfNeeded();
-    await page.locator('[data-ecom="cart-button"]').click();
-
-    const cartAfter = page.locator('[data-ecom="cart"]');
-    await expect(cartAfter).toBeVisible();
-    await expect(page.getByText(/\b1\sitem\b/i)).toBeVisible();
-  });
 });
