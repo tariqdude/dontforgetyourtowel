@@ -382,27 +382,17 @@ import ModernCard from './ModernCard.astro';
 </style>
 
 <script>
+  import {
+    getDemoModuleRoot,
+    isDemoPaused,
+    observeDemoLabFlags,
+  } from '@/utils/demo-lab';
+  import { prefersReducedMotion } from '@/utils/a11y';
+
   const roots = document.querySelectorAll<HTMLElement>('[data-bento-root]');
-  const prefersReducedMotion = window.matchMedia(
-    '(prefers-reduced-motion: reduce)'
-  );
-
-  const getModuleRoot = (el: HTMLElement) =>
-    (el.closest('[data-demo-module]') ||
-      el.closest('.demo-module')) as HTMLElement | null;
-
-  const isDemoPaused = (moduleRoot: HTMLElement | null) => {
-    if (!moduleRoot) return false;
-    const html = document.documentElement;
-    const htmlPaused = html.dataset.demoPaused === 'true';
-    const htmlReduced = html.dataset.demoReducedMotion === 'true';
-    const modPaused = moduleRoot.dataset.demoPaused === 'true';
-    const modReduced = moduleRoot.dataset.demoReducedMotion === 'true';
-    return htmlPaused || htmlReduced || modPaused || modReduced;
-  };
 
   const shouldAnimate = (moduleRoot: HTMLElement | null) => {
-    if (prefersReducedMotion.matches) return false;
+    if (prefersReducedMotion()) return false;
     if (moduleRoot && isDemoPaused(moduleRoot)) return false;
     return true;
   };
@@ -447,7 +437,7 @@ import ModernCard from './ModernCard.astro';
     const items = Array.from(
       root.querySelectorAll<HTMLElement>('[data-bento-item]')
     );
-    const moduleRoot = getModuleRoot(root);
+    const moduleRoot = getDemoModuleRoot(root);
 
     const applyMode = (mode: string) => {
       const current = root.dataset.bentoMode || 'balanced';
@@ -486,24 +476,17 @@ import ModernCard from './ModernCard.astro';
       });
     });
 
-    if (moduleRoot) {
-      const observer = new MutationObserver(syncIfPaused);
-      observer.observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ['data-demo-paused', 'data-demo-reduced-motion'],
-      });
-      observer.observe(moduleRoot, {
-        attributes: true,
-        attributeFilter: ['data-demo-paused', 'data-demo-reduced-motion'],
-      });
+    const stopDemoObserver = observeDemoLabFlags(syncIfPaused, {
+      moduleRoot,
+      includePerf: false,
+    });
 
-      window.addEventListener(
-        'beforeunload',
-        () => {
-          observer.disconnect();
-        },
-        { once: true }
-      );
-    }
+    window.addEventListener(
+      'beforeunload',
+      () => {
+        stopDemoObserver();
+      },
+      { once: true }
+    );
   });
 </script>

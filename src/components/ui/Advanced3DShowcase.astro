@@ -791,30 +791,24 @@
 </style>
 
 <script>
+  import {
+    getDemoModuleRoot,
+    isDemoPaused,
+    observeDemoLabFlags,
+  } from '@/utils/demo-lab';
+  import { onReducedMotionChange, prefersReducedMotion } from '@/utils/a11y';
+
   // Parallax effect with mouse movement
   const parallaxContainer = document.getElementById('parallax');
 
-  const prefersReducedMotion = window.matchMedia(
-    '(prefers-reduced-motion: reduce)'
-  );
-
-  const moduleRoot = (parallaxContainer?.closest('[data-demo-module]') ||
-    parallaxContainer?.closest('.demo-module')) as HTMLElement | null;
+  const moduleRoot = parallaxContainer
+    ? getDemoModuleRoot(parallaxContainer)
+    : null;
   const usesDemoLabControls = Boolean(moduleRoot);
 
-  const isDemoPaused = () => {
-    if (!usesDemoLabControls) return false;
-    const html = document.documentElement;
-    const htmlPaused = html.dataset.demoPaused === 'true';
-    const htmlReduced = html.dataset.demoReducedMotion === 'true';
-    const modPaused = moduleRoot?.dataset.demoPaused === 'true';
-    const modReduced = moduleRoot?.dataset.demoReducedMotion === 'true';
-    return htmlPaused || htmlReduced || modPaused || modReduced;
-  };
-
   const isInteractiveAllowed = () => {
-    if (prefersReducedMotion.matches) return false;
-    if (isDemoPaused()) return false;
+    if (prefersReducedMotion()) return false;
+    if (usesDemoLabControls && isDemoPaused(moduleRoot)) return false;
     return true;
   };
 
@@ -875,37 +869,19 @@
     syncInteractive();
 
     if (usesDemoLabControls) {
-      const observer = new MutationObserver(syncInteractive);
-      observer.observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ['data-demo-paused', 'data-demo-reduced-motion'],
+      const stopDemoObserver = observeDemoLabFlags(syncInteractive, {
+        moduleRoot,
+        includePerf: false,
       });
-      if (moduleRoot) {
-        observer.observe(moduleRoot, {
-          attributes: true,
-          attributeFilter: ['data-demo-paused', 'data-demo-reduced-motion'],
-        });
-      }
 
-      const onRMChange = () => syncInteractive();
-      if ('addEventListener' in prefersReducedMotion) {
-        prefersReducedMotion.addEventListener('change', onRMChange);
-      } else {
-        // @ts-expect-error older Safari
-        prefersReducedMotion.addListener(onRMChange);
-      }
+      const stopRMObserver = onReducedMotionChange(() => syncInteractive());
 
       window.addEventListener(
         'beforeunload',
         () => {
-          observer.disconnect();
+          stopDemoObserver();
+          stopRMObserver();
           unbindInteractive();
-          if ('removeEventListener' in prefersReducedMotion) {
-            prefersReducedMotion.removeEventListener('change', onRMChange);
-          } else {
-            // @ts-expect-error older Safari
-            prefersReducedMotion.removeListener(onRMChange);
-          }
         },
         { once: true }
       );

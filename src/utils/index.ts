@@ -504,6 +504,21 @@ export {
   printElement,
 } from './dom';
 
+/* ==================== DEMO LAB UTILITIES ==================== */
+
+export {
+  DEMO_LAB_STORAGE_KEY,
+  parseStoredDemoLabState,
+  persistDemoLabState,
+  applyDemoLabStateToDOM,
+  readDemoLabStateFromDOM,
+  getDemoModuleRoot,
+  isDemoPaused,
+  isDemoPerfMode,
+  getEffectiveDemoFlags,
+  observeDemoLabFlags,
+} from './demo-lab';
+
 /* ==================== COMPRESSION UTILITIES ==================== */
 
 export {

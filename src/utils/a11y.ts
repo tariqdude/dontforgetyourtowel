@@ -723,9 +723,21 @@ export function onReducedMotionChange(
   // Initial call
   callback(mediaQuery.matches);
 
-  // Use modern API (legacy addListener/removeListener are deprecated)
-  mediaQuery.addEventListener('change', handler);
-  return () => mediaQuery.removeEventListener('change', handler);
+  // Prefer modern API; fall back for older Safari.
+  if ('addEventListener' in mediaQuery) {
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }
+
+  // @ts-expect-error older Safari
+  if ('addListener' in mediaQuery) {
+    // @ts-expect-error older Safari
+    mediaQuery.addListener(handler);
+    // @ts-expect-error older Safari
+    return () => mediaQuery.removeListener(handler);
+  }
+
+  return () => {};
 }
 
 /**

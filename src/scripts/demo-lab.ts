@@ -1,43 +1,9 @@
-type DemoLabState = {
-  paused: boolean;
-  reduced: boolean;
-  perf: boolean;
-};
-
-const STORAGE_KEY = 'demo-lab:state';
-
-const parseStoredState = (): DemoLabState => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { paused: false, reduced: false, perf: false };
-    const parsed = JSON.parse(raw) as Partial<DemoLabState>;
-    return {
-      paused: Boolean(parsed.paused),
-      reduced: Boolean(parsed.reduced),
-      perf: Boolean(parsed.perf),
-    };
-  } catch {
-    return { paused: false, reduced: false, perf: false };
-  }
-};
-
-const persistState = (state: DemoLabState) => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    // Ignore storage errors (private mode, disabled storage, etc.)
-  }
-};
-
-const applyStateToDOM = (state: DemoLabState) => {
-  const root = document.documentElement;
-  root.dataset.demoPaused = state.paused ? 'true' : 'false';
-  root.dataset.demoReducedMotion = state.reduced ? 'true' : 'false';
-  root.dataset.demoPerf = state.perf ? 'true' : 'false';
-
-  // Helpful body class for scoping any future CSS overrides.
-  document.body.classList.add('demo-lab');
-};
+import type { DemoLabState } from '../utils/demo-lab';
+import {
+  applyDemoLabStateToDOM,
+  parseStoredDemoLabState,
+  persistDemoLabState,
+} from '../utils/demo-lab';
 
 const getDemoModules = (): HTMLElement[] =>
   Array.from(document.querySelectorAll<HTMLElement>('[data-demo-module]'));
@@ -111,10 +77,10 @@ const syncButtons = (state: DemoLabState) => {
 const initDemoLab = () => {
   if (typeof window === 'undefined') return;
 
-  const state = parseStoredState();
+  const state = parseStoredDemoLabState();
   const modules = getDemoModules();
   const stopOffscreenPauser = startOffscreenPauser(modules, state);
-  applyStateToDOM(state);
+  applyDemoLabStateToDOM(state);
   applyStateToModules(modules, state);
   syncButtons(state);
 
@@ -129,8 +95,8 @@ const initDemoLab = () => {
     if (!key) return;
 
     state[key] = !state[key];
-    persistState(state);
-    applyStateToDOM(state);
+    persistDemoLabState(state);
+    applyDemoLabStateToDOM(state);
     applyStateToModules(modules, state);
     syncButtons(state);
   });

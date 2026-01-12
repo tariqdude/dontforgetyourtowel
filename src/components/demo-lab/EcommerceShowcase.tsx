@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { getEffectiveDemoFlags } from '@/utils/demo-lab';
 import { demoProducts, type DemoProduct } from '../../data/demo-ecommerce';
 
 type CartLine = {
@@ -39,13 +40,11 @@ function clamp(n: number, min: number, max: number) {
 }
 
 function getDemoFlags(): DemoFlags {
-  const root = document.documentElement;
+  const flags = getEffectiveDemoFlags(null);
   return {
-    reducedMotion:
-      root.dataset.demoReducedMotion === 'true' ||
-      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true,
-    perfMode: root.dataset.demoPerf === 'true',
-    paused: root.dataset.demoPaused === 'true',
+    reducedMotion: flags.reducedMotion,
+    perfMode: flags.perfMode,
+    paused: flags.paused,
   };
 }
 
