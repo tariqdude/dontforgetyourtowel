@@ -9,6 +9,8 @@ import InfinityTunnel from '../components/ui/InfinityTunnel.astro';
 import MatrixRain from '../components/ui/MatrixRain.astro';
 import DemoBentoMorphGrid from '../components/ui/DemoBentoMorphGrid.astro';
 
+import EcommerceShowcase from '../components/demo-lab/EcommerceShowcase';
+
 import { withBasePath } from '../utils/helpers';
 
 const toc = [
@@ -19,6 +21,7 @@ const toc = [
   { id: 'act-4', label: 'Act 4 — Matrix / Typography' },
   { id: 'act-5', label: 'Act 5 — Bento Morph Grid' },
   { id: 'act-6', label: 'Act 6 — Integration Proof' },
+  { id: 'act-7', label: 'Act 7 — E-commerce Showcase' },
 ];
 
 const pageTitle = 'Demo Lab';
@@ -230,7 +233,7 @@ const pageDescription =
       </div>
     </section>
 
-    <section id="act-6" class="scroll-mt-24 pb-20 pt-14">
+    <section id="act-6" class="scroll-mt-24 pt-14">
       <h2 class="font-display text-2xl font-semibold text-white">
         Act 6 — Integration Proof
       </h2>
@@ -269,6 +272,28 @@ const pageDescription =
           </ModernButton>
         </div>
       </ModernCard>
+    </section>
+
+    <section id="act-7" class="scroll-mt-24 pb-20 pt-14">
+      <h2 class="font-display text-2xl font-semibold text-white">
+        Act 7 — E-commerce Showcase
+      </h2>
+      <p class="mt-2 max-w-[75ch] text-sm text-zinc-300">
+        Repurposes “blog-like” patterns (hero media, metadata, search/filtering,
+        and structured content) into a realistic shopping experience — scoped to
+        this demo only.
+      </p>
+      <div class="demo-module mt-6" data-demo-module="ecommerce-showcase">
+        <EcommerceShowcase client:visible />
+        <noscript>
+          <div
+            class="mt-4 rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-zinc-200"
+          >
+            JavaScript is disabled. This demo will show a static product grid
+            without cart/checkout interactivity.
+          </div>
+        </noscript>
+      </div>
     </section>
   </div>
 </MarketingLayout>
