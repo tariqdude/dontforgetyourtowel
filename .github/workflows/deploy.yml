@@ -31,6 +31,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Build
+        env:
+          # Ensure `astro.config.mjs` gets the canonical URL + base path that GitHub Pages
+          # is configured to use (works for forks, renames, and custom Pages domains).
+          SITE_URL: ${{ steps.pages.outputs.base_url }}
         run: npm run build
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

@@ -2,8 +2,8 @@
 
 Astro + Tailwind static site intended for GitHub Pages.
 
-- Live: https://tariqdude.github.io/dontforgetyourtowel/
-- Repo: https://github.com/tariqdude/dontforgetyourtowel
+- Live (GitHub Pages): https://<your-username>.github.io/dontforgetyourtowel/
+- Repo: https://github.com/<your-username>/dontforgetyourtowel
 
 The deployment config in `config/deployment.js` auto-derives `site` + `base` from the repo slug (so renames/forks keep working).
 
