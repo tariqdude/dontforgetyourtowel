@@ -23,18 +23,18 @@ const {
     <div class="section-header">
       <Animate animation="fade-in" delay="md">
         <h2 class="heading-2 text-center">{title}</h2>
-        <p class="text-large text-muted text-center max-w-2xl mx-auto">
+        <p class="text-large text-muted mx-auto max-w-2xl text-center">
           {subtitle}
         </p>
       </Animate>
     </div>
 
-    <div class="contact-grid grid grid-cols-1 lg:grid-cols-2 gap-12">
+    <div class="contact-grid grid grid-cols-1 gap-12 lg:grid-cols-2">
       <!-- Contact Form -->
       <Animate animation="slide-right" delay="lg">
         <Card className="h-full">
-          <form id="contact-form" class="contact-form">
-            <div class="form-grid grid grid-cols-1 md:grid-cols-2 gap-6">
+          <form id="contact-form" class="contact-form" data-keyboard-aware>
+            <div class="form-grid grid grid-cols-1 gap-6 md:grid-cols-2">
               <div class="form-group">
                 <label for="firstName" class="form-label">First Name *</label>
                 <input
@@ -43,6 +43,9 @@ const {
                   name="firstName"
                   class="form-input"
                   required
+                  inputmode="text"
+                  autocapitalize="words"
+                  enterkeyhint="next"
                   autocomplete="given-name"
                 />
                 <div class="form-error hidden" role="alert" aria-live="polite">
@@ -57,6 +60,9 @@ const {
                   name="lastName"
                   class="form-input"
                   required
+                  inputmode="text"
+                  autocapitalize="words"
+                  enterkeyhint="next"
                   autocomplete="family-name"
                 />
                 <div class="form-error hidden" role="alert" aria-live="polite">
@@ -72,6 +78,10 @@ const {
                 name="email"
                 class="form-input"
                 required
+                inputmode="email"
+                autocapitalize="none"
+                spellcheck="false"
+                enterkeyhint="next"
                 autocomplete="email"
               />
               <div class="form-error hidden" role="alert" aria-live="polite">
@@ -85,6 +95,9 @@ const {
                 type="text"
                 name="company"
                 class="form-input"
+                inputmode="text"
+                autocapitalize="words"
+                enterkeyhint="next"
                 autocomplete="organization"
               />
             </div>
@@ -96,6 +109,9 @@ const {
                 type="tel"
                 name="phone"
                 class="form-input"
+                inputmode="tel"
+                autocapitalize="none"
+                enterkeyhint="next"
                 autocomplete="tel"
               />
               <div class="form-error hidden" role="alert" aria-live="polite">
@@ -151,6 +167,7 @@ const {
                 class="form-textarea"
                 required
                 rows="5"
+                enterkeyhint="send"
                 placeholder="Tell us about your project, goals, and how we can help..."
               ></textarea>
               <div class="form-error hidden" role="alert" aria-live="polite">
@@ -217,7 +234,7 @@ const {
               </ModernButton>
 
               <div
-                class="form-status hidden mt-4 p-4 rounded-md"
+                class="form-status mt-4 hidden rounded-md p-4"
                 role="status"
                 aria-live="polite"
               >
@@ -351,6 +368,21 @@ const {
 </script>
 
 <style>
+  .contact-form {
+    /*
+      When the mobile keyboard is open, VisualViewport can reduce usable height.
+      We expose a CSS var so scripts can give the page extra scroll slack.
+    */
+    padding-bottom: calc(
+      var(--keyboard-offset, 0px) + env(safe-area-inset-bottom, 0px)
+    );
+  }
+
+  .contact-form :is(input, textarea, select) {
+    scroll-margin-top: 6rem;
+    scroll-margin-bottom: calc(var(--keyboard-offset, 0px) + 2rem);
+  }
+
   .contact-section {
     background: linear-gradient(135deg, var(--color-gray-50) 0%, white 100%);
   }

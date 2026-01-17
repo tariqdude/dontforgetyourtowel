@@ -9,6 +9,7 @@ import { getMarkdownReadingTime } from '../utils/reading-time';
 import WebVitals from '../components/WebVitals.astro';
 import ErrorTracking from '../components/ErrorTracking.astro';
 import StructuredData from '../components/StructuredData.astro';
+import PWARegistration from '../components/PWARegistration.astro';
 import CommandPalette from '../components/CommandPalette';
 import ToastContainer from '../components/ToastContainer';
 import TableOfContents from '../components/TableOfContents.astro';
@@ -237,6 +238,7 @@ if (!displayReadingTime && Astro.slots.has('default')) {
         </div>
       </article>
     </main>
+    <PWARegistration />
     <Footer />
     <CommandPalette client:only="preact" />
     <ToastContainer client:only="preact" />

@@ -8,6 +8,128 @@ import { CONTACT_EMAIL } from '../consts';
 import { emailSchema, phoneSchema } from '../utils/validation';
 import { addNotification, notify } from '../store/index';
 
+type VisualViewportLike = {
+  height: number;
+  offsetTop?: number;
+  addEventListener: (
+    type: string,
+    listener: EventListenerOrEventListenerObject,
+    options?: AddEventListenerOptions | boolean
+  ) => void;
+  removeEventListener?: (
+    type: string,
+    listener: EventListenerOrEventListenerObject,
+    options?: EventListenerOptions | boolean
+  ) => void;
+};
+
+let activeKeyboardAwareForm: HTMLFormElement | null = null;
+let keyboardListenersInstalled = false;
+
+function isCoarsePointer(): boolean {
+  try {
+    return !!window.matchMedia?.('(pointer: coarse)').matches;
+  } catch {
+    return false;
+  }
+}
+
+function prefersReducedMotion(): boolean {
+  try {
+    return !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
+}
+
+export function computeKeyboardOffsetPx(
+  innerHeight: number,
+  visualViewport: Pick<VisualViewportLike, 'height' | 'offsetTop'> | null
+): number {
+  if (!visualViewport) return 0;
+  const offsetTop = visualViewport.offsetTop ?? 0;
+  // When the on-screen keyboard opens, visualViewport.height shrinks.
+  const raw = innerHeight - visualViewport.height - offsetTop;
+  return Math.max(0, Math.round(raw));
+}
+
+function setKeyboardOffsetOnForm(
+  form: HTMLFormElement,
+  offsetPx: number
+): void {
+  form.style.setProperty('--keyboard-offset', `${offsetPx}px`);
+}
+
+function ensureFieldVisible(field: HTMLElement): void {
+  // Avoid surprising scroll behavior on non-touch setups.
+  if (!isCoarsePointer()) return;
+
+  const behavior: ScrollBehavior = prefersReducedMotion() ? 'auto' : 'smooth';
+  try {
+    field.scrollIntoView({ block: 'center', inline: 'nearest', behavior });
+  } catch {
+    // Older browsers may throw if options object is not supported.
+    try {
+      field.scrollIntoView();
+    } catch {
+      // ignore
+    }
+  }
+}
+
+function installKeyboardAwarenessListeners(): void {
+  if (keyboardListenersInstalled) return;
+  keyboardListenersInstalled = true;
+
+  if (!isCoarsePointer()) return;
+
+  const vv = (window as unknown as { visualViewport?: VisualViewportLike })
+    .visualViewport;
+  if (!vv?.addEventListener) return;
+
+  const update = () => {
+    const form = activeKeyboardAwareForm;
+    if (!form || !form.isConnected) return;
+    const offsetPx = computeKeyboardOffsetPx(window.innerHeight, vv);
+    setKeyboardOffsetOnForm(form, offsetPx);
+  };
+
+  vv.addEventListener('resize', update, { passive: true });
+  vv.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('orientationchange', update, { passive: true });
+
+  document.addEventListener(
+    'focusin',
+    event => {
+      const target = event.target as HTMLElement | null;
+      const form = activeKeyboardAwareForm;
+      if (!target || !form || !form.isConnected) return;
+      if (!form.contains(target)) return;
+
+      // Only for actual form controls.
+      if (
+        !(
+          target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement ||
+          target instanceof HTMLSelectElement
+        )
+      ) {
+        return;
+      }
+
+      // Let the viewport settle (keyboard animation) before scrolling.
+      setTimeout(() => {
+        update();
+        ensureFieldVisible(target);
+      }, 60);
+    },
+    { capture: true }
+  );
+
+  // Initial value
+  update();
+}
+
 interface FormFieldConfig {
   name: string;
   required?: boolean;
@@ -100,6 +222,13 @@ class EnhancedContactForm {
 
   private init(): void {
     if (!this.form) return;
+
+    // Make this form the current target for mobile keyboard handling.
+    // (Astro view transitions can recreate the form; we keep a single listener.)
+    if (this.form.hasAttribute('data-keyboard-aware')) {
+      activeKeyboardAwareForm = this.form;
+      installKeyboardAwarenessListeners();
+    }
 
     // Set up ARIA attributes for better accessibility
     this.setupAccessibility();

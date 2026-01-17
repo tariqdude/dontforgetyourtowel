@@ -77,6 +77,8 @@ This section exists to prevent duplicate work.
 
 - Network-aware resource loading foundation: `src/utils/network-adapter.ts` added (quality bucketing + subscribe + hook) and global motion scripts are loaded conditionally via `src/scripts/ux-bootstrap.ts`.
 
+- PWA install prompt (demo-safe): `src/components/PWARegistration.astro` includes a delayed install prompt with dismissal persistence, and `src/layouts/BlogPost.astro` now includes `PWARegistration` so blog routes also register SW + get update/install UI.
+
 ---
 
 ## 3) Scope decision (avoid conflicting legacy docs)
@@ -160,7 +162,6 @@ Implement the following in a staged, testable way:
 
 - Build mobile-optimized forms
 - Implement swipe gestures (only where it improves UX)
-- Add PWA install prompt (demo-safe)
 - Implement share API integration (optional)
 - Optimize service worker caching
 - Implement safe area handling

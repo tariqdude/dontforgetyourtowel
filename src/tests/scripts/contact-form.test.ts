@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { EnhancedContactForm } from '../../scripts/contact-form';
+import {
+  EnhancedContactForm,
+  computeKeyboardOffsetPx,
+} from '../../scripts/contact-form';
 
 // Mock dependencies
 vi.mock('../../utils/a11y', () => ({
@@ -72,6 +75,55 @@ describe('EnhancedContactForm', () => {
   afterEach(() => {
     document.body.innerHTML = '';
     vi.restoreAllMocks();
+  });
+
+  it('computeKeyboardOffsetPx should return a non-negative integer offset', () => {
+    expect(computeKeyboardOffsetPx(800, null)).toBe(0);
+    expect(computeKeyboardOffsetPx(800, { height: 800, offsetTop: 0 })).toBe(0);
+    expect(computeKeyboardOffsetPx(800, { height: 500, offsetTop: 0 })).toBe(
+      300
+    );
+    expect(computeKeyboardOffsetPx(800, { height: 500, offsetTop: 20 })).toBe(
+      280
+    );
+    // Never negative
+    expect(computeKeyboardOffsetPx(500, { height: 600, offsetTop: 0 })).toBe(0);
+  });
+
+  it('should install keyboard awareness and set CSS var when VisualViewport is available on coarse pointer devices', () => {
+    const addEventListener = vi.fn();
+    Object.defineProperty(window, 'visualViewport', {
+      value: {
+        height: 500,
+        offsetTop: 0,
+        addEventListener,
+      },
+      configurable: true,
+    });
+
+    // Simulate a touch device
+    window.matchMedia = vi.fn().mockImplementation((query: string) => {
+      if (query.includes('pointer: coarse')) return { matches: true };
+      if (query.includes('prefers-reduced-motion')) return { matches: false };
+      return { matches: false };
+    });
+
+    // Make the viewport smaller than innerHeight to simulate keyboard open.
+    Object.defineProperty(window, 'innerHeight', {
+      value: 800,
+      configurable: true,
+    });
+
+    // Mark the form as keyboard-aware.
+    form.setAttribute('data-keyboard-aware', '');
+
+    new EnhancedContactForm();
+
+    // Listener installed
+    expect(addEventListener).toHaveBeenCalled();
+
+    // CSS variable set on init (update() runs once during install)
+    expect(form.style.getPropertyValue('--keyboard-offset')).toBe('300px');
   });
 
   it('should initialize correctly', () => {
