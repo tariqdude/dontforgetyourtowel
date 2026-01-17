@@ -76,6 +76,7 @@ if (!displayReadingTime && Astro.slots.has('default')) {
 }
 ---
 
+<!doctype html>
 <html lang="en">
   <head>
     <BaseHead
@@ -109,11 +110,11 @@ if (!displayReadingTime && Astro.slots.has('default')) {
         display: block;
         margin: 0 auto;
         border-radius: 12px;
-        box-shadow: var(--box-shadow);
+        box-shadow: var(--shadow-strong);
       }
       .prose {
         padding: 1em;
-        color: rgb(var(--gray-dark));
+        color: var(--color-text-primary);
       }
       .title {
         margin-bottom: 1em;
@@ -126,18 +127,24 @@ if (!displayReadingTime && Astro.slots.has('default')) {
       }
       .date {
         margin-bottom: 0.5em;
-        color: rgb(var(--gray));
+        color: var(--color-text-secondary);
       }
       .last-updated-on {
         font-style: italic;
       }
+      .author-info {
+        margin-top: 0.5em;
+        font-size: 0.9em;
+        color: var(--color-text-secondary);
+        text-align: center;
+      }
     </style>
   </head>
 
-  <body>
+  <body class="antialiased">
     <a
       href="#main-content"
-      class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-indigo-600 focus:px-4 focus:py-2 focus:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+      class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-sm focus:bg-accent-600 focus:px-4 focus:py-2 focus:text-white focus:outline-none focus:ring-2 focus:ring-accent-400"
     >
       Skip to main content
     </a>
@@ -246,12 +253,3 @@ if (!displayReadingTime && Astro.slots.has('default')) {
     <ErrorTracking />
   </body>
 </html>
-
-<style>
-  .author-info {
-    margin-top: 0.5em;
-    font-size: 0.9em;
-    color: rgb(var(--gray));
-    text-align: center;
-  }
-</style>
