@@ -74,20 +74,21 @@ export const generateMetaTags = (config: MetaTagsConfig): MetaTag[] => {
 
   if (image) {
     metaTags.push({ property: 'og:image', content: image });
-    metaTags.push({ property: 'twitter:image', content: image });
+    // Twitter expects `name="twitter:*"` rather than `property`.
+    metaTags.push({ name: 'twitter:image', content: image });
   }
 
   // Twitter
   metaTags.push(
-    { property: 'twitter:card', content: 'summary_large_image' },
-    { property: 'twitter:url', content: url.toString() },
-    { property: 'twitter:title', content: title },
-    { property: 'twitter:description', content: description }
+    { name: 'twitter:card', content: 'summary_large_image' },
+    { name: 'twitter:url', content: url.toString() },
+    { name: 'twitter:title', content: title },
+    { name: 'twitter:description', content: description }
   );
 
   if (twitterHandle) {
-    metaTags.push({ property: 'twitter:site', content: twitterHandle });
-    metaTags.push({ property: 'twitter:creator', content: twitterHandle });
+    metaTags.push({ name: 'twitter:site', content: twitterHandle });
+    metaTags.push({ name: 'twitter:creator', content: twitterHandle });
   }
 
   // Article specific

@@ -27,6 +27,10 @@ const swScope = withBasePath('');
   const SW_PATH = configEl?.dataset.swPath || '/sw.js';
   const SW_SCOPE = configEl?.dataset.swScope || '/';
 
+  // Only refresh the page automatically when the user explicitly requested an update.
+  let awaitingRefresh = false;
+  let swRegistration: ServiceWorkerRegistration | null = null;
+
   // Avoid flakey reloads during automated testing.
   // Playwright sets navigator.webdriver=true.
   const isAutomated =
@@ -39,10 +43,33 @@ const swScope = withBasePath('');
         .then(registration => {
           console.log('[PWA] Service Worker registered:', registration.scope);
 
-          // Check for updates periodically
-          setInterval(() => {
-            registration.update();
-          }, 60000); // Check every minute
+          swRegistration = registration;
+
+          // Check for updates conservatively and only when it makes sense.
+          // (Polling too frequently can waste battery/CPU and cause noisy updates.)
+          const UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
+          window.setInterval(() => {
+            if (document.visibilityState !== 'visible') return;
+            if (navigator.onLine === false) return;
+            registration.update().catch(() => {
+              // ignore
+            });
+          }, UPDATE_INTERVAL_MS);
+
+          // Also check when the tab becomes visible again or when network returns.
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && navigator.onLine) {
+              registration.update().catch(() => {
+                // ignore
+              });
+            }
+          });
+
+          window.addEventListener('online', () => {
+            registration.update().catch(() => {
+              // ignore
+            });
+          });
 
           // Handle updates
           registration.addEventListener('updatefound', () => {
@@ -65,10 +92,11 @@ const swScope = withBasePath('');
       // Handle controller change
       let refreshing = false;
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!refreshing) {
-          refreshing = true;
-          window.location.reload();
-        }
+        // Only reload automatically if the user pressed “Update Now”.
+        if (!awaitingRefresh) return;
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
       });
     });
   }
@@ -79,15 +107,35 @@ const swScope = withBasePath('');
 
     notification.classList.remove('hidden');
 
-    document.getElementById('update-btn')?.addEventListener('click', () => {
-      navigator.serviceWorker.getRegistration().then(reg => {
-        reg?.waiting?.postMessage({ type: 'SKIP_WAITING' });
-      });
-    });
+    const updateBtn = document.getElementById(
+      'update-btn'
+    ) as HTMLElement | null;
+    const dismissBtn = document.getElementById(
+      'dismiss-btn'
+    ) as HTMLElement | null;
 
-    document.getElementById('dismiss-btn')?.addEventListener('click', () => {
-      notification.classList.add('hidden');
-    });
+    // Avoid duplicate handlers across Astro page transitions / repeated updatefound events.
+    if (updateBtn && !(updateBtn as any)._pwaBound) {
+      (updateBtn as any)._pwaBound = true;
+      updateBtn.addEventListener('click', () => {
+        awaitingRefresh = true;
+
+        const regPromise = swRegistration
+          ? Promise.resolve(swRegistration)
+          : navigator.serviceWorker.getRegistration();
+
+        regPromise.then(reg => {
+          reg?.waiting?.postMessage({ type: 'SKIP_WAITING' });
+        });
+      });
+    }
+
+    if (dismissBtn && !(dismissBtn as any)._pwaBound) {
+      (dismissBtn as any)._pwaBound = true;
+      dismissBtn.addEventListener('click', () => {
+        notification.classList.add('hidden');
+      });
+    }
   }
 
   // PWA install prompt

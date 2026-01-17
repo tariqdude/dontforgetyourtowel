@@ -41,7 +41,7 @@ describe('generateMetaTags', () => {
       content: 'https://example.com/image.jpg',
     });
     expect(tags).toContainEqual({
-      property: 'twitter:image',
+      name: 'twitter:image',
       content: 'https://example.com/image.jpg',
     });
   });
@@ -119,7 +119,12 @@ describe('generateMetaTags', () => {
     });
 
     expect(tags).toContainEqual({
-      property: 'twitter:site',
+      name: 'twitter:site',
+      content: '@myhandle',
+    });
+
+    expect(tags).toContainEqual({
+      name: 'twitter:creator',
       content: '@myhandle',
     });
   });
