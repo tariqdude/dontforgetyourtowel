@@ -101,11 +101,35 @@ const swScope = withBasePath('');
     });
   }
 
+  // Track whether the user is likely navigating with keyboard.
+  let hadKeyboardEvent = false;
+  window.addEventListener(
+    'keydown',
+    e => {
+      if (e.key === 'Tab' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        hadKeyboardEvent = true;
+      }
+    },
+    { passive: true }
+  );
+  window.addEventListener(
+    'pointerdown',
+    () => {
+      hadKeyboardEvent = false;
+    },
+    { passive: true }
+  );
+
   function showUpdateNotification(): void {
     const notification = document.getElementById('pwa-notification');
     if (!notification) return;
 
     notification.classList.remove('hidden');
+
+    // If the user is navigating by keyboard, announce the prompt.
+    if (hadKeyboardEvent) {
+      (notification as HTMLElement).focus({ preventScroll: true });
+    }
 
     const updateBtn = document.getElementById(
       'update-btn'
@@ -212,6 +236,11 @@ const swScope = withBasePath('');
 
     promptEl.classList.remove('hidden');
 
+    // If the user is navigating by keyboard, announce the prompt.
+    if (hadKeyboardEvent) {
+      (promptEl as HTMLElement).focus({ preventScroll: true });
+    }
+
     // Avoid duplicate handlers across Astro page transitions.
     if (!(installBtn as any)._pwaBound) {
       (installBtn as any)._pwaBound = true;
@@ -250,6 +279,9 @@ const swScope = withBasePath('');
   id="pwa-notification"
   class="fixed bottom-4 right-4 z-50 hidden max-w-sm rounded-lg border border-slate-700 bg-slate-800 p-4 shadow-2xl"
   role="alert"
+  aria-live="polite"
+  aria-atomic="true"
+  tabindex="-1"
 >
   <div class="flex items-start gap-3">
     <div
@@ -302,6 +334,9 @@ const swScope = withBasePath('');
   class="bottom-safe-bottom fixed bottom-20 left-4 right-4 z-50 hidden max-w-md md:bottom-4 md:left-4 md:right-auto"
   role="region"
   aria-label="Install app prompt"
+  aria-live="polite"
+  aria-atomic="true"
+  tabindex="-1"
 >
   <div
     class="rounded-2xl border border-white/10 bg-zinc-950/95 p-4 shadow-2xl backdrop-blur"

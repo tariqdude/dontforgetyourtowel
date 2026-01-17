@@ -17,7 +17,6 @@ function clearNavigating(): void {
 }
 
 function isPlainLeftClick(event: MouseEvent): boolean {
-  if (event.defaultPrevented) return false;
   if (event.button !== 0) return false;
   // Don’t hijack new-tab / new-window intent.
   if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
@@ -29,7 +28,12 @@ function shouldShowProgress(
   anchor: HTMLAnchorElement,
   event: MouseEvent
 ): boolean {
+  // After event propagation finishes, defaultPrevented reflects the final intent.
+  if (event.defaultPrevented) return false;
   if (!isPlainLeftClick(event)) return false;
+
+  // Allow opting out on a per-link basis.
+  if (anchor.hasAttribute('data-no-navigation-progress')) return false;
 
   const hrefAttr = anchor.getAttribute('href') || '';
   if (!hrefAttr) return false;
@@ -73,14 +77,17 @@ function onDocumentClick(event: MouseEvent): void {
   const anchor = target.closest('a') as HTMLAnchorElement | null;
   if (!anchor) return;
 
-  if (!shouldShowProgress(anchor, event)) return;
+  // Defer evaluation so other handlers (including preventDefault) run first.
+  queueMicrotask(() => {
+    if (!shouldShowProgress(anchor, event)) return;
 
-  document.body.classList.add('navigating');
+    document.body.classList.add('navigating');
 
-  // Safety: ensure we don’t get stuck if the navigation is cancelled.
-  clearTimer = window.setTimeout(() => {
-    clearNavigating();
-  }, 8000);
+    // Safety: ensure we don’t get stuck if the navigation is cancelled.
+    clearTimer = window.setTimeout(() => {
+      clearNavigating();
+    }, 8000);
+  });
 }
 
 // Attach once.
