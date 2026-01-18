@@ -14,6 +14,8 @@ class Hero3DController {
   private currentX = 0;
   private currentY = 0;
   private pointerActive = false;
+  private isDragging = false;
+  private pointerLocked = false;
   private observer?: IntersectionObserver;
   private stopReducedMotion?: () => void;
   private options: HeroOptions;
@@ -64,19 +66,63 @@ class Hero3DController {
 
   private onPointerMove = (event: PointerEvent) => {
     if (!this.scene) return;
-    const rect = this.container.getBoundingClientRect();
-    const x = (event.clientX - rect.left) / rect.width - 0.5;
-    const y = (event.clientY - rect.top) / rect.height - 0.5;
-    this.targetX = x;
-    this.targetY = y;
+    if (this.pointerLocked) {
+      const rect = this.container.getBoundingClientRect();
+      const deltaX = event.movementX / rect.width;
+      const deltaY = event.movementY / rect.height;
+      this.targetX = clamp(this.targetX + deltaX, -0.5, 0.5);
+      this.targetY = clamp(this.targetY + deltaY, -0.5, 0.5);
+    } else {
+      const rect = this.container.getBoundingClientRect();
+      const x = (event.clientX - rect.left) / rect.width - 0.5;
+      const y = (event.clientY - rect.top) / rect.height - 0.5;
+      this.targetX = x;
+      this.targetY = y;
+    }
     this.pointerActive = true;
     this.requestTick();
   };
 
+  private onPointerDown = (event: PointerEvent) => {
+    if (!this.scene) return;
+    this.isDragging = true;
+    this.container.setAttribute('data-hero-drag', 'true');
+    this.container.setPointerCapture(event.pointerId);
+
+    if (event.shiftKey && document.pointerLockElement !== this.container) {
+      this.container.requestPointerLock?.();
+    }
+  };
+
+  private onPointerUp = (event: PointerEvent) => {
+    this.isDragging = false;
+    this.container.removeAttribute('data-hero-drag');
+    this.container.releasePointerCapture(event.pointerId);
+
+    if (this.pointerLocked && document.pointerLockElement === this.container) {
+      document.exitPointerLock?.();
+    }
+  };
+
+  private onPointerCancel = (event: PointerEvent) => {
+    this.isDragging = false;
+    this.container.removeAttribute('data-hero-drag');
+    this.container.releasePointerCapture(event.pointerId);
+  };
+
+  private onPointerLockChange = () => {
+    this.pointerLocked = document.pointerLockElement === this.container;
+    if (!this.pointerLocked && this.isDragging) {
+      this.container.removeAttribute('data-hero-drag');
+    }
+  };
+
   private onPointerLeave = () => {
     this.pointerActive = false;
-    this.targetX = 0;
-    this.targetY = 0;
+    if (!this.pointerLocked) {
+      this.targetX = 0;
+      this.targetY = 0;
+    }
     this.requestTick();
   };
 
@@ -127,18 +173,29 @@ class Hero3DController {
     this.container.addEventListener('pointermove', this.onPointerMove, {
       passive: true,
     });
+    this.container.addEventListener('pointerdown', this.onPointerDown);
+    this.container.addEventListener('pointerup', this.onPointerUp);
+    this.container.addEventListener('pointercancel', this.onPointerCancel);
     this.container.addEventListener('pointerleave', this.onPointerLeave, {
       passive: true,
     });
+    document.addEventListener('pointerlockchange', this.onPointerLockChange);
     this.isInteractive = true;
   }
 
   private stop() {
     if (!this.isInteractive) return;
     this.container.removeEventListener('pointermove', this.onPointerMove);
+    this.container.removeEventListener('pointerdown', this.onPointerDown);
+    this.container.removeEventListener('pointerup', this.onPointerUp);
+    this.container.removeEventListener('pointercancel', this.onPointerCancel);
     this.container.removeEventListener('pointerleave', this.onPointerLeave);
+    document.removeEventListener('pointerlockchange', this.onPointerLockChange);
     this.isInteractive = false;
     this.pointerActive = false;
+    this.isDragging = false;
+    this.pointerLocked = false;
+    this.container.removeAttribute('data-hero-drag');
   }
 
   public destroy() {
@@ -146,6 +203,10 @@ class Hero3DController {
     this.observer?.disconnect();
     this.stopReducedMotion?.();
   }
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
 }
 
 const heroNodes = document.querySelectorAll<HTMLElement>('[data-hero-3d]');
