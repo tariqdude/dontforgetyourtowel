@@ -3,22 +3,34 @@ const scenes = [
   {
     id: 'signal',
     label: 'Signal Horizon',
-    desc: 'Cinematic beams, orbitals, and data wakes that track scroll velocity.',
+    desc: 'Cinematic beams, orbitals, and data wakes that react to scroll velocity.',
+    accent: '99 102 241',
+    glow: '14 165 233',
+    chips: ['Orbital flux', 'Wavefield drift', 'Phase glow'],
   },
   {
     id: 'aurora',
     label: 'Aurora Core',
     desc: 'Chromatic nebula sweeps with prismatic energy rings.',
+    accent: '168 85 247',
+    glow: '236 72 153',
+    chips: ['Prism rays', 'Nebula fade', 'Lens bloom'],
   },
   {
     id: 'matrix',
     label: 'Matrix Drift',
     desc: 'Falling glyphs and depth stacks for retro-future motion.',
+    accent: '34 211 238',
+    glow: '59 130 246',
+    chips: ['Glyph rain', 'Grid dive', 'Vector noise'],
   },
   {
     id: 'vortex',
     label: 'Vortex Array',
     desc: 'Spiral particle corridors and kinetic pulse walls.',
+    accent: '251 146 60',
+    glow: '248 113 113',
+    chips: ['Spiral warp', 'Pulse belts', 'Dust trails'],
   },
 ];
 
@@ -31,21 +43,16 @@ const particles = Array.from({ length: 42 }).map((_, i) => {
 });
 ---
 
-<section class="immersive" data-immersive>
-  <div class="immersive-hero">
-    <p class="immersive-kicker">Immersive 3D Lab</p>
-    <h1 class="immersive-title">Scroll-driven, full-screen 3D storytelling</h1>
-    <p class="immersive-subtitle">
-      A playground for next-gen motion, layered depth, and cinematic
-      interactions. Built to be modular, performant, and mobile-friendly.
-    </p>
-  </div>
-
+<section class="immersive" data-immersive data-immersive-active="signal">
   <div class="immersive-stage" aria-hidden="true">
     <div class="immersive-scene">
       <div class="scene-layer layer-stars"></div>
       <div class="scene-layer layer-aurora"></div>
       <div class="scene-layer layer-grid"></div>
+      <div class="scene-layer layer-halo"></div>
+      <div class="scene-layer layer-matrix"></div>
+      <div class="scene-layer layer-vortex"></div>
+      <div class="scene-layer layer-spark"></div>
       <div class="scene-layer layer-orbits">
         <span class="orbit orbit-1"></span>
         <span class="orbit orbit-2"></span>
@@ -73,18 +80,73 @@ const particles = Array.from({ length: 42 }).map((_, i) => {
           ))
         }
       </div>
+      <div class="scene-layer layer-flares"></div>
     </div>
   </div>
 
-  <div class="immersive-sections">
+  <div class="immersive-track">
+    <section
+      class="immersive-panel is-hero"
+      data-panel
+      data-scene="signal"
+      style="--accent: 99 102 241; --glow: 14 165 233"
+    >
+      <div class="panel-content">
+        <p class="immersive-kicker">Immersive 3D Lab</p>
+        <h1 class="immersive-title">
+          Fullscreen scroll, cinematic depth, endless ideas.
+        </h1>
+        <p class="immersive-subtitle">
+          A real multi‑scene scroll experience that keeps the 3D stage locked
+          while content and motion evolve. WebGPU‑ready, modular, and built for
+          every screen.
+        </p>
+        <div class="panel-metrics">
+          <span>Scroll-reactive motion</span>
+          <span>Adaptive performance</span>
+          <span>Modular scenes</span>
+        </div>
+        <div class="scroll-hint">Scroll to explore ↓</div>
+      </div>
+      <div class="panel-visual hero-visual" aria-hidden="true">
+        <span class="panel-orb"></span>
+        <span class="panel-orb orb-2"></span>
+        <span class="panel-grid"></span>
+        <span class="panel-lines"></span>
+      </div>
+    </section>
+
     {
       scenes.map(scene => (
-        <article class="immersive-card" data-scene={scene.id}>
-          <h2>{scene.label}</h2>
-          <p>{scene.desc}</p>
-        </article>
+        <section
+          class="immersive-panel"
+          data-panel
+          data-scene={scene.id}
+          style={`--accent:${scene.accent};--glow:${scene.glow}`}
+        >
+          <div class="panel-content">
+            <p class="panel-tag">Scene {scene.label}</p>
+            <h2>{scene.label}</h2>
+            <p>{scene.desc}</p>
+            <div class="panel-chips">
+              {scene.chips.map(chip => (
+                <span class="chip">{chip}</span>
+              ))}
+            </div>
+          </div>
+          <div class="panel-visual" aria-hidden="true">
+            <span class="panel-orb" />
+            <span class="panel-orb orb-2" />
+            <span class="panel-grid" />
+            <span class="panel-lines" />
+          </div>
+        </section>
       ))
     }
+  </div>
+
+  <div class="scroll-rail" aria-hidden="true">
+    <span class="scroll-thumb"></span>
   </div>
 </section>
 
@@ -95,13 +157,36 @@ const particles = Array.from({ length: 42 }).map((_, i) => {
     background: radial-gradient(circle at top, #0b1120, #020617 65%);
     color: #e2e8f0;
     overflow: hidden;
-    padding: clamp(3rem, 6vw, 6rem) clamp(1.5rem, 4vw, 4rem) 8rem;
+    --active-accent: 99 102 241;
+    --active-glow: 14 165 233;
   }
 
-  .immersive-hero {
-    max-width: 760px;
-    position: relative;
-    z-index: 5;
+  .immersive::before {
+    content: '';
+    position: absolute;
+    inset: -10% -5% 40%;
+    background: radial-gradient(
+      circle at top,
+      rgba(var(--active-accent), 0.2),
+      transparent 70%
+    );
+    opacity: 0.7;
+    pointer-events: none;
+    transition: opacity 600ms ease;
+  }
+
+  .immersive::after {
+    content: '';
+    position: absolute;
+    inset: 40% -10% -10%;
+    background: radial-gradient(
+      circle at 40% 20%,
+      rgba(var(--active-glow), 0.18),
+      transparent 70%
+    );
+    opacity: 0.65;
+    pointer-events: none;
+    transition: opacity 600ms ease;
   }
 
   .immersive-kicker {
@@ -129,16 +214,42 @@ const particles = Array.from({ length: 42 }).map((_, i) => {
     position: sticky;
     top: 0;
     height: 100vh;
-    margin: 0 -4rem;
     pointer-events: none;
     display: grid;
     place-items: center;
     z-index: 1;
   }
 
+  .scroll-rail {
+    position: fixed;
+    right: clamp(0.75rem, 2vw, 2rem);
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: min(320px, 40vh);
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.15);
+    z-index: 6;
+    overflow: hidden;
+  }
+
+  .scroll-thumb {
+    display: block;
+    width: 100%;
+    height: 30%;
+    border-radius: inherit;
+    background: linear-gradient(
+      180deg,
+      rgba(var(--active-accent), 0.8),
+      rgba(var(--active-glow), 0.7)
+    );
+    transform: translateY(calc(var(--scroll-progress, 0) * 70%));
+    transition: transform 200ms ease;
+  }
+
   .immersive-scene {
     position: relative;
-    width: min(900px, 90vw);
+    width: min(960px, 90vw);
     aspect-ratio: 1;
     transform-style: preserve-3d;
     perspective: 1400px;
@@ -146,6 +257,7 @@ const particles = Array.from({ length: 42 }).map((_, i) => {
     transform: translateY(calc(var(--scroll-progress, 0) * -24px))
       rotateX(calc(var(--scroll-progress, 0) * 4deg))
       rotateZ(calc(var(--scroll-progress, 0) * -3deg));
+    filter: drop-shadow(0 0 60px rgba(var(--active-accent), 0.3));
   }
 
   .scene-layer {
@@ -169,8 +281,8 @@ const particles = Array.from({ length: 42 }).map((_, i) => {
   .layer-aurora {
     background: linear-gradient(
       120deg,
-      rgba(14, 165, 233, 0.25),
-      rgba(168, 85, 247, 0.25),
+      rgba(var(--active-glow), 0.25),
+      rgba(var(--active-accent), 0.25),
       rgba(236, 72, 153, 0.25),
       transparent 70%
     );
@@ -191,12 +303,88 @@ const particles = Array.from({ length: 42 }).map((_, i) => {
     opacity: 0.4;
   }
 
+  .layer-halo {
+    inset: 12% 16% 24%;
+    border-radius: 50%;
+    border: 1px solid rgba(var(--active-accent), 0.25);
+    box-shadow:
+      0 0 120px rgba(var(--active-accent), 0.25),
+      inset 0 0 60px rgba(var(--active-glow), 0.2);
+    opacity: 0.25;
+    transform: translateZ(-60px);
+    animation: haloBreath 14s ease-in-out infinite;
+  }
+
+  .layer-matrix {
+    inset: 12% 12% 18%;
+    background:
+      repeating-linear-gradient(
+        180deg,
+        rgba(56, 189, 248, 0.16) 0,
+        rgba(56, 189, 248, 0.16) 2px,
+        transparent 2px,
+        transparent 14px
+      ),
+      repeating-linear-gradient(
+        90deg,
+        rgba(34, 211, 238, 0.12) 0,
+        rgba(34, 211, 238, 0.12) 1px,
+        transparent 1px,
+        transparent 18px
+      );
+    opacity: 0;
+    transform: translateZ(-80px) translateY(-8%);
+    animation: matrixRain 12s linear infinite;
+  }
+
+  .layer-vortex {
+    inset: 8% 8% 8%;
+    border-radius: 50%;
+    background: conic-gradient(
+      from 90deg,
+      rgba(var(--active-accent), 0.25),
+      transparent,
+      rgba(var(--active-glow), 0.25),
+      transparent
+    );
+    opacity: 0;
+    transform: translateZ(40px) rotate(0deg);
+    animation: vortexSpin 16s linear infinite;
+    mask: radial-gradient(circle, transparent 45%, #000 55%);
+  }
+
+  .layer-spark {
+    inset: 20% 18% 26%;
+    border-radius: 30%;
+    background: radial-gradient(
+      circle at 30% 30%,
+      rgba(var(--active-glow), 0.35),
+      transparent 60%
+    );
+    opacity: 0.15;
+    transform: translateZ(120px);
+    animation: sparkPulse 6s ease-in-out infinite;
+  }
+
+  .immersive[data-immersive-active='matrix'] .layer-matrix {
+    opacity: 0.6;
+  }
+
+  .immersive[data-immersive-active='vortex'] .layer-vortex {
+    opacity: 0.5;
+  }
+
+  .immersive[data-immersive-active='signal'] .layer-spark,
+  .immersive[data-immersive-active='aurora'] .layer-spark {
+    opacity: 0.35;
+  }
+
   .layer-orbits .orbit {
     position: absolute;
     inset: 18% 18%;
     border-radius: 50%;
     border: 1px solid rgba(148, 163, 184, 0.45);
-    box-shadow: 0 0 24px rgba(99, 102, 241, 0.35);
+    box-shadow: 0 0 24px rgba(var(--active-accent), 0.35);
     animation: orbitSpin calc(18s - (var(--scroll-velocity, 0) * 4s)) linear
       infinite;
   }
@@ -225,12 +413,12 @@ const particles = Array.from({ length: 42 }).map((_, i) => {
     border-radius: 30% 70% 60% 40%;
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.35),
-      rgba(236, 72, 153, 0.25)
+      rgba(var(--active-accent), 0.35),
+      rgba(var(--active-glow), 0.25)
     );
     box-shadow:
-      0 0 80px rgba(99, 102, 241, 0.45),
-      0 0 140px rgba(236, 72, 153, 0.35);
+      0 0 80px rgba(var(--active-accent), 0.45),
+      0 0 140px rgba(var(--active-glow), 0.35);
     animation: corePulse 6s ease-in-out infinite;
   }
 
@@ -242,7 +430,7 @@ const particles = Array.from({ length: 42 }).map((_, i) => {
     background: radial-gradient(
       circle,
       rgba(255, 255, 255, 0.7),
-      rgba(14, 165, 233, 0.1)
+      rgba(var(--active-glow), 0.1)
     );
     opacity: 0.5;
     animation: glowSpin 8s linear infinite;
@@ -266,7 +454,7 @@ const particles = Array.from({ length: 42 }).map((_, i) => {
     background: linear-gradient(
       to bottom,
       transparent,
-      rgba(14, 165, 233, 0.8),
+      rgba(var(--active-glow), 0.8),
       transparent
     );
     transform-origin: top;
@@ -274,6 +462,173 @@ const particles = Array.from({ length: 42 }).map((_, i) => {
     animation: streamPulse calc(4s - (var(--scroll-velocity, 0) * 1.5s))
       ease-in-out infinite;
     animation-delay: calc(var(--i) * 0.2s);
+  }
+
+  .layer-flares {
+    inset: 10% 12% 18%;
+    border-radius: 40%;
+    border: 1px solid rgba(var(--active-accent), 0.2);
+    box-shadow:
+      0 0 120px rgba(var(--active-accent), 0.25),
+      0 0 200px rgba(var(--active-glow), 0.2);
+    opacity: 0.45;
+    animation: flarePulse 12s ease-in-out infinite;
+  }
+
+  .immersive-track {
+    position: relative;
+    z-index: 4;
+  }
+
+  .immersive-panel {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: clamp(4rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
+    border-top: 1px solid rgba(148, 163, 184, 0.12);
+    position: relative;
+  }
+
+  .immersive-panel::before {
+    content: '';
+    position: absolute;
+    inset: 12% 8% 18%;
+    border-radius: 32px;
+    background: radial-gradient(
+      circle at top,
+      rgba(var(--accent), 0.18),
+      transparent 70%
+    );
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .immersive-panel::after {
+    content: '';
+    position: absolute;
+    inset: 20% 18% 10%;
+    border-radius: 28px;
+    border: 1px solid rgba(var(--accent), 0.25);
+    opacity: 0.25;
+    pointer-events: none;
+  }
+
+  .panel-content {
+    max-width: 680px;
+    background: rgba(2, 6, 23, 0.6);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 28px;
+    padding: clamp(2rem, 4vw, 3rem);
+    box-shadow: 0 24px 60px rgba(2, 6, 23, 0.5);
+    backdrop-filter: blur(14px);
+    position: relative;
+    z-index: 2;
+    transition:
+      transform 400ms ease,
+      box-shadow 400ms ease;
+  }
+
+  .panel-tag {
+    font-size: 0.7rem;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: rgba(148, 163, 184, 0.65);
+    margin-bottom: 0.8rem;
+  }
+
+  .panel-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+  }
+
+  .chip {
+    padding: 0.4rem 0.75rem;
+    border-radius: 999px;
+    border: 1px solid rgba(var(--accent), 0.35);
+    color: rgba(226, 232, 240, 0.85);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+  }
+
+  .panel-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 1.5rem;
+    color: rgba(226, 232, 240, 0.7);
+    font-size: 0.85rem;
+  }
+
+  .scroll-hint {
+    margin-top: 2rem;
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(148, 163, 184, 0.7);
+  }
+
+  .panel-visual {
+    position: absolute;
+    inset: 15% 12% 18%;
+    border-radius: 32px;
+    opacity: 0.35;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .panel-visual .panel-orb {
+    position: absolute;
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle,
+      rgba(var(--accent), 0.35),
+      transparent 70%
+    );
+    top: 15%;
+    right: 10%;
+    filter: blur(8px);
+  }
+
+  .panel-visual .orb-2 {
+    width: 240px;
+    height: 240px;
+    top: 45%;
+    left: 10%;
+    opacity: 0.6;
+  }
+
+  .panel-visual .panel-grid {
+    position: absolute;
+    inset: 12% 18% 30%;
+    background-image:
+      linear-gradient(rgba(var(--accent), 0.2) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(var(--accent), 0.2) 1px, transparent 1px);
+    background-size: 40px 40px;
+    transform: rotateX(65deg);
+    opacity: 0.4;
+  }
+
+  .panel-visual .panel-lines {
+    position: absolute;
+    inset: 35% 12% 12%;
+    border: 1px dashed rgba(var(--accent), 0.35);
+    border-radius: 24px;
+  }
+
+  .immersive-panel.is-active .panel-content {
+    transform: translateY(-8px) scale(1.01);
+    box-shadow:
+      0 28px 70px rgba(2, 6, 23, 0.6),
+      0 0 40px rgba(var(--accent), 0.2);
+  }
+
+  .is-hero .panel-content {
+    background: rgba(15, 23, 42, 0.7);
   }
 
   .layer-particles .particle {
@@ -289,29 +644,12 @@ const particles = Array.from({ length: 42 }).map((_, i) => {
     animation-delay: var(--delay, 0s);
   }
 
-  .immersive-sections {
-    position: relative;
-    z-index: 5;
-    display: grid;
-    gap: 2.5rem;
-    margin-top: 70vh;
-  }
-
-  .immersive-card {
-    background: rgba(15, 23, 42, 0.8);
-    border: 1px solid rgba(148, 163, 184, 0.2);
-    border-radius: 24px;
-    padding: 2rem;
-    box-shadow: 0 24px 60px rgba(2, 6, 23, 0.45);
-    backdrop-filter: blur(12px);
-  }
-
-  .immersive-card h2 {
-    font-size: 1.6rem;
+  .immersive-panel h2 {
+    font-size: clamp(1.8rem, 4vw, 2.5rem);
     margin-bottom: 0.8rem;
   }
 
-  .immersive-card p {
+  .immersive-panel p {
     color: rgba(226, 232, 240, 0.75);
   }
 
@@ -397,11 +735,64 @@ const particles = Array.from({ length: 42 }).map((_, i) => {
     }
   }
 
-  @media (max-width: 900px) {
-    .immersive-stage {
-      margin: 0 -1.5rem;
+  @keyframes matrixRain {
+    0% {
+      background-position:
+        0 0,
+        0 0;
+      opacity: 0.15;
     }
+    100% {
+      background-position:
+        0 120px,
+        0 60px;
+      opacity: 0.45;
+    }
+  }
 
+  @keyframes vortexSpin {
+    to {
+      transform: translateZ(40px) rotate(360deg);
+    }
+  }
+
+  @keyframes sparkPulse {
+    0%,
+    100% {
+      opacity: 0.2;
+      transform: translateZ(120px) scale(0.96);
+    }
+    50% {
+      opacity: 0.6;
+      transform: translateZ(120px) scale(1.05);
+    }
+  }
+
+  @keyframes haloBreath {
+    0%,
+    100% {
+      opacity: 0.2;
+      transform: translateZ(-60px) scale(0.96);
+    }
+    50% {
+      opacity: 0.45;
+      transform: translateZ(-60px) scale(1.04);
+    }
+  }
+
+  @keyframes flarePulse {
+    0%,
+    100% {
+      opacity: 0.25;
+      transform: scale(0.98);
+    }
+    50% {
+      opacity: 0.55;
+      transform: scale(1.03);
+    }
+  }
+
+  @media (max-width: 900px) {
     .immersive-scene {
       width: min(520px, 90vw);
     }
@@ -413,9 +804,8 @@ const particles = Array.from({ length: 42 }).map((_, i) => {
 
   @media (pointer: coarse) {
     .immersive-stage {
-      position: relative;
-      height: auto;
-      margin: 2rem 0;
+      position: sticky;
+      height: 80vh;
     }
 
     .immersive-scene {
@@ -426,6 +816,20 @@ const particles = Array.from({ length: 42 }).map((_, i) => {
     .layer-particles {
       display: none;
     }
+
+    .scroll-rail {
+      display: none;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .immersive-panel {
+      padding: 4rem 1.5rem;
+    }
+
+    .panel-content {
+      padding: 1.75rem;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -433,28 +837,74 @@ const particles = Array.from({ length: 42 }).map((_, i) => {
       animation: none !important;
       transition: none !important;
     }
+
+    .scroll-thumb {
+      transform: translateY(calc(var(--scroll-progress, 0) * 70%));
+    }
   }
 </style>
 
 <script>
   const root = document.querySelector('[data-immersive]');
   if (root) {
+    const panels = Array.from(
+      root.querySelectorAll<HTMLElement>('[data-panel]')
+    );
     let lastScroll = window.scrollY;
     let lastTime = performance.now();
+    let ticking = false;
+
+    const updateActivePanel = () => {
+      const viewportCenter = window.innerHeight * 0.5;
+      let closestPanel = panels[0];
+      let closestDistance = Number.POSITIVE_INFINITY;
+
+      panels.forEach(panel => {
+        const rect = panel.getBoundingClientRect();
+        const distance = Math.abs(
+          rect.top + rect.height * 0.5 - viewportCenter
+        );
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestPanel = panel;
+        }
+      });
+
+      panels.forEach(panel => {
+        panel.classList.toggle('is-active', panel === closestPanel);
+      });
+
+      const scene = closestPanel?.dataset.scene;
+      if (scene) root.dataset.immersiveActive = scene;
+
+      if (closestPanel) {
+        const styles = getComputedStyle(closestPanel);
+        const accent = styles.getPropertyValue('--accent').trim();
+        const glow = styles.getPropertyValue('--glow').trim();
+        if (accent) root.style.setProperty('--active-accent', accent);
+        if (glow) root.style.setProperty('--active-glow', glow);
+      }
+    };
 
     const onScroll = () => {
-      const rect = root.getBoundingClientRect();
-      const total = rect.height - window.innerHeight;
-      const progress =
-        total > 0 ? Math.min(1, Math.max(0, -rect.top / total)) : 0;
-      const now = performance.now();
-      const delta = Math.abs(window.scrollY - lastScroll);
-      const time = Math.max(16, now - lastTime);
-      const velocity = Math.min(1, delta / time);
-      root.style.setProperty('--scroll-progress', progress.toFixed(3));
-      root.style.setProperty('--scroll-velocity', velocity.toFixed(3));
-      lastScroll = window.scrollY;
-      lastTime = now;
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const rect = root.getBoundingClientRect();
+        const total = rect.height - window.innerHeight;
+        const progress =
+          total > 0 ? Math.min(1, Math.max(0, -rect.top / total)) : 0;
+        const now = performance.now();
+        const delta = Math.abs(window.scrollY - lastScroll);
+        const time = Math.max(16, now - lastTime);
+        const velocity = Math.min(1, delta / time);
+        root.style.setProperty('--scroll-progress', progress.toFixed(3));
+        root.style.setProperty('--scroll-velocity', velocity.toFixed(3));
+        updateActivePanel();
+        lastScroll = window.scrollY;
+        lastTime = now;
+        ticking = false;
+      });
     };
 
     onScroll();
