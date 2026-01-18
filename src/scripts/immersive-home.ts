@@ -212,14 +212,17 @@ const blendConfig = (
 type OrbitNode = {
   radius: number;
   speed: number;
-  tilt: number;
+  height: number;
+  wobble: number;
   offset: number;
 };
 
 type CardNode = {
-  radius: number;
-  speed: number;
-  tilt: number;
+  x: number;
+  y: number;
+  z: number;
+  drift: number;
+  sway: number;
   offset: number;
   spin: number;
 };
@@ -353,7 +356,7 @@ class ImmersiveThreeController {
   }
 
   private createHero(): THREE.Mesh {
-    const geo = new THREE.IcosahedronGeometry(1.1, 5);
+    const geo = new THREE.TorusKnotGeometry(1.1, 0.28, 160, 18, 2, 3);
     const mat = new THREE.MeshPhysicalMaterial({
       color: new THREE.Color().setHSL(0.58, 0.85, 0.55),
       metalness: 0.65,
@@ -369,23 +372,29 @@ class ImmersiveThreeController {
       attenuationDistance: 1.6,
       attenuationColor: new THREE.Color(0x4a7cff),
     });
-    return new THREE.Mesh(geo, mat);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.scale.set(0.85, 0.85, 0.85);
+    return mesh;
   }
 
   private createHeroAura(): THREE.Mesh {
-    const geo = new THREE.SphereGeometry(1.35, 48, 48);
+    const geo = new THREE.RingGeometry(1.8, 2.15, 64);
     const mat = new THREE.MeshBasicMaterial({
       color: new THREE.Color().setHSL(0.62, 0.9, 0.6),
       transparent: true,
-      opacity: 0.08,
+      opacity: 0.12,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
+      side: THREE.DoubleSide,
     });
-    return new THREE.Mesh(geo, mat);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = Math.PI / 2.4;
+    mesh.rotation.y = Math.PI / 6;
+    return mesh;
   }
 
   private createHeroCore(): THREE.Mesh {
-    const geo = new THREE.SphereGeometry(0.5, 32, 32);
+    const geo = new THREE.IcosahedronGeometry(0.48, 1);
     const mat = new THREE.MeshStandardMaterial({
       color: new THREE.Color().setHSL(0.6, 0.85, 0.55),
       emissive: new THREE.Color().setHSL(0.6, 0.9, 0.4),
@@ -424,7 +433,7 @@ class ImmersiveThreeController {
   }
 
   private createCards(): THREE.InstancedMesh {
-    const geo = new THREE.PlaneGeometry(0.35, 0.8);
+    const geo = new THREE.PlaneGeometry(0.7, 0.45);
     const mat = new THREE.MeshBasicMaterial({
       color: new THREE.Color().setHSL(0.62, 0.7, 0.6),
       transparent: true,
@@ -438,9 +447,11 @@ class ImmersiveThreeController {
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 
     this.cardNodes = Array.from({ length: this.cardCount }).map(() => ({
-      radius: 2.2 + Math.random() * 5,
-      speed: 0.2 + Math.random() * 0.8,
-      tilt: (Math.random() - 0.5) * 1.5,
+      x: (Math.random() - 0.5) * 6.5,
+      y: (Math.random() - 0.5) * 4.5,
+      z: (Math.random() - 0.5) * 5.5,
+      drift: 0.2 + Math.random() * 0.5,
+      sway: (Math.random() - 0.5) * 0.4,
       offset: Math.random() * Math.PI * 2,
       spin: (Math.random() - 0.5) * 1.6,
     }));
@@ -450,7 +461,7 @@ class ImmersiveThreeController {
 
   private createOrbiters(): THREE.InstancedMesh {
     const count = this.orbiterCount;
-    const geo = new THREE.DodecahedronGeometry(0.09, 0);
+    const geo = new THREE.ConeGeometry(0.08, 0.5, 5, 1);
     const mat = new THREE.MeshStandardMaterial({
       color: new THREE.Color().setHSL(0.58, 0.8, 0.6),
       emissive: new THREE.Color().setHSL(0.58, 0.8, 0.35),
@@ -462,9 +473,10 @@ class ImmersiveThreeController {
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 
     this.orbitNodes = Array.from({ length: count }).map((_, i) => ({
-      radius: 1.8 + (i % 10) * 0.08 + Math.random() * 0.8,
-      speed: 0.4 + Math.random() * 1.2,
-      tilt: (Math.random() - 0.5) * 1.2,
+      radius: 0.7 + (i % 12) * 0.06 + Math.random() * 0.4,
+      speed: 0.25 + Math.random() * 0.7,
+      height: (i / count - 0.5) * 6 + (Math.random() - 0.5) * 0.8,
+      wobble: (Math.random() - 0.5) * 0.6,
       offset: Math.random() * Math.PI * 2,
     }));
 
@@ -478,14 +490,12 @@ class ImmersiveThreeController {
 
     for (let i = 0; i < count; i++) {
       const idx = i * 3;
-      const u = Math.random();
-      const v = Math.random();
-      const theta = u * Math.PI * 2;
-      const phi = Math.acos(2 * v - 1);
-      const r = 1.4 + Math.random() * 3.2;
-      const x = r * Math.sin(phi) * Math.cos(theta);
-      const y = r * Math.cos(phi);
-      const z = r * Math.sin(phi) * Math.sin(theta);
+      const t = i / count;
+      const angle = t * Math.PI * 10;
+      const radius = 1.6 + Math.sin(t * Math.PI * 4) * 0.6;
+      const x = Math.cos(angle) * radius;
+      const y = (t - 0.5) * 7.5 + Math.sin(angle * 0.4) * 0.6;
+      const z = Math.sin(angle) * radius;
 
       positions[idx] = x;
       positions[idx + 1] = y;
@@ -501,10 +511,10 @@ class ImmersiveThreeController {
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     const mat = new THREE.PointsMaterial({
       color: new THREE.Color().setHSL(0.6, 0.9, 0.65),
-      size: 0.035,
+      size: 0.04,
       sizeAttenuation: true,
       transparent: true,
-      opacity: 0.55,
+      opacity: 0.6,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
@@ -512,25 +522,26 @@ class ImmersiveThreeController {
   }
 
   private createRings(): THREE.Mesh[] {
-    const rings: THREE.Mesh[] = [];
-    const ringGeo = new THREE.TorusGeometry(2.2, 0.05, 16, 160);
+    const slices: THREE.Mesh[] = [];
+    const sliceGeo = new THREE.PlaneGeometry(4.4, 0.6);
     const mat = new THREE.MeshBasicMaterial({
       color: new THREE.Color().setHSL(0.6, 0.85, 0.6),
       transparent: true,
-      opacity: 0.35,
+      opacity: 0.22,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
+      side: THREE.DoubleSide,
     });
 
     for (let i = 0; i < 3; i++) {
-      const ring = new THREE.Mesh(ringGeo, mat.clone());
-      ring.rotation.x = Math.random() * Math.PI;
-      ring.rotation.y = Math.random() * Math.PI;
-      ring.rotation.z = Math.random() * Math.PI;
-      rings.push(ring);
+      const slice = new THREE.Mesh(sliceGeo, mat.clone());
+      slice.rotation.x = Math.random() * Math.PI;
+      slice.rotation.y = Math.random() * Math.PI;
+      slice.rotation.z = Math.random() * Math.PI;
+      slices.push(slice);
     }
 
-    return rings;
+    return slices;
   }
 
   private init(): void {
@@ -798,10 +809,10 @@ class ImmersiveThreeController {
     const heroScale =
       config.heroScale * (1 + this.burst * 0.08 - collapse * 0.12);
     this.hero.scale.setScalar(heroScale);
-    this.hero.rotation.x = time * 0.15 + this.pointer.y * 0.6 + shear * 0.3;
+    this.hero.rotation.x = time * 0.12 + this.pointer.y * 0.5 + shear * 0.2;
     this.hero.rotation.y =
-      time * 0.2 + this.pointer.x * 0.6 + config.heroTwist * 0.2;
-    this.hero.rotation.z = time * 0.08 + flip * Math.PI * 0.35;
+      time * 0.18 + this.pointer.x * 0.5 + config.heroTwist * 0.18;
+    this.hero.rotation.z = time * 0.1 + flip * Math.PI * 0.25;
 
     const heroMat = this.hero.material as THREE.MeshPhysicalMaterial;
     const color = new THREE.Color().setHSL(config.hue / 360, 0.85, 0.55);
@@ -811,7 +822,8 @@ class ImmersiveThreeController {
 
     const auraMat = this.heroAura.material as THREE.MeshBasicMaterial;
     auraMat.color.setHSL(config.hue / 360, 0.85, 0.6);
-    auraMat.opacity = 0.08 + this.burst * 0.12 + this.event * 0.08;
+    auraMat.opacity = 0.12 + this.burst * 0.1 + this.event * 0.1;
+    this.heroAura.rotation.z = time * 0.2 + shear * 0.4;
 
     const coreMat = this.heroCore.material as THREE.MeshStandardMaterial;
     coreMat.color.setHSL(config.hue2 / 360, 0.85, 0.5);
@@ -837,13 +849,17 @@ class ImmersiveThreeController {
     for (let i = 0; i < orbiterActive; i += 1) {
       const node = this.orbitNodes[i];
       const angle = time * node.speed + node.offset;
-      const radius = node.radius * config.orbRadius * (1 - collapse * 0.35);
-      const height = Math.sin(angle * 0.7 + node.tilt) * 0.8;
+      const radius = node.radius * (0.9 + config.ringScale * 0.5);
       const x = Math.cos(angle) * radius;
       const z = Math.sin(angle) * radius;
-      const y = height + shear * x * 0.15;
+      const y = node.height + Math.sin(angle * 1.1 + node.wobble) * 0.35;
       pos.set(x, y, z);
       temp.makeTranslation(pos.x, pos.y, pos.z);
+      temp.multiply(
+        new THREE.Matrix4().makeRotationFromEuler(
+          new THREE.Euler(0.1 + node.wobble, angle, node.wobble)
+        )
+      );
       this.orbiters.setMatrixAt(i, temp);
     }
     this.orbiters.instanceMatrix.needsUpdate = true;
@@ -866,20 +882,21 @@ class ImmersiveThreeController {
 
     for (let i = 0; i < cardActive; i += 1) {
       const node = this.cardNodes[i];
-      const angle = time * node.speed + node.offset;
-      const radius = node.radius * (1 + config.ringScale * 0.4);
-      const x = Math.cos(angle) * radius;
-      const z = Math.sin(angle) * radius;
-      const y = Math.sin(angle * 1.3 + node.tilt) * 0.8;
-      cardPos.set(x, y, z);
+      const drift = Math.sin(time * node.drift + node.offset) * 0.7;
+      const sway = Math.cos(time * node.drift * 0.9 + node.offset) * 0.45;
+      cardPos.set(
+        node.x + drift,
+        node.y + sway + shear * 0.6,
+        node.z + Math.sin(time * 0.5 + node.offset) * 0.6
+      );
       cardQuat.setFromEuler(
         new THREE.Euler(
-          node.tilt + shear * 0.4,
-          angle * 0.6,
-          node.spin + time * 0.2
+          node.sway + shear * 0.45,
+          time * 0.25 + node.offset,
+          node.spin + time * 0.35
         )
       );
-      cardScale.setScalar(0.9 + this.event * 0.15);
+      cardScale.setScalar(0.8 + this.event * 0.25 + this.burst * 0.1);
       cardMat.compose(cardPos, cardQuat, cardScale);
       this.cards.setMatrixAt(i, cardMat);
     }
@@ -888,14 +905,15 @@ class ImmersiveThreeController {
     // Particles
     const positions = this.particlePoints.geometry.attributes.position
       .array as Float32Array;
-    const particleScale = config.particleRadius * (1 - collapse * 0.4);
+    const flow = time * 0.6;
     for (let i = 0; i < positions.length; i += 3) {
       const bx = this.particleBase[i];
       const by = this.particleBase[i + 1];
       const bz = this.particleBase[i + 2];
-      positions[i] = bx * particleScale;
-      positions[i + 1] = by * particleScale * (flip ? -1 : 1);
-      positions[i + 2] = bz * particleScale;
+      const phase = by * 0.35 + flow;
+      positions[i] = bx + Math.sin(phase) * 0.18;
+      positions[i + 1] = by * (1 - collapse * 0.2) + Math.cos(phase) * 0.12;
+      positions[i + 2] = bz + Math.cos(phase * 0.9) * 0.18;
     }
     this.particlePoints.geometry.attributes.position.needsUpdate = true;
     const drawCount = Math.max(
@@ -907,18 +925,18 @@ class ImmersiveThreeController {
     this.particlePoints.geometry.setDrawRange(0, drawCount);
     const pointsMat = this.particlePoints.material as THREE.PointsMaterial;
     pointsMat.color.setHSL(config.hue2 / 360, 0.9, 0.65);
-    pointsMat.opacity = 0.5 + this.burst * 0.2;
-    pointsMat.size = 0.03 + this.quality * 0.015 + this.event * 0.01;
+    pointsMat.opacity = 0.55 + this.burst * 0.25;
+    pointsMat.size = 0.035 + this.quality * 0.02 + this.event * 0.01;
 
     // Rings
-    this.rings.forEach((ring, i) => {
-      ring.scale.setScalar(config.ringScale * (1 + i * 0.08));
-      ring.rotation.x += 0.002 + i * 0.0004;
-      ring.rotation.y += 0.003 + i * 0.0006;
-      ring.rotation.z += 0.002;
-      const ringMat = ring.material as THREE.MeshBasicMaterial;
-      ringMat.color.setHSL(config.hue / 360, 0.85, 0.6);
-      ringMat.opacity = 0.2 + this.event * 0.2 + this.burst * 0.15;
+    this.rings.forEach((slice, i) => {
+      slice.scale.setScalar(config.ringScale * (1 + i * 0.08));
+      slice.rotation.x += 0.001 + i * 0.0004;
+      slice.rotation.y += 0.002 + i * 0.0006;
+      slice.rotation.z += 0.003 + i * 0.0008;
+      const sliceMat = slice.material as THREE.MeshBasicMaterial;
+      sliceMat.color.setHSL(config.hue / 360, 0.85, 0.6);
+      sliceMat.opacity = 0.18 + this.event * 0.22 + this.burst * 0.18;
     });
 
     // Group and camera
