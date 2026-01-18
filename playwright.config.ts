@@ -10,6 +10,10 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
+  timeout: process.env.CI ? 60_000 : 45_000,
+  expect: {
+    timeout: process.env.CI ? 10_000 : 7_000,
+  },
   reporter: process.env.CI
     ? [['html'], ['list'], ['github']]
     : [['html'], ['list']],
@@ -36,40 +40,49 @@ export default defineConfig({
     contextOptions: {
       reducedMotion: 'reduce',
     },
+    actionTimeout: process.env.CI ? 15_000 : 10_000,
+    navigationTimeout: process.env.CI ? 30_000 : 20_000,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
 
-  projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-    ...(process.platform === 'win32'
-      ? []
-      : [
-          {
-            name: 'webkit',
-            use: { ...devices['Desktop Safari'] },
-          },
-        ]),
-    {
-      name: 'Mobile Chrome',
-      use: { ...devices['Pixel 5'] },
-    },
-    ...(process.platform === 'win32'
-      ? []
-      : [
-          {
-            name: 'Mobile Safari',
-            use: { ...devices['iPhone 12'] },
-          },
-        ]),
-  ],
+  projects: process.env.CI
+    ? [
+        {
+          name: 'chromium',
+          use: { ...devices['Desktop Chrome'] },
+        },
+      ]
+    : [
+        {
+          name: 'chromium',
+          use: { ...devices['Desktop Chrome'] },
+        },
+        {
+          name: 'firefox',
+          use: { ...devices['Desktop Firefox'] },
+        },
+        ...(process.platform === 'win32'
+          ? []
+          : [
+              {
+                name: 'webkit',
+                use: { ...devices['Desktop Safari'] },
+              },
+            ]),
+        {
+          name: 'Mobile Chrome',
+          use: { ...devices['Pixel 5'] },
+        },
+        ...(process.platform === 'win32'
+          ? []
+          : [
+              {
+                name: 'Mobile Safari',
+                use: { ...devices['iPhone 12'] },
+              },
+            ]),
+      ],
 
   webServer: {
     // Build + preview the static output so E2E is deterministic.

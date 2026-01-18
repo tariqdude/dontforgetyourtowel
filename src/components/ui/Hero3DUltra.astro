@@ -830,6 +830,33 @@ const heroStyle = {
     opacity: 0.2;
   }
 
+  .hero-3d[data-hero-perf='true'] .layer-data,
+  :global(html[data-demo-perf='true']) .hero-3d .layer-data {
+    opacity: 0.4;
+  }
+
+  .hero-3d[data-hero-perf='true'] .binary-stream,
+  .hero-3d[data-hero-perf='true'] .hex-stream,
+  .hero-3d[data-hero-perf='true'] .coord-readout,
+  .hero-3d[data-hero-perf='true'] .loading-bar,
+  :global(html[data-demo-perf='true']) .hero-3d .binary-stream,
+  :global(html[data-demo-perf='true']) .hero-3d .hex-stream,
+  :global(html[data-demo-perf='true']) .hero-3d .coord-readout,
+  :global(html[data-demo-perf='true']) .hero-3d .loading-bar {
+    display: none;
+  }
+
+  .hero-3d[data-hero-perf='true'] .data-ring,
+  :global(html[data-demo-perf='true']) .hero-3d .data-ring {
+    animation: dataSpin 28s linear infinite;
+  }
+
+  .hero-3d[data-hero-perf='true'] .particle,
+  :global(html[data-demo-perf='true']) .hero-3d .particle {
+    animation-duration: 14s;
+    opacity: 0.4;
+  }
+
   .hero-3d[data-hero-paused='true'] * {
     animation-play-state: paused !important;
   }
@@ -1069,6 +1096,10 @@ const heroStyle = {
   .hero-3d[data-hero-reduced='true'] * {
     animation: none !important;
     transition: none !important;
+  }
+
+  .hero-3d[data-hero-reduced='true'] .scanlines {
+    display: none;
   }
 </style>
 
