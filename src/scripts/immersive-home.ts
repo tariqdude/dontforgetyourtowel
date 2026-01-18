@@ -28,6 +28,11 @@ function smoothstep(t: number): number {
   return x * x * (3 - 2 * x);
 }
 
+function ramp(t: number, start: number, end: number): number {
+  if (end === start) return 0;
+  return smoothstep((t - start) / (end - start));
+}
+
 function fract(x: number): number {
   return x - Math.floor(x);
 }
@@ -81,6 +86,13 @@ const SCENES = [
   'afterglow',
 ] as const;
 
+const SCENE_INDEX = new Map<string, number>(SCENES.map((s, i) => [s, i]));
+
+function sceneIndexFromId(id: string | undefined): number {
+  if (!id) return 0;
+  return SCENE_INDEX.get(id) ?? 0;
+}
+
 // Per-scene physics personality (blended between chapters)
 // - twist: swirl direction/strength
 // - gravity: subtle y acceleration
@@ -100,6 +112,34 @@ const SCENE_GRAVITY: number[] = [
   0.08, // rift
   0.0, // singularity
   -0.04, // afterglow
+];
+
+// Scene grading (keeps palette coherent and modern)
+const SCENE_HUE: number[] = [
+  205, // ignite
+  235, // prism
+  260, // swarm
+  285, // rift
+  310, // singularity
+  28, // afterglow
+];
+
+const SCENE_HUE_2: number[] = [
+  265, // ignite
+  285, // prism
+  300, // swarm
+  330, // rift
+  350, // singularity
+  45, // afterglow
+];
+
+const SCENE_GRADE: number[] = [
+  0.15, // ignite
+  0.22, // prism
+  0.28, // swarm
+  0.32, // rift
+  0.4, // singularity
+  0.25, // afterglow
 ];
 
 function targetFor(sceneIdx: number, i: number, u: number, v: number): Vec3 {
@@ -179,6 +219,13 @@ class ParticleField {
   private w = 1;
   private h = 1;
 
+  private spriteDpr = 0;
+  private sprites: HTMLCanvasElement[] = [];
+
+  private bloomCanvas: HTMLCanvasElement | null = null;
+  private bloomCtx: CanvasRenderingContext2D | null = null;
+  private bloomScale = 0.35;
+
   private pointerTargetX = 0;
   private pointerTargetY = 0;
   private pointerX = new SpringValue(0);
@@ -189,6 +236,12 @@ class ParticleField {
   public mount(canvas: HTMLCanvasElement, count: number): void {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
+
+    this.bloomCanvas = document.createElement('canvas');
+    this.bloomCtx = this.bloomCanvas.getContext('2d', {
+      alpha: true,
+      desynchronized: true,
+    });
 
     this.particles = Array.from({ length: count }).map((_, i) => {
       const s = hash11(i * 17.3) * 9999;
@@ -204,6 +257,67 @@ class ParticleField {
     });
 
     this.resize();
+  }
+
+  private rebuildSprites(): void {
+    if (this.spriteDpr === this.dpr && this.sprites.length > 0) return;
+
+    this.spriteDpr = this.dpr;
+
+    const make = (rgb: [number, number, number]): HTMLCanvasElement => {
+      const base = 44;
+      const size = Math.max(24, Math.floor(base * this.dpr));
+      const c = document.createElement('canvas');
+      c.width = size;
+      c.height = size;
+
+      const ctx = c.getContext('2d');
+      if (!ctx) return c;
+
+      const [r, g, b] = rgb;
+      const cx = size * 0.5;
+      const cy = size * 0.5;
+      const rad = size * 0.5;
+
+      ctx.clearRect(0, 0, size, size);
+
+      // Core white-hot bloom
+      const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad);
+      core.addColorStop(0, 'rgba(255,255,255,0.98)');
+      core.addColorStop(0.14, 'rgba(255,255,255,0.75)');
+      core.addColorStop(0.36, `rgba(${r},${g},${b},0.28)`);
+      core.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = core;
+      ctx.fillRect(0, 0, size, size);
+
+      // Chromatic fringe (subtle, keeps it modern without becoming noisy)
+      ctx.globalCompositeOperation = 'screen';
+      const fringe = ctx.createRadialGradient(
+        cx - 0.6 * this.dpr,
+        cy + 0.2 * this.dpr,
+        0,
+        cx,
+        cy,
+        rad
+      );
+      fringe.addColorStop(0, `rgba(${r},${g},${b},0.35)`);
+      fringe.addColorStop(0.6, `rgba(${r},${g},${b},0.08)`);
+      fringe.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = fringe;
+      ctx.fillRect(0, 0, size, size);
+
+      ctx.globalCompositeOperation = 'source-over';
+      return c;
+    };
+
+    // A controlled, professional palette (avoid rainbow noise).
+    this.sprites = [
+      make([56, 189, 248]), // cyan
+      make([99, 102, 241]), // indigo
+      make([236, 72, 153]), // magenta
+      make([251, 146, 60]), // amber
+      make([255, 255, 255]), // white
+    ];
   }
 
   public resize(): void {
@@ -222,6 +336,24 @@ class ParticleField {
     if (this.ctx) {
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
+
+    if (this.bloomCanvas && this.bloomCtx) {
+      const bw = Math.max(1, Math.floor(this.w * this.bloomScale * dpr));
+      const bh = Math.max(1, Math.floor(this.h * this.bloomScale * dpr));
+      this.bloomCanvas.width = bw;
+      this.bloomCanvas.height = bh;
+      this.bloomCtx.setTransform(
+        this.bloomScale * dpr,
+        0,
+        0,
+        this.bloomScale * dpr,
+        0,
+        0
+      );
+      this.bloomCtx.imageSmoothingEnabled = true;
+    }
+
+    this.rebuildSprites();
   }
 
   public setPointer(nx: number, ny: number): void {
@@ -239,6 +371,9 @@ class ParticleField {
     burst: number;
     pinch: number;
     event: number;
+    collapse: number;
+    flip: number;
+    shear: number;
   }): void {
     if (!this.ctx || !this.canvas) return;
 
@@ -255,6 +390,14 @@ class ParticleField {
     const trail = lerp(0.22, 0.12, opts.quality) * (1 - opts.event * 0.25);
     ctx.fillStyle = `rgba(2, 6, 23, ${trail})`;
     ctx.fillRect(0, 0, this.w, this.h);
+
+    // Low-res bloom buffer (subtle, modern glow without heavy GPU)
+    const doBloom = opts.quality > 0.72 && this.bloomCtx && this.bloomCanvas;
+    if (doBloom && this.bloomCtx) {
+      const bloomTrail = lerp(0.4, 0.18, opts.quality);
+      this.bloomCtx.fillStyle = `rgba(2, 6, 23, ${bloomTrail})`;
+      this.bloomCtx.fillRect(0, 0, this.w, this.h);
+    }
 
     const cx = this.w * 0.5;
     const cy = this.h * 0.5;
@@ -293,10 +436,19 @@ class ParticleField {
       SCENE_GRAVITY[opts.sceneB] ?? 0,
       blendT
     );
-    const gravity = sceneGravity * (0.8 + velBoost * 0.9 + pinchBoost * 0.6);
+    const gravitySign = lerp(1, -1, opts.flip);
+    const gravity =
+      sceneGravity * gravitySign * (0.8 + velBoost * 0.9 + pinchBoost * 0.6);
 
     // Adaptive draw stride when quality drops.
     const stride = opts.quality > 0.82 ? 1 : opts.quality > 0.6 ? 2 : 3;
+
+    const sprites = this.sprites;
+    const spriteCount = Math.max(1, sprites.length);
+
+    // Additive blend for a "4K" glow look.
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < this.particles.length; i += stride) {
       const part = this.particles[i];
 
@@ -329,6 +481,21 @@ class ParticleField {
         part.v.x += -part.p.x * pull * dt;
         part.v.y += -part.p.y * pull * dt;
         part.v.z += -part.p.z * pull * dt;
+      }
+
+      // Collapse event (singularity feel)
+      if (opts.collapse > 0) {
+        const pull = opts.collapse * (0.28 + velBoost * 0.25);
+        part.v.x += -part.p.x * pull * dt;
+        part.v.y += -part.p.y * pull * dt;
+        part.v.z += -part.p.z * pull * dt;
+      }
+
+      // Shear event (rift feel)
+      if (opts.shear > 0) {
+        const shear = opts.shear * (0.25 + velBoost * 0.3);
+        part.v.x += part.p.y * shear * dt;
+        part.v.z += part.p.x * shear * dt * 0.6;
       }
 
       part.v.x += part.p.x * impulse;
@@ -380,13 +547,39 @@ class ParticleField {
         lerp(0.6, 2.6, inv) *
         (1 + opts.burst * 0.25 + pinchBoost * 0.08 + opts.event * 0.08);
 
-      // Color responds to scroll/scene
-      const hue = (opts.scroll * 280 + u * 120) % 360;
+      // Controlled palette selection (avoids noisy rainbow)
+      const sIdx = Math.min(spriteCount - 1, Math.floor(u * spriteCount));
+      const sprite = sprites[sIdx] ?? sprites[0];
 
-      ctx.fillStyle = `hsla(${hue}, 90%, 70%, ${alpha})`;
-      ctx.beginPath();
-      ctx.arc(sx, sy, size, 0, Math.PI * 2);
-      ctx.fill();
+      // Sprite size in CSS pixels (ctx is already scaled by DPR via setTransform)
+      const draw = size * (6.5 + velBoost * 1.2 + opts.event * 1.2);
+      ctx.globalAlpha = clamp(alpha * (0.55 + opts.quality * 0.25), 0.02, 0.85);
+      ctx.drawImage(sprite, sx - draw * 0.5, sy - draw * 0.5, draw, draw);
+
+      if (doBloom && this.bloomCtx && this.bloomCanvas) {
+        const bloomDraw = draw * (1.8 + opts.event * 0.6);
+        this.bloomCtx.globalAlpha = clamp(alpha * 0.16, 0.01, 0.25);
+        this.bloomCtx.drawImage(
+          sprite,
+          sx - bloomDraw * 0.5,
+          sy - bloomDraw * 0.5,
+          bloomDraw,
+          bloomDraw
+        );
+      }
+    }
+
+    ctx.restore();
+    ctx.globalAlpha = 1;
+
+    // Composite bloom (single blurred blit, cheap but effective)
+    if (doBloom && this.bloomCtx && this.bloomCanvas) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'screen';
+      ctx.globalAlpha = 0.65 + opts.event * 0.2 + opts.burst * 0.15;
+      ctx.filter = `blur(${8 + opts.event * 6}px)`;
+      ctx.drawImage(this.bloomCanvas, 0, 0, this.w, this.h);
+      ctx.restore();
     }
 
     // A tiny vignette / glow pass
@@ -433,6 +626,8 @@ class ImmersiveHomeController {
   private perfLP = 16.7;
 
   private lastChapterIdx = -1;
+  private stingerChapterIdx = -1;
+  private stingerFired = false;
 
   private raf = 0;
   private reducedMotion = false;
@@ -620,6 +815,30 @@ class ImmersiveHomeController {
     const { progress, velocity } = this.computeScroll();
     const { scene, idx, localT } = this.chapterFromProgress(progress);
 
+    const nextScene =
+      this.chapters[Math.min(idx + 1, this.chapters.length - 1)]?.dataset
+        .scene ?? scene;
+
+    const blendT = smoothstep(localT);
+    const sceneIdx = sceneIndexFromId(scene);
+    const nextSceneIdx = sceneIndexFromId(nextScene);
+
+    const hue = lerp(
+      SCENE_HUE[sceneIdx] ?? 210,
+      SCENE_HUE[nextSceneIdx] ?? 210,
+      blendT
+    );
+    const hue2 = lerp(
+      SCENE_HUE_2[sceneIdx] ?? 280,
+      SCENE_HUE_2[nextSceneIdx] ?? 280,
+      blendT
+    );
+    const grade = lerp(
+      SCENE_GRADE[sceneIdx] ?? 0.2,
+      SCENE_GRADE[nextSceneIdx] ?? 0.2,
+      blendT
+    );
+
     const now = performance.now();
 
     // Measure frame time for adaptive quality.
@@ -662,8 +881,41 @@ class ImmersiveHomeController {
       this.lastChapterIdx = idx;
       this.event = 1;
       this.burst = Math.min(1, this.burst + 0.55);
+
+      // Arm a mid-chapter stinger.
+      this.stingerChapterIdx = idx;
+      this.stingerFired = false;
     }
+
+    // Mid-chapter "stinger" (one per chapter): a deliberate moment that feels authored.
+    // Keep it subtle; avoid noisy spam on fast scroll.
+    if (
+      !this.stingerFired &&
+      idx === this.stingerChapterIdx &&
+      localT > 0.68 &&
+      velocity < 0.45
+    ) {
+      this.stingerFired = true;
+      this.event = 1;
+      this.burst = Math.min(1, this.burst + 0.35);
+      // Small camera kick for punch (decays naturally)
+      const jx = (hash11(idx * 97.13 + now * 0.001) - 0.5) * 0.22;
+      const jy = (hash11(idx * 31.77 + now * 0.001 + 4.2) - 0.5) * 0.18;
+      this.kick.x = clamp(this.kick.x + jx, -0.85, 0.85);
+      this.kick.y = clamp(this.kick.y + jy, -0.85, 0.85);
+    }
+
     this.event = clamp(this.event * 0.9, 0, 1);
+
+    // Scene-specific advanced scroll effects
+    const collapse =
+      scene === 'singularity'
+        ? ramp(localT, 0.18, 0.85)
+        : scene === 'afterglow'
+          ? ramp(1 - localT, 0.15, 0.75) * 0.6
+          : 0;
+    const flip = scene === 'rift' ? ramp(localT, 0.35, 0.7) : 0;
+    const shear = scene === 'prism' ? ramp(localT, 0.2, 0.8) * 0.45 : 0;
 
     this.root.style.setProperty('--ih-scroll', progress.toFixed(4));
     this.root.style.setProperty('--ih-vel', velocity.toFixed(4));
@@ -674,12 +926,15 @@ class ImmersiveHomeController {
     this.root.style.setProperty('--ih-quality', this.quality.toFixed(4));
     this.root.style.setProperty('--ih-event', this.event.toFixed(4));
     this.root.style.setProperty('--ih-pinch', pinch.toFixed(4));
+    this.root.style.setProperty('--ih-hue', hue.toFixed(2));
+    this.root.style.setProperty('--ih-hue-2', hue2.toFixed(2));
+    this.root.style.setProperty('--ih-grade', grade.toFixed(3));
     this.root.dataset.ihScene = scene;
 
     // Canvas tick
     if (!this.reducedMotion && this.canvas && this.canvas.width > 0) {
-      const a = idx;
-      const b = Math.min(idx + 1, SCENES.length - 1);
+      const a = sceneIdx;
+      const b = nextSceneIdx;
       this.field.tick({
         sceneA: a,
         sceneB: b,
@@ -690,6 +945,9 @@ class ImmersiveHomeController {
         burst: this.burst,
         pinch,
         event: this.event,
+        collapse,
+        flip,
+        shear,
       });
     }
   }
