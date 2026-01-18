@@ -8,7 +8,6 @@ import TestimonialSlider from '../components/business/TestimonialSlider.astro';
 import CaseStudyCard from '../components/business/CaseStudyCard.astro';
 import ServicesQuiz from '../components/business/ServicesQuiz';
 import ContactForm from '../components/ContactForm.astro';
-import HeroSection from '../components/landing/HeroSection.astro';
 
 import ModernButton from '../components/ui/ModernButton.astro';
 import { withBasePath } from '../utils/helpers';
@@ -37,12 +36,52 @@ const featuredCaseStudies = (await getCollection('caseStudies' as never)).slice(
 
   <section class="relative overflow-hidden bg-zinc-950">
     <div class="mx-auto max-w-[1220px] px-6 pb-16 pt-10">
-      <HeroSection
-        headline={headline}
-        subheading={subheading}
-        badge="Managed Services • Security • Cloud • AI"
-        animated={true}
-      />
+      <div
+        class="grid gap-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-end"
+      >
+        <div class="space-y-5">
+          <p
+            class="text-xs font-semibold uppercase tracking-[0.32em] text-zinc-400"
+          >
+            Managed Services • Security • Cloud • AI
+          </p>
+          <h1 class="text-4xl font-semibold text-white sm:text-5xl">
+            {headline}
+          </h1>
+          <p class="text-sm text-zinc-300 sm:text-base">{subheading}</p>
+          <div class="flex flex-wrap gap-3">
+            <ModernButton
+              href={servicesHref}
+              variant="primary"
+              className="min-h-[48px]"
+            >
+              Explore services
+            </ModernButton>
+            <ModernButton
+              href={withBasePath('contact/')}
+              variant="outline"
+              className="min-h-[48px]"
+            >
+              Schedule walkthrough
+            </ModernButton>
+          </div>
+        </div>
+        <div
+          class="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-zinc-300"
+        >
+          <p
+            class="text-xs font-semibold uppercase tracking-[0.32em] text-zinc-400"
+          >
+            Outcome focus
+          </p>
+          <ul class="mt-4 space-y-2">
+            <li>Operational clarity across IT + security.</li>
+            <li>Cloud modernization without service disruption.</li>
+            <li>Security-first delivery with measurable SLAs.</li>
+            <li>AI readiness built into the roadmap.</li>
+          </ul>
+        </div>
+      </div>
 
       <div class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <TrustBadge label="SOC 2 aligned" sublabel="Controls + reporting" />

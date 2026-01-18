@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 type SceneId =
   | 'ignite'
@@ -122,11 +126,13 @@ const smoothstep = (t: number) => {
   return x * x * (3 - 2 * x);
 };
 
+const hash = (n: number) => {
+  const x = Math.sin(n) * 43758.5453123;
+  return x - Math.floor(x);
+};
+
 const damp = (current: number, target: number, lambda: number, dt: number) =>
   lerp(current, target, 1 - Math.exp(-lambda * dt));
-
-const sceneIndexFromId = (id: string | undefined) =>
-  Math.max(0, SCENES.indexOf((id ?? 'ignite') as SceneId));
 
 const blendConfig = (
   a: SceneConfig,
@@ -153,12 +159,24 @@ type OrbitNode = {
   offset: number;
 };
 
+type CardNode = {
+  radius: number;
+  speed: number;
+  tilt: number;
+  offset: number;
+  spin: number;
+};
+
 class ImmersiveThreeController {
   private root: HTMLElement;
   private chapters: HTMLElement[];
   private canvas: HTMLCanvasElement;
 
   private renderer: THREE.WebGLRenderer;
+  private composer: EffectComposer | null = null;
+  private bloomPass: UnrealBloomPass | null = null;
+  private envGenerator: THREE.PMREMGenerator | null = null;
+  private environment: THREE.Texture | null = null;
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(45, 1, 0.1, 60);
   private group = new THREE.Group();
@@ -168,8 +186,14 @@ class ImmersiveThreeController {
   private heroCore: THREE.Mesh;
   private orbiters: THREE.InstancedMesh;
   private orbitNodes: OrbitNode[] = [];
+  private cards!: THREE.InstancedMesh;
+  private cardNodes: CardNode[] = [];
   private particlePoints: THREE.Points;
   private particleBase!: Float32Array;
+  private particleCount = 1400;
+  private orbiterCount = 180;
+  private cardCount = 140;
+  private stars!: THREE.Points;
   private rings: THREE.Mesh[] = [];
 
   private hemi: THREE.HemisphereLight;
@@ -225,8 +249,17 @@ class ImmersiveThreeController {
     this.renderer.toneMappingExposure = 1.1;
     this.renderer.setClearColor(new THREE.Color(0x05070f));
 
+    this.envGenerator = new THREE.PMREMGenerator(this.renderer);
+    const room = new RoomEnvironment();
+    this.environment = this.envGenerator.fromScene(room, 0.04).texture;
+    this.scene.environment = this.environment;
+    this.scene.background = new THREE.Color(0x05070f);
+
     this.scene.add(this.group);
     this.scene.fog = new THREE.FogExp2(0x070b18, 0.06);
+
+    this.stars = this.createStars();
+    this.scene.add(this.stars);
 
     this.hero = this.createHero();
     this.heroAura = this.createHeroAura();
@@ -235,6 +268,9 @@ class ImmersiveThreeController {
     this.group.add(this.hero, this.heroAura, this.heroCore);
     this.orbiters = this.createOrbiters();
     this.group.add(this.orbiters);
+
+    this.cards = this.createCards();
+    this.group.add(this.cards);
 
     this.particlePoints = this.createParticles();
     this.group.add(this.particlePoints);
@@ -262,6 +298,13 @@ class ImmersiveThreeController {
       clearcoat: 0.6,
       clearcoatRoughness: 0.2,
       reflectivity: 0.6,
+      transmission: 0.14,
+      thickness: 0.7,
+      ior: 1.25,
+      iridescence: 0.35,
+      iridescenceIOR: 1.3,
+      attenuationDistance: 1.6,
+      attenuationColor: new THREE.Color(0x4a7cff),
     });
     return new THREE.Mesh(geo, mat);
   }
@@ -290,8 +333,60 @@ class ImmersiveThreeController {
     return new THREE.Mesh(geo, mat);
   }
 
+  private createStars(): THREE.Points {
+    const count = 1200;
+    const positions = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const idx = i * 3;
+      const r = 25 + Math.random() * 35;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      positions[idx] = r * Math.sin(phi) * Math.cos(theta);
+      positions[idx + 1] = r * Math.cos(phi);
+      positions[idx + 2] = r * Math.sin(phi) * Math.sin(theta);
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const mat = new THREE.PointsMaterial({
+      color: new THREE.Color(0xffffff),
+      size: 0.045,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.45,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    return new THREE.Points(geo, mat);
+  }
+
+  private createCards(): THREE.InstancedMesh {
+    const geo = new THREE.PlaneGeometry(0.35, 0.8);
+    const mat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color().setHSL(0.62, 0.7, 0.6),
+      transparent: true,
+      opacity: 0.18,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+
+    const mesh = new THREE.InstancedMesh(geo, mat, this.cardCount);
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+    this.cardNodes = Array.from({ length: this.cardCount }).map(() => ({
+      radius: 2.2 + Math.random() * 5,
+      speed: 0.2 + Math.random() * 0.8,
+      tilt: (Math.random() - 0.5) * 1.5,
+      offset: Math.random() * Math.PI * 2,
+      spin: (Math.random() - 0.5) * 1.6,
+    }));
+
+    return mesh;
+  }
+
   private createOrbiters(): THREE.InstancedMesh {
-    const count = 180;
+    const count = this.orbiterCount;
     const geo = new THREE.DodecahedronGeometry(0.09, 0);
     const mat = new THREE.MeshStandardMaterial({
       color: new THREE.Color().setHSL(0.58, 0.8, 0.6),
@@ -314,7 +409,7 @@ class ImmersiveThreeController {
   }
 
   private createParticles(): THREE.Points {
-    const count = 1400;
+    const count = this.particleCount;
     const positions = new Float32Array(count * 3);
     const base = new Float32Array(count * 3);
 
@@ -427,6 +522,25 @@ class ImmersiveThreeController {
     const ratio = baseDpr * this.quality;
     this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(width, height, false);
+
+    this.setupComposer(width, height, ratio);
+  }
+
+  private setupComposer(width: number, height: number, ratio: number): void {
+    if (!this.composer) {
+      this.composer = new EffectComposer(this.renderer);
+      this.composer.addPass(new RenderPass(this.scene, this.camera));
+      this.bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(width, height),
+        0.6,
+        0.6,
+        0.8
+      );
+      this.composer.addPass(this.bloomPass);
+    }
+
+    this.composer.setSize(width, height);
+    this.composer.setPixelRatio(ratio);
   }
 
   private computeScroll(): { progress: number; velocity: number } {
@@ -497,10 +611,15 @@ class ImmersiveThreeController {
       this.stingerFired = true;
       this.event = 1;
       this.burst = Math.min(1, this.burst + 0.35);
-      this.kick.set((Math.random() - 0.5) * 0.2, (Math.random() - 0.5) * 0.16);
+      const jx = (hash(idx * 13.1 + time) - 0.5) * 0.22;
+      const jy = (hash(idx * 7.7 + time + 4.2) - 0.5) * 0.18;
+      this.kick.set(jx, jy);
     }
-
     this.event = clamp(this.event * 0.9, 0, 1);
+
+    // Stars drift (subtle cinematic depth)
+    this.stars.rotation.y = time * 0.045;
+    this.stars.rotation.x = time * 0.02;
 
     // Pointer smoothing
     this.pointer.x = damp(
@@ -555,7 +674,14 @@ class ImmersiveThreeController {
     orbitMat.emissive.setHSL(config.hue2 / 360, 0.9, 0.35);
     orbitMat.emissiveIntensity = 0.6 + this.burst * 0.35;
 
-    this.orbitNodes.forEach((node, i) => {
+    const orbiterActive = Math.max(
+      40,
+      Math.floor(this.orbitNodes.length * (0.6 + this.quality * 0.4))
+    );
+    this.orbiters.count = orbiterActive;
+
+    for (let i = 0; i < orbiterActive; i += 1) {
+      const node = this.orbitNodes[i];
       const angle = time * node.speed + node.offset;
       const radius = node.radius * config.orbRadius * (1 - collapse * 0.35);
       const height = Math.sin(angle * 0.7 + node.tilt) * 0.8;
@@ -565,8 +691,43 @@ class ImmersiveThreeController {
       pos.set(x, y, z);
       temp.makeTranslation(pos.x, pos.y, pos.z);
       this.orbiters.setMatrixAt(i, temp);
-    });
+    }
     this.orbiters.instanceMatrix.needsUpdate = true;
+
+    // Cards (glassy panels)
+    const cardActive = Math.max(
+      40,
+      Math.floor(this.cardNodes.length * (0.55 + this.quality * 0.45))
+    );
+    this.cards.count = cardActive;
+    const cardMat = new THREE.Matrix4();
+    const cardQuat = new THREE.Quaternion();
+    const cardPos = new THREE.Vector3();
+    const cardScale = new THREE.Vector3();
+    const cardMaterial = this.cards.material as THREE.MeshBasicMaterial;
+    cardMaterial.color.setHSL(config.hue2 / 360, 0.75, 0.6);
+    cardMaterial.opacity = 0.16 + this.event * 0.12 + this.burst * 0.08;
+
+    for (let i = 0; i < cardActive; i += 1) {
+      const node = this.cardNodes[i];
+      const angle = time * node.speed + node.offset;
+      const radius = node.radius * (1 + config.ringScale * 0.4);
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+      const y = Math.sin(angle * 1.3 + node.tilt) * 0.8;
+      cardPos.set(x, y, z);
+      cardQuat.setFromEuler(
+        new THREE.Euler(
+          node.tilt + shear * 0.4,
+          angle * 0.6,
+          node.spin + time * 0.2
+        )
+      );
+      cardScale.setScalar(0.9 + this.event * 0.15);
+      cardMat.compose(cardPos, cardQuat, cardScale);
+      this.cards.setMatrixAt(i, cardMat);
+    }
+    this.cards.instanceMatrix.needsUpdate = true;
 
     // Particles
     const positions = this.particlePoints.geometry.attributes.position
@@ -581,9 +742,15 @@ class ImmersiveThreeController {
       positions[i + 2] = bz * particleScale;
     }
     this.particlePoints.geometry.attributes.position.needsUpdate = true;
+    const drawCount = Math.max(
+      400,
+      Math.floor(this.particleCount * (0.55 + this.quality * 0.45))
+    );
+    this.particlePoints.geometry.setDrawRange(0, drawCount);
     const pointsMat = this.particlePoints.material as THREE.PointsMaterial;
     pointsMat.color.setHSL(config.hue2 / 360, 0.9, 0.65);
     pointsMat.opacity = 0.5 + this.burst * 0.2;
+    pointsMat.size = 0.03 + this.quality * 0.015 + this.event * 0.01;
 
     // Rings
     this.rings.forEach((ring, i) => {
@@ -602,10 +769,11 @@ class ImmersiveThreeController {
     this.group.rotation.z = (progress - 0.5) * 0.2 + shear * 0.4;
     this.group.scale.setScalar(1 + this.event * 0.05);
 
+    const dolly = (progress - 0.5) * 1.2;
     this.camera.position.set(
       this.pointer.x * 1.2,
       this.pointer.y * 1.0,
-      config.camZ
+      config.camZ + dolly
     );
     this.camera.lookAt(0, 0, 0);
 
@@ -637,7 +805,20 @@ class ImmersiveThreeController {
       this.renderer.setPixelRatio(desiredRatio);
     }
 
-    this.renderer.render(this.scene, this.camera);
+    if (this.bloomPass) {
+      this.bloomPass.strength = 0.55 + this.event * 0.7 + this.burst * 0.45;
+      this.bloomPass.radius = 0.5 + config.grade * 0.35;
+      this.bloomPass.threshold = 0.25 + (1 - config.grade) * 0.25;
+    }
+
+    this.renderer.toneMappingExposure =
+      1.02 + config.grade * 0.4 + this.burst * 0.12;
+
+    if (this.composer && this.quality > 0.72) {
+      this.composer.render();
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
   }
 
   private loop(): void {
@@ -662,6 +843,21 @@ class ImmersiveThreeController {
     this.abortController.abort();
 
     this.renderer.dispose();
+    if (this.composer && 'dispose' in this.composer) {
+      this.composer.dispose();
+    }
+    if (this.envGenerator) {
+      this.envGenerator.dispose();
+    }
+    if (this.environment) {
+      this.environment.dispose();
+    }
+
+    if (this.stars) {
+      this.stars.geometry.dispose();
+      (this.stars.material as THREE.Material).dispose();
+    }
+
     this.scene.traverse((obj: THREE.Object3D) => {
       if (obj instanceof THREE.Mesh) {
         obj.geometry.dispose();

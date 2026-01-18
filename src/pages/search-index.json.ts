@@ -87,14 +87,6 @@ export async function GET() {
       tags: ['contact', 'email', 'support'],
     },
     {
-      id: 'page-demo-lab',
-      title: 'Demo Lab',
-      description: 'Maximum animations, isolated from the core site',
-      category: 'Page',
-      url: 'demo-lab/',
-      tags: ['demo', 'lab', 'animations', 'motion'],
-    },
-    {
       id: 'page-shop-demo',
       title: 'Shop Demo',
       description: 'A realistic e-commerce shopping experience demo',
