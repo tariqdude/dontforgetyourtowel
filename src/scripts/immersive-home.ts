@@ -940,10 +940,11 @@ class ImmersiveThreeController {
     });
 
     // Group and camera
-    this.group.rotation.x = this.pointer.y * -0.25;
-    this.group.rotation.y = this.pointer.x * 0.3 + time * 0.05;
-    this.group.rotation.z = (progress - 0.5) * 0.2 + shear * 0.4;
-    this.group.scale.setScalar(1 + this.event * 0.05);
+    this.group.rotation.x =
+      this.pointer.y * -0.2 + Math.sin(time * 0.15) * 0.05;
+    this.group.rotation.y = this.pointer.x * 0.25 + time * 0.04;
+    this.group.rotation.z = (progress - 0.5) * 0.18 + shear * 0.3;
+    this.group.scale.setScalar(1 + this.event * 0.06 + this.burst * 0.03);
 
     const dolly = (progress - 0.5) * 1.2;
     const breathX = Math.sin(time * 0.3) * 0.015;

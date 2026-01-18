@@ -21,7 +21,7 @@ import {
 } from '@react-three/postprocessing';
 import { BlendFunction } from 'postprocessing';
 import { Leva, useControls } from 'leva';
-import { getProject } from '@theatre/core';
+import Theatre from '@theatre/core';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -103,6 +103,7 @@ const Scene = ({ isMobile }: { isMobile: boolean }) => {
   });
 
   const theatre = useMemo(() => {
+    const { getProject } = Theatre;
     const project = getProject('ImmersiveLabs');
     const sheet = project.sheet('Scene');
     const rig = sheet.object('Rig', {
