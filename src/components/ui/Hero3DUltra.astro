@@ -133,6 +133,7 @@ const heroStyle = {
     data-interactive={interactive ? 'true' : 'false'}
     data-hero-tilt={interactive ? 'true' : 'false'}
     data-hero-fx="true"
+    data-hero-ambient="true"
     data-hero-perf={performanceMode ? 'true' : 'false'}
     data-show-data={showDataStreams ? 'true' : 'false'}
     role="img"
@@ -343,6 +344,13 @@ const heroStyle = {
           <button
             type="button"
             class="hero-control-btn"
+            data-hero-toggle="ambient"
+          >
+            Ambient
+          </button>
+          <button
+            type="button"
+            class="hero-control-btn"
             data-hero-toggle="perf"
           >
             Calm
@@ -429,6 +437,12 @@ const heroStyle = {
     --hero-tilt-y: 0deg;
     --cursor-x: 0;
     --cursor-y: 0;
+    --hero-depth-scale: 1;
+    --hero-perspective: 1400px;
+    --hero-core-size: min(260px, 48vw);
+    --hero-icosa-size: min(200px, 40vw);
+    --hero-pulse-size: min(80px, 16vw);
+    --hero-glint-size: min(120px, 22vw);
 
     position: relative;
     min-height: min(720px, 80vh);
@@ -630,7 +644,7 @@ const heroStyle = {
     position: absolute;
     inset: 0;
     transform-style: preserve-3d;
-    perspective: 1400px;
+    perspective: var(--hero-perspective);
     transform: rotateX(var(--hero-tilt-x)) rotateY(var(--hero-tilt-y));
     transition: transform 300ms ease;
   }
@@ -674,7 +688,9 @@ const heroStyle = {
     transform-style: preserve-3d;
     pointer-events: none;
     opacity: 0;
-    transform: translateZ(var(--layer-depth, 0px));
+    transform: translateZ(
+      calc(var(--layer-depth, 0px) * var(--hero-depth-scale))
+    );
     animation: layerEnter 1200ms ease-out both;
     animation-delay: calc(var(--hero-entrance-delay) + var(--layer-delay, 0ms));
   }
@@ -927,7 +943,7 @@ const heroStyle = {
   }
 
   .core-shell {
-    width: min(260px, 48vw);
+    width: var(--hero-core-size);
     aspect-ratio: 1;
     border-radius: 28% 72% 60% 40%;
     border: 1px solid rgba(255, 255, 255, 0.2);
@@ -948,7 +964,7 @@ const heroStyle = {
 
   .core-glint {
     position: absolute;
-    width: min(120px, 22vw);
+    width: var(--hero-glint-size);
     aspect-ratio: 1;
     border-radius: 50%;
     background: radial-gradient(
@@ -977,7 +993,7 @@ const heroStyle = {
 
   .core-icosa {
     position: absolute;
-    width: min(200px, 40vw);
+    width: var(--hero-icosa-size);
     aspect-ratio: 1;
     border: 1px dashed rgba(255, 255, 255, 0.4);
     clip-path: polygon(
@@ -1000,7 +1016,7 @@ const heroStyle = {
 
   .core-pulse {
     position: absolute;
-    width: min(80px, 16vw);
+    width: var(--hero-pulse-size);
     aspect-ratio: 1;
     border-radius: 999px;
     background: radial-gradient(
@@ -1368,6 +1384,23 @@ const heroStyle = {
     filter: none;
   }
 
+  .hero-3d[data-hero-ambient='false'] .hero-3d-stage {
+    animation: none;
+  }
+
+  .hero-3d[data-hero-ambient='false'] .layer-aurora,
+  .hero-3d[data-hero-ambient='false'] .layer-prism,
+  .hero-3d[data-hero-ambient='false'] .layer-haze,
+  .hero-3d[data-hero-ambient='false'] .layer-nebula {
+    opacity: 0.12;
+    animation: none !important;
+  }
+
+  .hero-3d[data-hero-ambient='false'] .hero-visual::before {
+    opacity: 0.18;
+    animation: none;
+  }
+
   .hero-3d[data-hero-fx='false'] .hero-ripple-layer {
     display: none;
   }
@@ -1542,12 +1575,17 @@ const heroStyle = {
   @keyframes layerEnter {
     0% {
       opacity: 0;
-      transform: translateZ(var(--layer-depth, 0px)) translateY(18px)
-        scale(0.98);
+      transform: translateZ(
+          calc(var(--layer-depth, 0px) * var(--hero-depth-scale))
+        )
+        translateY(18px) scale(0.98);
     }
     100% {
       opacity: 1;
-      transform: translateZ(var(--layer-depth, 0px)) translateY(0) scale(1);
+      transform: translateZ(
+          calc(var(--layer-depth, 0px) * var(--hero-depth-scale))
+        )
+        translateY(0) scale(1);
     }
   }
 
@@ -1726,11 +1764,17 @@ const heroStyle = {
   @keyframes starDrift {
     0%,
     100% {
-      transform: translateZ(var(--layer-depth, 0px)) translateY(0);
+      transform: translateZ(
+          calc(var(--layer-depth, 0px) * var(--hero-depth-scale))
+        )
+        translateY(0);
       opacity: 0.35;
     }
     50% {
-      transform: translateZ(var(--layer-depth, 0px)) translateY(12px);
+      transform: translateZ(
+          calc(var(--layer-depth, 0px) * var(--hero-depth-scale))
+        )
+        translateY(12px);
       opacity: 0.65;
     }
   }
@@ -1863,6 +1907,12 @@ const heroStyle = {
   @media (max-width: 900px) {
     .hero-3d {
       min-height: auto;
+      --hero-depth-scale: 0.85;
+      --hero-perspective: 1100px;
+      --hero-core-size: min(220px, 64vw);
+      --hero-icosa-size: min(180px, 54vw);
+      --hero-pulse-size: min(72px, 20vw);
+      --hero-glint-size: min(96px, 28vw);
     }
 
     .hero-visual {
@@ -1873,9 +1923,15 @@ const heroStyle = {
       padding: 1.5rem 1.5rem 0;
     }
 
-    .hero-3d-scene {
+    .hero-3d-stage {
       position: relative;
       min-height: clamp(260px, 48vh, 360px);
+      animation: none;
+    }
+
+    .hero-3d-scene {
+      position: absolute;
+      inset: 0;
     }
 
     .hero-content {
@@ -1901,6 +1957,46 @@ const heroStyle = {
     }
   }
 
+  @media (pointer: coarse) {
+    .hero-3d {
+      --blur-enabled: 0;
+      --hero-depth-scale: 0.8;
+    }
+
+    .layer-haze,
+    .layer-aurora,
+    .layer-prism,
+    .layer-rays,
+    .layer-lens,
+    .layer-streaks,
+    .layer-dust {
+      opacity: 0.18;
+      animation-duration: 22s;
+    }
+
+    .layer-data {
+      opacity: 0.35;
+    }
+
+    .binary-stream,
+    .hex-stream,
+    .coord-readout,
+    .loading-bar {
+      display: none;
+    }
+
+    .hero-noise,
+    .scanlines,
+    .hero-ripple-layer {
+      display: none;
+    }
+
+    .particle {
+      opacity: 0.35;
+      animation-duration: 14s;
+    }
+  }
+
   @media (max-width: 720px) {
     .hero-subheading {
       display: -webkit-box;
@@ -1916,6 +2012,17 @@ const heroStyle = {
 
     .hero-ctas {
       gap: 0.5rem;
+    }
+  }
+
+  @media (min-width: 1200px) {
+    .hero-3d {
+      --hero-depth-scale: 1.1;
+      --hero-perspective: 1600px;
+      --hero-core-size: min(300px, 38vw);
+      --hero-icosa-size: min(240px, 32vw);
+      --hero-pulse-size: min(96px, 14vw);
+      --hero-glint-size: min(140px, 18vw);
     }
   }
 
@@ -1935,7 +2042,9 @@ const heroStyle = {
 
     .hero-3d .layer {
       opacity: 1;
-      transform: translateZ(var(--layer-depth, 0px));
+      transform: translateZ(
+        calc(var(--layer-depth, 0px) * var(--hero-depth-scale))
+      );
     }
 
     .hero-3d .layer-stars,
@@ -1960,7 +2069,9 @@ const heroStyle = {
 
   .hero-3d[data-hero-reduced='true'] .layer {
     opacity: 1;
-    transform: translateZ(var(--layer-depth, 0px));
+    transform: translateZ(
+      calc(var(--layer-depth, 0px) * var(--hero-depth-scale))
+    );
   }
 </style>
 

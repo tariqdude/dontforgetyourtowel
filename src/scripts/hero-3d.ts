@@ -11,6 +11,7 @@ type HeroSettings = {
   preset?: 'signal' | 'cinematic' | 'clarity';
   tilt?: boolean;
   fx?: boolean;
+  ambient?: boolean;
 };
 
 const STORAGE_KEY = 'hero3d:settings:v1';
@@ -45,6 +46,7 @@ class Hero3DController {
   private basePerf = false;
   private baseTilt = true;
   private baseFx = true;
+  private baseAmbient = true;
   private userIntensityOverride = false;
   private autoPerfTriggered = false;
   private telemetryNodes: Record<string, HTMLElement | null> = {};
@@ -72,6 +74,7 @@ class Hero3DController {
     this.basePerf = this.container.dataset.heroPerf === 'true';
     this.baseTilt = this.container.dataset.heroTilt !== 'false';
     this.baseFx = this.container.dataset.heroFx !== 'false';
+    this.baseAmbient = this.container.dataset.heroAmbient !== 'false';
     this.loadStoredSettings();
     this.applyStoredSettings();
     this.updateReducedMotion(prefersReducedMotion());
@@ -150,30 +153,29 @@ class Hero3DController {
       this.userIntensityOverride = true;
     }
     if (typeof this.storedSettings.data === 'boolean') {
-      this.container.dataset.showData = this.storedSettings.data
-        ? 'true'
-        : 'false';
+      this.setDatasetBoolean('showData', this.storedSettings.data);
     }
     if (typeof this.storedSettings.perf === 'boolean') {
-      this.container.dataset.heroPerf = this.storedSettings.perf
-        ? 'true'
-        : 'false';
+      this.setDatasetBoolean('heroPerf', this.storedSettings.perf);
       this.autoPerfEnabled = !this.storedSettings.perf;
     }
     if (this.storedSettings.preset) {
       this.container.dataset.heroPreset = this.storedSettings.preset;
     }
     if (typeof this.storedSettings.tilt === 'boolean') {
-      this.container.dataset.heroTilt = this.storedSettings.tilt
-        ? 'true'
-        : 'false';
+      this.setDatasetBoolean('heroTilt', this.storedSettings.tilt);
     }
     if (typeof this.storedSettings.fx === 'boolean') {
-      this.container.dataset.heroFx = this.storedSettings.fx ? 'true' : 'false';
+      this.setDatasetBoolean('heroFx', this.storedSettings.fx);
     }
-    this.container.dataset.heroAutoPerf = this.autoPerfEnabled
-      ? 'true'
-      : 'false';
+    if (typeof this.storedSettings.ambient === 'boolean') {
+      this.setDatasetBoolean('heroAmbient', this.storedSettings.ambient);
+    }
+    this.setDatasetBoolean('heroAutoPerf', this.autoPerfEnabled);
+  }
+
+  private setDatasetBoolean(key: keyof DOMStringMap, value: boolean) {
+    this.container.dataset[key] = value ? 'true' : 'false';
   }
 
   private initControls() {
@@ -223,19 +225,17 @@ class Hero3DController {
       button.addEventListener('click', () => {
         if (toggle === 'data') {
           const next = this.container.dataset.showData !== 'true';
-          this.container.dataset.showData = next ? 'true' : 'false';
+          this.setDatasetBoolean('showData', next);
           this.storedSettings.data = next;
           this.container.removeAttribute('data-hero-preset');
           this.storedSettings.preset = undefined;
         }
         if (toggle === 'perf') {
           const next = this.container.dataset.heroPerf !== 'true';
-          this.container.dataset.heroPerf = next ? 'true' : 'false';
+          this.setDatasetBoolean('heroPerf', next);
           this.storedSettings.perf = next;
           this.autoPerfEnabled = !next;
-          this.container.dataset.heroAutoPerf = this.autoPerfEnabled
-            ? 'true'
-            : 'false';
+          this.setDatasetBoolean('heroAutoPerf', this.autoPerfEnabled);
           this.container.removeAttribute('data-hero-preset');
           this.storedSettings.preset = undefined;
           this.autoPerfTriggered = false;
@@ -243,9 +243,14 @@ class Hero3DController {
             this.initAutoPerf();
           }
         }
+        if (toggle === 'ambient') {
+          const next = this.container.dataset.heroAmbient !== 'true';
+          this.setDatasetBoolean('heroAmbient', next);
+          this.storedSettings.ambient = next;
+        }
         if (toggle === 'tilt') {
           const next = this.container.dataset.heroTilt !== 'true';
-          this.container.dataset.heroTilt = next ? 'true' : 'false';
+          this.setDatasetBoolean('heroTilt', next);
           this.storedSettings.tilt = next;
           if (next) {
             this.enableGyro();
@@ -258,7 +263,7 @@ class Hero3DController {
         }
         if (toggle === 'fx') {
           const next = this.container.dataset.heroFx !== 'true';
-          this.container.dataset.heroFx = next ? 'true' : 'false';
+          this.setDatasetBoolean('heroFx', next);
           this.storedSettings.fx = next;
         }
         this.persistSettings();
@@ -318,6 +323,9 @@ class Hero3DController {
       if (toggle === 'fx') {
         active = this.container.dataset.heroFx !== 'false';
       }
+      if (toggle === 'ambient') {
+        active = this.container.dataset.heroAmbient !== 'false';
+      }
       button.dataset.active = active ? 'true' : 'false';
     });
 
@@ -340,9 +348,9 @@ class Hero3DController {
     const target = presets[preset];
     this.container.dataset.heroPreset = preset;
     this.container.dataset.intensity = target.intensity;
-    this.container.dataset.showData = target.data ? 'true' : 'false';
-    this.container.dataset.heroPerf = target.perf ? 'true' : 'false';
-    this.container.dataset.heroAutoPerf = target.perf ? 'false' : 'true';
+    this.setDatasetBoolean('showData', target.data);
+    this.setDatasetBoolean('heroPerf', target.perf);
+    this.setDatasetBoolean('heroAutoPerf', !target.perf);
     this.autoPerfEnabled = !target.perf;
     this.userIntensityOverride = true;
     this.baseIntensity = target.intensity;
@@ -354,6 +362,7 @@ class Hero3DController {
       preset,
       tilt: this.container.dataset.heroTilt !== 'false',
       fx: this.container.dataset.heroFx !== 'false',
+      ambient: this.container.dataset.heroAmbient !== 'false',
     };
     this.persistSettings();
     this.updateControlStates();
@@ -362,14 +371,13 @@ class Hero3DController {
   private resetSettings() {
     this.container.removeAttribute('data-hero-preset');
     this.container.dataset.intensity = this.baseIntensity;
-    this.container.dataset.showData = this.baseShowData ? 'true' : 'false';
-    this.container.dataset.heroPerf = this.basePerf ? 'true' : 'false';
-    this.container.dataset.heroTilt = this.baseTilt ? 'true' : 'false';
-    this.container.dataset.heroFx = this.baseFx ? 'true' : 'false';
+    this.setDatasetBoolean('showData', this.baseShowData);
+    this.setDatasetBoolean('heroPerf', this.basePerf);
+    this.setDatasetBoolean('heroTilt', this.baseTilt);
+    this.setDatasetBoolean('heroFx', this.baseFx);
+    this.setDatasetBoolean('heroAmbient', this.baseAmbient);
     this.autoPerfEnabled = !this.basePerf;
-    this.container.dataset.heroAutoPerf = this.autoPerfEnabled
-      ? 'true'
-      : 'false';
+    this.setDatasetBoolean('heroAutoPerf', this.autoPerfEnabled);
     this.userIntensityOverride = false;
     this.autoPerfTriggered = false;
     this.storedSettings = {};
