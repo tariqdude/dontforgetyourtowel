@@ -30,6 +30,8 @@ class Hero3DController {
   private observer?: IntersectionObserver;
   private stopReducedMotion?: () => void;
   private options: HeroOptions;
+  private visual: HTMLElement | null;
+  private rippleLayer: HTMLElement | null;
   private storedSettings: HeroSettings = {};
   private fpsFrames = 0;
   private fpsLastTime = 0;
@@ -55,6 +57,8 @@ class Hero3DController {
   constructor(container: HTMLElement, options: HeroOptions) {
     this.container = container;
     this.scene = container.querySelector('.hero-3d-scene');
+    this.visual = container.querySelector('.hero-visual');
+    this.rippleLayer = container.querySelector('.hero-ripple-layer');
     this.options = options;
     this.init();
   }
@@ -92,6 +96,12 @@ class Hero3DController {
     );
 
     this.observer.observe(this.container);
+
+    if (this.options.interactive) {
+      this.container.addEventListener('pointerdown', this.onRipple, {
+        passive: true,
+      });
+    }
 
     this.initControls();
     this.initAutoPerf();
@@ -593,6 +603,33 @@ class Hero3DController {
     this.requestTick();
   };
 
+  private onRipple = (event: PointerEvent) => {
+    if (!this.visual || !this.rippleLayer) return;
+    if (prefersReducedMotion()) return;
+    if (this.container.dataset.heroFx === 'false') return;
+    if (!this.visual.contains(event.target as Node)) return;
+    const rect = this.visual.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    this.spawnRipple(x, y);
+  };
+
+  private spawnRipple(x: number, y: number) {
+    if (!this.rippleLayer) return;
+    const ripple = document.createElement('span');
+    ripple.className = 'hero-ripple';
+    ripple.style.left = `${x}px`;
+    ripple.style.top = `${y}px`;
+    this.rippleLayer.appendChild(ripple);
+    ripple.addEventListener(
+      'animationend',
+      () => {
+        ripple.remove();
+      },
+      { once: true }
+    );
+  }
+
   private enableGyro() {
     if (this.gyroActive) return;
     if (this.container.dataset.heroTilt === 'false') return;
@@ -756,6 +793,7 @@ class Hero3DController {
   public destroy() {
     this.stop();
     this.disableGyro();
+    this.container.removeEventListener('pointerdown', this.onRipple);
     if (this.fpsRafId) {
       window.cancelAnimationFrame(this.fpsRafId);
     }

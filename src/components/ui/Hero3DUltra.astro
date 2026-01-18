@@ -254,6 +254,8 @@ const heroStyle = {
             }
           </div>
 
+          <div class="hero-ripple-layer" aria-hidden="true"></div>
+
           <div class="scanlines"></div>
           <div class="hero-noise"></div>
           <div class="hero-vignette"></div>
@@ -631,6 +633,31 @@ const heroStyle = {
     perspective: 1400px;
     transform: rotateX(var(--hero-tilt-x)) rotateY(var(--hero-tilt-y));
     transition: transform 300ms ease;
+  }
+
+  .hero-ripple-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    transform-style: preserve-3d;
+    z-index: 2;
+  }
+
+  .hero-ripple {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(var(--hero-cyber), 0.7);
+    background: radial-gradient(
+      circle,
+      rgba(var(--hero-primary), 0.35),
+      transparent 60%
+    );
+    transform: translate(-50%, -50%);
+    opacity: 0.6;
+    animation: rippleExpand 1.2s ease-out forwards;
+    mix-blend-mode: screen;
   }
 
   .hero-3d[data-hero-active='true'] .hero-3d-scene {
@@ -1341,6 +1368,10 @@ const heroStyle = {
     filter: none;
   }
 
+  .hero-3d[data-hero-fx='false'] .hero-ripple-layer {
+    display: none;
+  }
+
   .hero-3d[data-hero-fx='false'] .core-shell {
     box-shadow: 0 0 30px rgba(var(--hero-primary), 0.35);
   }
@@ -1485,6 +1516,12 @@ const heroStyle = {
   :global(html[data-demo-perf='true']) .hero-3d .hero-noise {
     opacity: 0.15;
     animation: none !important;
+  }
+
+  .hero-3d[data-hero-perf='true'] .hero-ripple,
+  :global(html[data-demo-perf='true']) .hero-3d .hero-ripple {
+    opacity: 0.25;
+    animation-duration: 1.5s;
   }
 
   .hero-3d[data-hero-paused='true'] * {
@@ -1764,6 +1801,17 @@ const heroStyle = {
     }
   }
 
+  @keyframes rippleExpand {
+    0% {
+      transform: translate(-50%, -50%) scale(0.2);
+      opacity: 0.7;
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(10);
+      opacity: 0;
+    }
+  }
+
   @keyframes frameGlow {
     0%,
     100% {
@@ -1903,6 +1951,10 @@ const heroStyle = {
   }
 
   .hero-3d[data-hero-reduced='true'] .scanlines {
+    display: none;
+  }
+
+  .hero-3d[data-hero-reduced='true'] .hero-ripple-layer {
     display: none;
   }
 
