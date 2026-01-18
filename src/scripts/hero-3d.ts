@@ -9,6 +9,8 @@ type HeroSettings = {
   data?: boolean;
   perf?: boolean;
   preset?: 'signal' | 'cinematic' | 'clarity';
+  tilt?: boolean;
+  fx?: boolean;
 };
 
 const STORAGE_KEY = 'hero3d:settings:v1';
@@ -37,6 +39,10 @@ class Hero3DController {
   private fpsRafId = 0;
   private autoPerfEnabled = true;
   private baseIntensity: 'subtle' | 'medium' | 'intense' = 'medium';
+  private baseShowData = true;
+  private basePerf = false;
+  private baseTilt = true;
+  private baseFx = true;
   private userIntensityOverride = false;
   private autoPerfTriggered = false;
   private telemetryNodes: Record<string, HTMLElement | null> = {};
@@ -52,11 +58,15 @@ class Hero3DController {
 
   private init() {
     if (!this.scene) return;
-    this.loadStoredSettings();
-    this.applyStoredSettings();
     this.baseIntensity =
       (this.container.dataset.intensity as 'subtle' | 'medium' | 'intense') ??
       'medium';
+    this.baseShowData = this.container.dataset.showData !== 'false';
+    this.basePerf = this.container.dataset.heroPerf === 'true';
+    this.baseTilt = this.container.dataset.heroTilt !== 'false';
+    this.baseFx = this.container.dataset.heroFx !== 'false';
+    this.loadStoredSettings();
+    this.applyStoredSettings();
     this.updateReducedMotion(prefersReducedMotion());
 
     this.stopReducedMotion = onReducedMotionChange(prefers => {
@@ -140,6 +150,14 @@ class Hero3DController {
     if (this.storedSettings.preset) {
       this.container.dataset.heroPreset = this.storedSettings.preset;
     }
+    if (typeof this.storedSettings.tilt === 'boolean') {
+      this.container.dataset.heroTilt = this.storedSettings.tilt
+        ? 'true'
+        : 'false';
+    }
+    if (typeof this.storedSettings.fx === 'boolean') {
+      this.container.dataset.heroFx = this.storedSettings.fx ? 'true' : 'false';
+    }
     this.container.dataset.heroAutoPerf = this.autoPerfEnabled
       ? 'true'
       : 'false';
@@ -212,6 +230,19 @@ class Hero3DController {
             this.initAutoPerf();
           }
         }
+        if (toggle === 'tilt') {
+          const next = this.container.dataset.heroTilt !== 'true';
+          this.container.dataset.heroTilt = next ? 'true' : 'false';
+          this.storedSettings.tilt = next;
+          if (!next) {
+            this.resetTilt();
+          }
+        }
+        if (toggle === 'fx') {
+          const next = this.container.dataset.heroFx !== 'true';
+          this.container.dataset.heroFx = next ? 'true' : 'false';
+          this.storedSettings.fx = next;
+        }
         this.persistSettings();
         this.updateControlStates();
       });
@@ -223,6 +254,9 @@ class Hero3DController {
       button.addEventListener('click', () => {
         if (action === 'replay') {
           this.replayAnimations();
+        }
+        if (action === 'reset') {
+          this.resetSettings();
         }
       });
     });
@@ -260,6 +294,12 @@ class Hero3DController {
       if (toggle === 'perf') {
         active = this.container.dataset.heroPerf === 'true';
       }
+      if (toggle === 'tilt') {
+        active = this.container.dataset.heroTilt !== 'false';
+      }
+      if (toggle === 'fx') {
+        active = this.container.dataset.heroFx !== 'false';
+      }
       button.dataset.active = active ? 'true' : 'false';
     });
 
@@ -294,8 +334,34 @@ class Hero3DController {
       data: target.data,
       perf: target.perf,
       preset,
+      tilt: this.container.dataset.heroTilt !== 'false',
+      fx: this.container.dataset.heroFx !== 'false',
     };
     this.persistSettings();
+    this.updateControlStates();
+  }
+
+  private resetSettings() {
+    this.container.removeAttribute('data-hero-preset');
+    this.container.dataset.intensity = this.baseIntensity;
+    this.container.dataset.showData = this.baseShowData ? 'true' : 'false';
+    this.container.dataset.heroPerf = this.basePerf ? 'true' : 'false';
+    this.container.dataset.heroTilt = this.baseTilt ? 'true' : 'false';
+    this.container.dataset.heroFx = this.baseFx ? 'true' : 'false';
+    this.autoPerfEnabled = !this.basePerf;
+    this.container.dataset.heroAutoPerf = this.autoPerfEnabled
+      ? 'true'
+      : 'false';
+    this.userIntensityOverride = false;
+    this.autoPerfTriggered = false;
+    this.storedSettings = {};
+    this.persistSettings();
+    if (this.autoPerfEnabled) {
+      this.initAutoPerf();
+    }
+    if (!this.baseTilt) {
+      this.resetTilt();
+    }
     this.updateControlStates();
   }
 
@@ -451,6 +517,7 @@ class Hero3DController {
 
   private onPointerMove = (event: PointerEvent) => {
     if (!this.scene) return;
+    if (this.container.dataset.heroTilt === 'false') return;
     if (this.pointerLocked) {
       const rect = this.container.getBoundingClientRect();
       const deltaX = event.movementX / rect.width;
@@ -470,6 +537,7 @@ class Hero3DController {
 
   private onPointerDown = (event: PointerEvent) => {
     if (!this.scene) return;
+    if (this.container.dataset.heroTilt === 'false') return;
     this.isDragging = true;
     this.container.setAttribute('data-hero-drag', 'true');
     this.container.setPointerCapture(event.pointerId);
@@ -510,6 +578,17 @@ class Hero3DController {
     }
     this.requestTick();
   };
+
+  private resetTilt() {
+    this.targetX = 0;
+    this.targetY = 0;
+    this.currentX = 0;
+    this.currentY = 0;
+    this.container.style.setProperty('--hero-tilt-x', '0deg');
+    this.container.style.setProperty('--hero-tilt-y', '0deg');
+    this.container.style.setProperty('--cursor-x', '0');
+    this.container.style.setProperty('--cursor-y', '0');
+  }
 
   private requestTick() {
     if (this.rafId) return;
@@ -554,6 +633,7 @@ class Hero3DController {
     if (this.isInteractive) return;
     if (prefersReducedMotion()) return;
     if (!window.matchMedia('(pointer: fine)').matches) return;
+    if (this.container.dataset.heroTilt === 'false') return;
 
     this.container.addEventListener('pointermove', this.onPointerMove, {
       passive: true,
@@ -582,6 +662,7 @@ class Hero3DController {
     this.isDragging = false;
     this.pointerLocked = false;
     this.container.removeAttribute('data-hero-drag');
+    this.resetTilt();
     this.updateTelemetry();
   }
 

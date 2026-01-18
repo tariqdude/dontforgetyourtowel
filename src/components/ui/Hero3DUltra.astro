@@ -101,6 +101,8 @@ const heroStyle = {
     data-hero-3d
     data-intensity={intensity}
     data-interactive={interactive ? 'true' : 'false'}
+    data-hero-tilt={interactive ? 'true' : 'false'}
+    data-hero-fx="true"
     data-hero-perf={performanceMode ? 'true' : 'false'}
     data-show-data={showDataStreams ? 'true' : 'false'}
     role="img"
@@ -267,12 +269,21 @@ const heroStyle = {
         <button type="button" class="hero-control-btn" data-hero-toggle="perf">
           Calm
         </button>
+        <button type="button" class="hero-control-btn" data-hero-toggle="tilt">
+          Tilt
+        </button>
+        <button type="button" class="hero-control-btn" data-hero-toggle="fx">
+          FX
+        </button>
         <button
           type="button"
           class="hero-control-btn"
           data-hero-action="replay"
         >
           Replay
+        </button>
+        <button type="button" class="hero-control-btn" data-hero-action="reset">
+          Reset
         </button>
       </div>
     </div>
@@ -490,6 +501,10 @@ const heroStyle = {
     perspective: 1400px;
     transform: rotateX(var(--hero-tilt-x)) rotateY(var(--hero-tilt-y));
     transition: transform 300ms ease;
+  }
+
+  .hero-3d[data-hero-tilt='false'] .hero-3d-scene {
+    transform: rotateX(0deg) rotateY(0deg);
   }
 
   .layer {
@@ -955,6 +970,20 @@ const heroStyle = {
     opacity: 0.4;
   }
 
+  .hero-3d[data-hero-fx='false'] .scanlines {
+    display: none;
+  }
+
+  .hero-3d[data-hero-fx='false'] .layer-rays,
+  .hero-3d[data-hero-fx='false'] .layer-nebula {
+    opacity: 0.2;
+    filter: none;
+  }
+
+  .hero-3d[data-hero-fx='false'] .core-shell {
+    box-shadow: 0 0 30px rgba(var(--hero-primary), 0.35);
+  }
+
   .hero-content {
     position: relative;
     z-index: 10;
@@ -1271,10 +1300,18 @@ const heroStyle = {
   @media (max-width: 900px) {
     .hero-3d {
       min-height: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .hero-3d-scene {
+      position: relative;
+      min-height: clamp(260px, 48vh, 360px);
     }
 
     .hero-content {
-      padding: 2rem;
+      padding: 1.75rem 2rem 2rem;
+      gap: 1.1rem;
     }
 
     .data-ring {
@@ -1290,6 +1327,24 @@ const heroStyle = {
       position: static;
       margin: 1rem 0 0;
       width: fit-content;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .hero-subheading {
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .hero-badge {
+      font-size: 0.55rem;
+      letter-spacing: 0.2em;
+    }
+
+    .hero-ctas {
+      gap: 0.5rem;
     }
   }
 
