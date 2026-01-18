@@ -8,6 +8,7 @@ import TestimonialSlider from '../components/business/TestimonialSlider.astro';
 import CaseStudyCard from '../components/business/CaseStudyCard.astro';
 import ServicesQuiz from '../components/business/ServicesQuiz';
 import ContactForm from '../components/ContactForm.astro';
+import HeroSection from '../components/landing/HeroSection.astro';
 
 import ModernButton from '../components/ui/ModernButton.astro';
 import { withBasePath } from '../utils/helpers';
@@ -16,9 +17,6 @@ import { getCollection } from 'astro:content';
 const headline = 'Enterprise IT solutions that scale with your business';
 const subheading =
   'Managed Services • IT Security • Cloud Solutions • AI Integration';
-
-const consultationHref = withBasePath('/#consultation');
-const pricingHref = withBasePath('pricing/');
 const servicesHref = withBasePath('services/');
 
 // Note: Astro's generated `DataEntryMap` updates via `astro sync`.
@@ -36,71 +34,19 @@ const featuredCaseStudies = (await getCollection('caseStudies' as never)).slice(
       class="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(0,102,255,0.16),_transparent_55%)]"
     >
     </div>
-    <div class="mx-auto max-w-[1220px] px-6 pb-16 pt-28">
-      <div
-        class="grid gap-12 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-center"
-      >
-        <div class="space-y-6">
-          <p
-            class="text-xs font-semibold uppercase tracking-[0.32em] text-zinc-400"
-          >
-            Managed Services • Security • Cloud • AI
-          </p>
-          <h1
-            class="text-4xl font-bold leading-snug text-white sm:text-5xl lg:text-6xl"
-          >
-            {headline}
-          </h1>
-          <p class="max-w-2xl text-base text-zinc-300">
-            {subheading}
-          </p>
-          <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <ModernButton
-              href={consultationHref}
-              variant="primary"
-              className="min-h-[48px]"
-            >
-              Schedule Free Consultation
-            </ModernButton>
-            <ModernButton
-              href={pricingHref}
-              variant="secondary"
-              className="min-h-[48px]"
-            >
-              View Pricing
-            </ModernButton>
-          </div>
+    <div class="mx-auto max-w-[1220px] px-6 pb-16 pt-24">
+      <HeroSection
+        headline={headline}
+        subheading={subheading}
+        badge="Managed Services • Security • Cloud • AI"
+        animated={true}
+      />
 
-          <dl class="mt-8 grid max-w-xl grid-cols-3 gap-3">
-            <div class="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-              <dt class="text-[0.7rem] uppercase tracking-widest text-zinc-400">
-                Clients
-              </dt>
-              <dd class="mt-1 text-sm font-semibold text-white">500+</dd>
-            </div>
-            <div class="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-              <dt class="text-[0.7rem] uppercase tracking-widest text-zinc-400">
-                Uptime
-              </dt>
-              <dd class="mt-1 text-sm font-semibold text-white">99.9%</dd>
-            </div>
-            <div class="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-              <dt class="text-[0.7rem] uppercase tracking-widest text-zinc-400">
-                Response
-              </dt>
-              <dd class="mt-1 text-sm font-semibold text-white">15 min SLA*</dd>
-            </div>
-          </dl>
-
-          <p class="text-xs text-zinc-500">*For Platinum tier incidents.</p>
-        </div>
-
-        <div class="grid gap-4">
-          <TrustBadge label="SOC 2 aligned" sublabel="Controls + reporting" />
-          <TrustBadge label="ISO 27001 ready" sublabel="Risk management" />
-          <TrustBadge label="Cloud partners" sublabel="Azure • AWS" />
-          <TrustBadge label="24/7 monitoring" sublabel="Real-time alerts" />
-        </div>
+      <div class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <TrustBadge label="SOC 2 aligned" sublabel="Controls + reporting" />
+        <TrustBadge label="ISO 27001 ready" sublabel="Risk management" />
+        <TrustBadge label="Cloud partners" sublabel="Azure • AWS" />
+        <TrustBadge label="24/7 monitoring" sublabel="Real-time alerts" />
       </div>
     </div>
   </section>
