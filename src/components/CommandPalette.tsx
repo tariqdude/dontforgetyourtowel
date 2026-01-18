@@ -178,6 +178,13 @@ export default function CommandPalette() {
   const fuseModulePromise = useRef<Promise<FuseImport> | null>(null);
   const fuseInstance = useRef<FuseInstance | null>(null);
   const listId = 'command-palette-list';
+  const hintId = 'command-palette-hint';
+  const isMac = useMemo(() => {
+    if (typeof navigator === 'undefined') return false;
+    return /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
+  }, []);
+  const shortcutLabel = isMac ? 'Cmd K' : 'Ctrl K';
+  const shortcutText = isMac ? 'Command K' : 'Control K';
 
   // Fetch search index using our http utility
   const fetchSearchIndex = useCallback(async () => {
@@ -518,6 +525,7 @@ export default function CommandPalette() {
             aria-controls={listId}
             aria-expanded={isOpen}
             aria-activedescendant={activeDescendantId}
+            aria-describedby={hintId}
             className="flex-1 bg-transparent text-lg text-white placeholder-zinc-500 focus:outline-none"
             placeholder="Type a command or search..."
             value={query}
@@ -526,7 +534,17 @@ export default function CommandPalette() {
               setSelectedIndex(0);
             }}
           />
+          <span id={hintId} className="sr-only">
+            Type to search. Press {shortcutText} to open and Escape to close.
+          </span>
           <div className="flex items-center gap-2">
+            <span
+              aria-live="polite"
+              className="hidden text-xs text-zinc-500 sm:inline-block"
+            >
+              {filteredCommands.length} result
+              {filteredCommands.length === 1 ? '' : 's'}
+            </span>
             <kbd className="hidden rounded bg-zinc-800 px-2 py-1 text-xs font-medium text-zinc-400 sm:inline-block">
               ESC
             </kbd>
@@ -609,7 +627,7 @@ export default function CommandPalette() {
               </span>
             </div>
             <span>
-              <kbd className="font-sans">Cmd K</kbd> to open
+              <kbd className="font-sans">{shortcutLabel}</kbd> to open
             </span>
           </div>
         </div>
