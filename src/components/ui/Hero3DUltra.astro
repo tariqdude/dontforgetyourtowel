@@ -134,6 +134,7 @@ const heroStyle = {
     data-hero-tilt={interactive ? 'true' : 'false'}
     data-hero-fx="true"
     data-hero-ambient="true"
+    data-hero-auto="true"
     data-hero-perf={performanceMode ? 'true' : 'false'}
     data-show-data={showDataStreams ? 'true' : 'false'}
     role="img"
@@ -643,6 +644,7 @@ const heroStyle = {
     transform-origin: center;
     animation: stageFloat 18s ease-in-out infinite;
     z-index: 1;
+    will-change: transform;
   }
 
   .hero-3d-scene {
@@ -650,9 +652,11 @@ const heroStyle = {
     inset: 0;
     transform-style: preserve-3d;
     perspective: var(--hero-perspective);
+    perspective-origin: 50% 45%;
     transform: rotateX(var(--hero-tilt-x)) rotateY(var(--hero-tilt-y));
     transition: transform 300ms ease;
     z-index: 1;
+    backface-visibility: hidden;
   }
 
   .hero-ripple-layer {
@@ -699,6 +703,7 @@ const heroStyle = {
     );
     animation: layerEnter 1200ms ease-out both;
     animation-delay: calc(var(--hero-entrance-delay) + var(--layer-delay, 0ms));
+    backface-visibility: hidden;
   }
 
   .layer-stars {
@@ -1957,6 +1962,17 @@ const heroStyle = {
 
     .data-ring {
       inset: 24% 24%;
+    }
+
+    .layer-data {
+      opacity: 0.3;
+    }
+
+    .binary-stream,
+    .hex-stream,
+    .coord-readout,
+    .loading-bar {
+      display: none;
     }
 
     .hero-controls {

@@ -77,6 +77,7 @@ class Hero3DController {
     this.baseAmbient = this.container.dataset.heroAmbient !== 'false';
     this.loadStoredSettings();
     this.applyStoredSettings();
+    this.applyAutoTuning();
     this.updateReducedMotion(prefersReducedMotion());
 
     this.stopReducedMotion = onReducedMotionChange(prefers => {
@@ -176,6 +177,25 @@ class Hero3DController {
 
   private setDatasetBoolean(key: keyof DOMStringMap, value: boolean) {
     this.container.dataset[key] = value ? 'true' : 'false';
+  }
+
+  private applyAutoTuning() {
+    if (this.container.dataset.heroAuto === 'false') return;
+    if (Object.keys(this.storedSettings).length > 0) return;
+    const isCoarse = window.matchMedia('(pointer: coarse)').matches;
+    const isSmall = window.matchMedia('(max-width: 900px)').matches;
+    if (isCoarse || isSmall) {
+      this.setDatasetBoolean('showData', false);
+      this.setDatasetBoolean('heroPerf', true);
+      this.setDatasetBoolean('heroAmbient', false);
+      this.setDatasetBoolean('heroAutoPerf', false);
+      this.autoPerfEnabled = false;
+      if (!this.userIntensityOverride) {
+        this.container.dataset.intensity = 'subtle';
+      }
+    } else {
+      this.setDatasetBoolean('heroAutoPerf', this.autoPerfEnabled);
+    }
   }
 
   private initControls() {
