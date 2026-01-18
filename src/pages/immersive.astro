@@ -1,6 +1,6 @@
 ---
 import MarketingLayout from '../layouts/MarketingLayout.astro';
-import ImmersiveShowcase from '../components/immersive/ImmersiveShowcase.astro';
+import ImmersiveHome from '../components/immersive/ImmersiveHome.astro';
 
 const title = 'Immersive 3D Lab';
 const description =
@@ -11,6 +11,9 @@ const description =
   title={title}
   description={description}
   bodyClass="bg-zinc-950"
+  mainClass="p-0"
+  showFooter={false}
+  showStickyCTA={false}
 >
-  <ImmersiveShowcase />
+  <ImmersiveHome />
 </MarketingLayout>

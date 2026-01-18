@@ -3,6 +3,7 @@ import { withBasePath } from '../../utils/helpers';
 
 const items = [
   { label: 'Home', href: withBasePath('/') },
+  { label: 'Classic', href: withBasePath('home/') },
   { label: 'Services', href: withBasePath('services/') },
   { label: 'Pricing', href: withBasePath('pricing/') },
   { label: 'About', href: withBasePath('about/') },
@@ -17,22 +18,27 @@ const items = [
   aria-label="Primary navigation"
   class="safe-area-inset-bottom fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-zinc-950/95 backdrop-blur md:hidden"
 >
-  <ul class="mx-auto flex max-w-[740px]">
-    {
-      items.map(item => (
-        <li class="flex-1">
-          <a
-            class="min-h-touch flex touch-manipulation flex-col items-center justify-center gap-1 py-3 text-[0.7rem] font-semibold text-zinc-300 hover:text-white"
-            href={item.href}
-          >
-            <span
-              class="h-1.5 w-1.5 rounded-full bg-accent-500/60"
-              aria-hidden="true"
-            />
-            <span>{item.label}</span>
-          </a>
-        </li>
-      ))
-    }
-  </ul>
+  <div class="mx-auto max-w-[920px] px-3 pb-[env(safe-area-inset-bottom)]">
+    <ul
+      class="flex snap-x snap-mandatory items-stretch gap-2 overflow-x-auto py-2"
+      aria-label="Quick navigation"
+    >
+      {
+        items.map(item => (
+          <li class="snap-start">
+            <a
+              class="min-h-touch flex min-w-[88px] touch-manipulation flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[0.7rem] font-semibold uppercase tracking-wide text-zinc-200 transition hover:border-accent-500/40 hover:text-white"
+              href={item.href}
+            >
+              <span
+                class="h-1.5 w-1.5 rounded-full bg-accent-500/70"
+                aria-hidden="true"
+              />
+              <span>{item.label}</span>
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
 </nav>

@@ -15,6 +15,8 @@ interface Props {
   description: string;
   mainClass?: string;
   bodyClass?: string;
+  showFooter?: boolean;
+  showStickyCTA?: boolean;
 }
 
 const {
@@ -22,6 +24,8 @@ const {
   description,
   mainClass = 'space-y-24 pb-24',
   bodyClass = '',
+  showFooter = true,
+  showStickyCTA = true,
 } = Astro.props as Props;
 ---
 
@@ -42,9 +46,9 @@ const {
     <main id="main-content" class={mainClass} tabindex="-1">
       <slot />
     </main>
-    <Footer />
+    {showFooter ? <Footer /> : null}
 
-    <StickyCTA />
+    {showStickyCTA ? <StickyCTA /> : null}
     <MobileNav />
     <LiveChat client:idle />
     <PWARegistration />

@@ -1,205 +1,23 @@
 ---
 import MarketingLayout from '../layouts/MarketingLayout.astro';
 import StructuredData from '../components/StructuredData.astro';
-import ImmersiveShowcase from '../components/immersive/ImmersiveShowcase.astro';
-
-import ServiceCard from '../components/business/ServiceCard.astro';
-import TrustBadge from '../components/business/TrustBadge.astro';
-import TestimonialSlider from '../components/business/TestimonialSlider.astro';
-import CaseStudyCard from '../components/business/CaseStudyCard.astro';
-import ServicesQuiz from '../components/business/ServicesQuiz';
-import ContactForm from '../components/ContactForm.astro';
-import HeroSection from '../components/landing/HeroSection.astro';
-
-import ModernButton from '../components/ui/ModernButton.astro';
-import { withBasePath } from '../utils/helpers';
-import { getCollection } from 'astro:content';
+import ImmersiveHome from '../components/immersive/ImmersiveHome.astro';
 
 const headline = 'Next‑gen digital ops, engineered for motion and intelligence';
 const subheading =
   'Ultra‑premium 3D hero systems • Intelligent demos • Performance‑safe innovation';
-const servicesHref = withBasePath('services/');
-
-// Note: Astro's generated `DataEntryMap` updates via `astro sync`.
-// The build/dev pipeline will regenerate it; keep this loose to avoid editor stale-type errors.
-const featuredCaseStudies = (await getCollection('caseStudies' as never)).slice(
-  0,
-  3
-) as any[];
 ---
 
 <MarketingLayout
   title={headline}
   description={subheading}
-  bodyClass="bg-zinc-950"
-  mainClass="space-y-0 pb-24"
+  bodyClass="bg-zinc-950 overflow-x-hidden"
+  mainClass="p-0"
+  showFooter={false}
+  showStickyCTA={false}
 >
   <StructuredData type="organization" />
-  <section class="relative bg-zinc-950">
-    <ImmersiveShowcase />
-  </section>
-
-  <section class="relative overflow-hidden bg-zinc-950">
-    <div class="mx-auto max-w-[1220px] px-6 pb-16 pt-10">
-      <HeroSection
-        headline={headline}
-        subheading={subheading}
-        badge="Managed Services • Security • Cloud • AI"
-        animated={true}
-      />
-
-      <div class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <TrustBadge label="SOC 2 aligned" sublabel="Controls + reporting" />
-        <TrustBadge label="ISO 27001 ready" sublabel="Risk management" />
-        <TrustBadge label="Cloud partners" sublabel="Azure • AWS" />
-        <TrustBadge label="24/7 monitoring" sublabel="Real-time alerts" />
-      </div>
-    </div>
-  </section>
-
-  <section class="border-y border-white/5 bg-zinc-900/30">
-    <div class="mx-auto max-w-[1220px] px-6 py-16">
-      <div class="flex flex-wrap items-end justify-between gap-8">
-        <div class="max-w-2xl space-y-3">
-          <h2 class="text-3xl font-semibold text-white">Service overview</h2>
-          <p class="text-sm text-zinc-300">
-            Pick a starting point—then we tailor scope, SLAs, and deliverables
-            to your business.
-          </p>
-        </div>
-        <ModernButton
-          href={servicesHref}
-          variant="outline"
-          className="min-h-[48px]"
-        >
-          Explore services
-        </ModernButton>
-      </div>
-
-      <div class="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        <ServiceCard
-          title="Managed IT Services"
-          description="24/7 monitoring, help desk, patching, and strategic planning."
-          price="$150/user/mo"
-          priceNote="Typical starting point"
-          href={servicesHref}
-          bullets={['Monitoring + support', 'Patch management', 'vCIO options']}
-        />
-        <ServiceCard
-          title="Cybersecurity & Compliance"
-          description="Assessments, managed security, incident response, and compliance programs."
-          price="From $2,500/mo"
-          href={servicesHref}
-          bullets={['Risk assessments', 'EDR/SIEM', 'SOC 2 / HIPAA / CMMC']}
-        />
-        <ServiceCard
-          title="Cloud & Infrastructure"
-          description="Migrations, modernization, and optimization across Azure, AWS, and hybrid."
-          price="Custom"
-          href={servicesHref}
-          bullets={[
-            'Cloud migration',
-            'BC/DR planning',
-            'Performance optimization',
-          ]}
-        />
-        <ServiceCard
-          title="AI Consulting & Integration"
-          description="Readiness assessments, pilots, governance, and automation."
-          price="$15,000+"
-          priceNote="Projects"
-          href={servicesHref}
-          bullets={['AI readiness', 'GenAI integration', 'MLOps + governance']}
-        />
-      </div>
-    </div>
-  </section>
-
-  <section class="bg-zinc-950">
-    <div class="mx-auto max-w-[1220px] px-6 py-20">
-      <div
-        class="grid gap-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-start"
-      >
-        <div class="space-y-4">
-          <p
-            class="text-xs font-semibold uppercase tracking-[0.32em] text-zinc-400"
-          >
-            Trust & credibility
-          </p>
-          <h2 class="text-3xl font-semibold text-white">
-            A partner you can hold accountable
-          </h2>
-          <p class="text-sm text-zinc-300">
-            Clear SLAs, executive reporting, and a security-first approach—built
-            for real operations.
-          </p>
-        </div>
-        <div class="space-y-5">
-          <TestimonialSlider />
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="border-y border-white/5 bg-zinc-900/30" id="services-quiz">
-    <div class="mx-auto max-w-[1220px] px-6 py-20">
-      <div class="grid gap-8 lg:grid-cols-2 lg:items-start">
-        <div class="space-y-4">
-          <h2 class="text-3xl font-semibold text-white">
-            Find your perfect IT solution in 60 seconds
-          </h2>
-          <p class="text-sm text-zinc-300">
-            Answer a few questions and we’ll recommend the best starting point.
-          </p>
-        </div>
-        <div>
-          <ServicesQuiz client:visible />
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="bg-zinc-950" id="case-studies">
-    <div class="mx-auto max-w-[1220px] px-6 py-20">
-      <div class="flex flex-wrap items-end justify-between gap-8">
-        <div class="max-w-2xl space-y-3">
-          <h2 class="text-3xl font-semibold text-white">Case studies</h2>
-          <p class="text-sm text-zinc-300">
-            Real-world outcomes across regulated and high-availability
-            industries.
-          </p>
-        </div>
-        <ModernButton
-          href={servicesHref}
-          variant="outline"
-          className="min-h-[48px]"
-        >
-          See more in Services
-        </ModernButton>
-      </div>
-
-      <div class="mt-8 grid gap-5 lg:grid-cols-3">
-        {
-          featuredCaseStudies.map((entry: any) => (
-            <CaseStudyCard
-              title={entry.data.title}
-              industry={entry.data.industry}
-              summary={entry.data.summary}
-              results={entry.data.results}
-            />
-          ))
-        }
-      </div>
-    </div>
-  </section>
-
-  <section class="border-t border-white/5 bg-zinc-900/30" id="consultation">
-    <div class="mx-auto max-w-[1220px] px-6 py-20">
-      <ContactForm
-        title="Schedule a free consultation"
-        subtitle="Tell us what’s not working. We’ll respond with a clear plan and next steps."
-        showContactInfo={false}
-      />
-    </div>
+  <section class="relative min-h-screen bg-zinc-950">
+    <ImmersiveHome />
   </section>
 </MarketingLayout>
