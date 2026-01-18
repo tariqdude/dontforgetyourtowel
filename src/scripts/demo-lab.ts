@@ -5,6 +5,19 @@ import {
   persistDemoLabState,
 } from '../utils/demo-lab';
 
+declare global {
+  interface Window {
+    __demoLabBound?: boolean;
+  }
+}
+
+let cleanupCurrent: (() => void) | null = null;
+
+function cleanup(): void {
+  cleanupCurrent?.();
+  cleanupCurrent = null;
+}
+
 const getDemoModules = (): HTMLElement[] =>
   Array.from(document.querySelectorAll<HTMLElement>('[data-demo-module]'));
 
@@ -74,17 +87,32 @@ const syncButtons = (state: DemoLabState) => {
   });
 };
 
-const initDemoLab = () => {
+export function initDemoLab(): void {
   if (typeof window === 'undefined') return;
+
+  // Tear down any previous init so we don't keep old observers/listeners
+  // alive across Astro view transitions.
+  cleanup();
 
   const state = parseStoredDemoLabState();
   const modules = getDemoModules();
+
+  const hasModules = modules.length > 0;
+  const hasToggles = Boolean(
+    document.querySelector('button.demo-toggle[data-demo-toggle]')
+  );
+
+  // If the page doesn't contain demo lab UI, do nothing.
+  if (!hasModules && !hasToggles) return;
+
+  const controller = new AbortController();
   const stopOffscreenPauser = startOffscreenPauser(modules, state);
+
   applyDemoLabStateToDOM(state);
   applyStateToModules(modules, state);
   syncButtons(state);
 
-  document.addEventListener('click', event => {
+  const onClick = (event: MouseEvent) => {
     const target = event.target as HTMLElement | null;
     const button = target?.closest<HTMLButtonElement>(
       'button.demo-toggle[data-demo-toggle]'
@@ -99,11 +127,47 @@ const initDemoLab = () => {
     applyDemoLabStateToDOM(state);
     applyStateToModules(modules, state);
     syncButtons(state);
-  });
+  };
 
-  window.addEventListener('beforeunload', () => {
+  document.addEventListener('click', onClick, {
+    signal: controller.signal,
+  } as AddEventListenerOptions);
+
+  window.addEventListener(
+    'beforeunload',
+    () => {
+      stopOffscreenPauser();
+    },
+    { signal: controller.signal } as AddEventListenerOptions
+  );
+
+  cleanupCurrent = () => {
+    controller.abort();
     stopOffscreenPauser();
-  });
-};
+  };
+}
 
-initDemoLab();
+function bindOnce(): void {
+  if (typeof window === 'undefined') return;
+
+  if (window.__demoLabBound) {
+    // If this module is imported again, re-init safely.
+    initDemoLab();
+    return;
+  }
+  window.__demoLabBound = true;
+
+  initDemoLab();
+
+  document.addEventListener('astro:page-load', () => {
+    initDemoLab();
+  });
+
+  // Clean up before Astro swaps the DOM so stale observers/listeners don't
+  // hold references to removed nodes.
+  document.addEventListener('astro:before-swap', () => {
+    cleanup();
+  });
+}
+
+bindOnce();

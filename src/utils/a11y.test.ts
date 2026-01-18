@@ -46,9 +46,29 @@ describe('Accessibility Utilities', () => {
       });
 
       announce('Global message');
-      const announcer = document.querySelector('[aria-live="polite"]');
+      const announcer = document.querySelector(
+        '[data-global-announcer="true"][aria-live="polite"]'
+      );
       expect(announcer).toBeTruthy();
       expect(announcer?.textContent).toBe('Global message');
+    });
+
+    it('should not remove unrelated aria-live elements', () => {
+      vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+        cb(0);
+        return 0;
+      });
+
+      const unrelated = document.createElement('div');
+      unrelated.setAttribute('aria-live', 'polite');
+      unrelated.id = 'unrelated-live-region';
+      unrelated.textContent = 'Unrelated';
+      document.body.appendChild(unrelated);
+
+      announce('Global message');
+
+      // The unrelated live region should still exist.
+      expect(document.getElementById('unrelated-live-region')).toBeTruthy();
     });
 
     it('should announce assertively', () => {
@@ -58,7 +78,9 @@ describe('Accessibility Utilities', () => {
       });
 
       announceAssertive('Urgent message');
-      const announcer = document.querySelector('[aria-live="assertive"]');
+      const announcer = document.querySelector(
+        '[data-global-announcer="true"][aria-live="assertive"]'
+      );
       expect(announcer).toBeTruthy();
       expect(announcer?.textContent).toBe('Urgent message');
     });

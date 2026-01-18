@@ -666,14 +666,33 @@ export function createKeyboardNavigationDetector() {
     document.body.classList.remove('keyboard-navigation');
   };
 
+  const handlePointerDown = () => {
+    isKeyboardUser = false;
+    document.body.classList.remove('keyboard-navigation');
+  };
+
+  const handleTouchStart = () => {
+    isKeyboardUser = false;
+    document.body.classList.remove('keyboard-navigation');
+  };
+
   document.addEventListener('keydown', handleKeyDown);
+  // Prefer pointer/touch where available so touch interactions clear keyboard mode.
+  document.addEventListener('pointerdown', handlePointerDown, {
+    passive: true,
+  } as AddEventListenerOptions);
   document.addEventListener('mousedown', handleMouseDown);
+  document.addEventListener('touchstart', handleTouchStart, {
+    passive: true,
+  } as AddEventListenerOptions);
 
   return {
     isKeyboardUser: () => isKeyboardUser,
     destroy: () => {
       document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('mousedown', handleMouseDown);
+      document.removeEventListener('touchstart', handleTouchStart);
     },
   };
 }

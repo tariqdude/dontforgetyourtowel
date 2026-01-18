@@ -94,6 +94,7 @@ export function createAnnouncer(politeness: AriaLive = 'polite'): {
   }
 
   const announcer = document.createElement('div');
+  announcer.setAttribute('data-global-announcer', 'true');
   announcer.setAttribute('aria-live', politeness);
   announcer.setAttribute('aria-atomic', 'true');
   announcer.setAttribute('role', 'status');
@@ -137,7 +138,8 @@ export function announce(
 ): void {
   if (typeof document === 'undefined') return;
 
-  const existing = document.querySelector('[aria-live]');
+  // Only manage the announcer element we own.
+  const existing = document.querySelector('[data-global-announcer="true"]');
   const isCorrectPoliteness =
     existing?.getAttribute('aria-live') === politeness;
   const isLastChild = existing === document.body.lastChild;

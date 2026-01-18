@@ -9,6 +9,7 @@ import {
   createHotkeyManager,
   getFocusableElements,
   createFocusTrap,
+  createKeyboardNavigationDetector,
   Keys,
 } from './keyboard';
 
@@ -380,6 +381,62 @@ describe('keyboard utilities', () => {
       expect(Keys.Space).toBe(' ');
       expect(Keys.ArrowUp).toBe('ArrowUp');
       expect(Keys.ArrowDown).toBe('ArrowDown');
+    });
+  });
+
+  describe('createKeyboardNavigationDetector', () => {
+    afterEach(() => {
+      document.body.classList.remove('keyboard-navigation');
+    });
+
+    it('should enable keyboard-navigation on Tab', () => {
+      const detector = createKeyboardNavigationDetector();
+
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Tab', bubbles: true })
+      );
+
+      expect(document.body.classList.contains('keyboard-navigation')).toBe(
+        true
+      );
+      expect(detector.isKeyboardUser()).toBe(true);
+
+      detector.destroy();
+    });
+
+    it('should clear keyboard-navigation on pointer interactions', () => {
+      const detector = createKeyboardNavigationDetector();
+
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Tab', bubbles: true })
+      );
+      expect(document.body.classList.contains('keyboard-navigation')).toBe(
+        true
+      );
+
+      // JSDOM may not implement PointerEvent consistently; mousedown is the safe baseline.
+      document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+
+      expect(document.body.classList.contains('keyboard-navigation')).toBe(
+        false
+      );
+      expect(detector.isKeyboardUser()).toBe(false);
+
+      detector.destroy();
+    });
+
+    it('should stop reacting after destroy()', () => {
+      const detector = createKeyboardNavigationDetector();
+      detector.destroy();
+
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Tab', bubbles: true })
+      );
+
+      expect(document.body.classList.contains('keyboard-navigation')).toBe(
+        false
+      );
+      expect(detector.isKeyboardUser()).toBe(false);
     });
   });
 });
