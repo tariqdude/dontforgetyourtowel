@@ -42,6 +42,13 @@ const setupScrollMotion = (): Cleanup | null => {
   const panels = Array.from(
     root.querySelectorAll<HTMLElement>('[data-ih-panel]')
   );
+  const railItems = Array.from(
+    root.querySelectorAll<HTMLElement>('[data-ih-rail-item]')
+  );
+
+  let lastPointerX = window.innerWidth * 0.5;
+  let lastPointerY = window.innerHeight * 0.5;
+  let lastPointerTime = performance.now();
 
   panels.forEach(panel => {
     gsap.fromTo(
@@ -60,6 +67,26 @@ const setupScrollMotion = (): Cleanup | null => {
         },
       }
     );
+  });
+
+  const railTrigger = ScrollTrigger.create({
+    trigger: root,
+    start: 'top top',
+    end: 'bottom bottom',
+    onUpdate: self => {
+      const progress = self.progress;
+      root.style.setProperty('--ih-progress', progress.toFixed(4));
+
+      if (railItems.length > 0) {
+        const idx = Math.min(
+          railItems.length - 1,
+          Math.max(0, Math.floor(progress * railItems.length))
+        );
+        railItems.forEach((item, index) => {
+          item.classList.toggle('is-active', index === idx);
+        });
+      }
+    },
   });
 
   const words = Array.from(
@@ -88,8 +115,34 @@ const setupScrollMotion = (): Cleanup | null => {
 
   ScrollTrigger.refresh();
 
+  const onPointerMove = (event: PointerEvent) => {
+    const now = performance.now();
+    const dx = event.clientX - lastPointerX;
+    const dy = event.clientY - lastPointerY;
+    const dt = Math.max(16, now - lastPointerTime);
+    const speed = Math.min(1.5, Math.hypot(dx, dy) / dt);
+
+    root.style.setProperty(
+      '--ih-pointer-x',
+      (event.clientX / Math.max(1, window.innerWidth) - 0.5).toFixed(4)
+    );
+    root.style.setProperty(
+      '--ih-pointer-y',
+      (event.clientY / Math.max(1, window.innerHeight) - 0.5).toFixed(4)
+    );
+    root.style.setProperty('--ih-energy', speed.toFixed(4));
+
+    lastPointerX = event.clientX;
+    lastPointerY = event.clientY;
+    lastPointerTime = now;
+  };
+
+  window.addEventListener('pointermove', onPointerMove, { passive: true });
+
   return () => {
     ScrollTrigger.getAll().forEach((trigger: ScrollTrigger) => trigger.kill());
+    railTrigger.kill();
+    window.removeEventListener('pointermove', onPointerMove);
     if (lenis) lenis.destroy();
     if (rafHandler) gsap.ticker.remove(rafHandler);
   };

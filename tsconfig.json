@@ -25,7 +25,13 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "lib": ["ESNext", "DOM", "DOM.Iterable", "WebWorker"],
-    "types": ["node", "vite/client", "astro/client", "three"],
+    "types": [
+      "node",
+      "vite/client",
+      "astro/client",
+      "three",
+      "@react-three/fiber"
+    ],
     "jsx": "react-jsx",
     "jsxImportSource": "preact",
     "baseUrl": ".",

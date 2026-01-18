@@ -1,12 +1,21 @@
+/// <reference types="@react-three/fiber" />
 /** @jsxImportSource react */
 /** @jsxRuntime automatic */
 import * as THREE from 'three';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { Environment, Float, Sparkles, Stars, Text } from '@react-three/drei';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import {
+  Environment,
+  Float,
+  Sparkles,
+  Stars,
+  Text,
+  useCursor,
+} from '@react-three/drei';
 import {
   EffectComposer,
   Bloom,
   ChromaticAberration,
+  DepthOfField,
   Noise,
   Vignette,
 } from '@react-three/postprocessing';
@@ -73,6 +82,13 @@ const Scene = ({ isMobile }: { isMobile: boolean }) => {
   const groupRef = useRef<THREE.Group>(null);
   const coreRef = useRef<THREE.Mesh>(null);
   const coreMat = useRef<THREE.MeshStandardMaterial>(null);
+  const nodeGroup = useRef<THREE.Group>(null);
+  const ringRef = useRef<THREE.Mesh>(null);
+  const { camera, pointer } = useThree();
+  const [hovered, setHovered] = useState<number | null>(null);
+  const pulseRef = useRef(0);
+
+  useCursor(hovered !== null);
 
   const { bloom, chroma, noise, vignette, speed } = useControls('R3F', {
     bloom: { value: 0.85, min: 0.2, max: 2, step: 0.01 },
@@ -97,6 +113,17 @@ const Scene = ({ isMobile }: { isMobile: boolean }) => {
 
   const rigValues = useRef<RigValues>(theatre.rig.value as RigValues);
 
+  const nodes = useMemo(() => {
+    const count = isMobile ? 7 : 12;
+    return Array.from({ length: count }).map((_, i) => ({
+      id: i,
+      radius: 2.4 + (i % 3) * 0.5 + Math.random() * 0.4,
+      offset: Math.random() * Math.PI * 2,
+      speed: 0.4 + Math.random() * 0.6,
+      height: (Math.random() - 0.5) * 1.6,
+    }));
+  }, [isMobile]);
+
   useEffect(() => {
     const unsubscribe = theatre.rig.onValuesChange(values => {
       rigValues.current = values as RigValues;
@@ -120,6 +147,12 @@ const Scene = ({ isMobile }: { isMobile: boolean }) => {
     const time = clock.getElapsedTime() * speed;
     const rig = rigValues.current;
 
+    const targetX = pointer.x * 0.6;
+    const targetY = pointer.y * 0.4;
+    camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetX, 0.06);
+    camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetY, 0.06);
+    camera.lookAt(0, 0, 0);
+
     if (groupRef.current) {
       groupRef.current.rotation.y = time * 0.4 + rig.twist;
       groupRef.current.rotation.x = Math.sin(time * 0.4) * 0.2 + rig.lift;
@@ -134,6 +167,35 @@ const Scene = ({ isMobile }: { isMobile: boolean }) => {
       coreMat.current.color.setHSL(0.62 + rig.hueShift, 0.8, 0.55);
       coreMat.current.emissive.setHSL(0.75 + rig.hueShift, 0.85, 0.25);
       coreMat.current.emissiveIntensity = 0.7 + rig.pulse * 0.8;
+    }
+
+    if (nodeGroup.current) {
+      nodeGroup.current.rotation.y = time * 0.2 + rig.orbit;
+      nodeGroup.current.rotation.x = Math.sin(time * 0.3) * 0.1;
+
+      nodeGroup.current.children.forEach((child, index) => {
+        const node = nodes[index];
+        if (!node) return;
+        const angle = time * node.speed + node.offset;
+        const wobble = Math.sin(time * 1.1 + node.offset) * 0.08;
+        child.position.set(
+          Math.cos(angle) * (node.radius + wobble),
+          node.height + Math.sin(angle * 1.3) * 0.2,
+          Math.sin(angle) * (node.radius + wobble)
+        );
+        const pulse = pulseRef.current;
+        const isHovered = hovered === node.id;
+        const scale = isHovered ? 1.35 + pulse * 0.2 : 1 + pulse * 0.1;
+        child.scale.setScalar(scale);
+      });
+    }
+
+    if (ringRef.current) {
+      ringRef.current.rotation.z += dt * 0.3;
+    }
+
+    if (pulseRef.current > 0) {
+      pulseRef.current = Math.max(0, pulseRef.current - dt * 0.8);
     }
   });
 
@@ -170,6 +232,40 @@ const Scene = ({ isMobile }: { isMobile: boolean }) => {
         </mesh>
       </group>
 
+      <group ref={nodeGroup}>
+        {nodes.map(node => (
+          <mesh
+            key={node.id}
+            onPointerOver={() => setHovered(node.id)}
+            onPointerOut={() => setHovered(null)}
+            onClick={() => {
+              pulseRef.current = 1;
+            }}
+          >
+            <sphereGeometry args={[0.12, 24, 24]} />
+            <meshStandardMaterial
+              color={new THREE.Color(0.4, 0.7, 1)}
+              emissive={new THREE.Color(0.3, 0.5, 1)}
+              emissiveIntensity={hovered === node.id ? 1.2 : 0.6}
+              metalness={0.4}
+              roughness={0.3}
+            />
+          </mesh>
+        ))}
+      </group>
+
+      <mesh ref={ringRef} rotation={[Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[2.4, 2.55, 120]} />
+        <meshStandardMaterial
+          color={new THREE.Color(0.25, 0.6, 1)}
+          emissive={new THREE.Color(0.2, 0.4, 0.9)}
+          emissiveIntensity={0.8}
+          transparent
+          opacity={0.35}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+
       <Sparkles
         count={isMobile ? 80 : 140}
         size={isMobile ? 2 : 3}
@@ -198,6 +294,13 @@ const Scene = ({ isMobile }: { isMobile: boolean }) => {
           offset={[chroma, chroma]}
           blendFunction={BlendFunction.NORMAL}
         />
+        {!isMobile && (
+          <DepthOfField
+            focusDistance={0.02}
+            focalLength={0.05}
+            bokehScale={2}
+          />
+        )}
         <Noise opacity={noise} premultiply />
         <Vignette eskil={false} offset={0.2} darkness={vignette} />
       </EffectComposer>
@@ -283,6 +386,7 @@ const ImmersiveLabs = () => {
           <ul className="ih-labs-list">
             <li>Scroll-linked rig values and choreography</li>
             <li>Postprocessed glow with adaptive sampling</li>
+            <li>Interactive constellation nodes with pulse feedback</li>
             <li>Mobile-tuned sparkles + reduced DPR</li>
           </ul>
         </div>

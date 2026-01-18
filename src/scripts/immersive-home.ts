@@ -211,6 +211,8 @@ class ImmersiveThreeController {
 
   private burst = 0;
   private event = 0;
+  private pinch = 0;
+  private pinchTarget = 0;
   private lastChapterIdx = -1;
   private stingerChapterIdx = -1;
   private stingerFired = false;
@@ -488,6 +490,23 @@ class ImmersiveThreeController {
       'pointerdown',
       () => {
         this.burst = Math.min(1, this.burst + 0.75);
+        this.pinchTarget = 1;
+      },
+      { passive: true, signal }
+    );
+
+    window.addEventListener(
+      'pointerup',
+      () => {
+        this.pinchTarget = 0;
+      },
+      { passive: true, signal }
+    );
+
+    window.addEventListener(
+      'pointerleave',
+      () => {
+        this.pinchTarget = 0;
       },
       { passive: true, signal }
     );
@@ -599,6 +618,7 @@ class ImmersiveThreeController {
 
     // Burst decays; scroll velocity injects energy.
     this.burst = clamp(this.burst * 0.92 + velocity * 0.22, 0, 1);
+    this.pinch = damp(this.pinch, this.pinchTarget, 6, dt);
 
     // Chapter transitions trigger a cinematic event pulse.
     if (idx !== this.lastChapterIdx) {
@@ -802,6 +822,7 @@ class ImmersiveThreeController {
     this.root.style.setProperty('--ih-parallax-y', this.pointer.y.toFixed(4));
     this.root.style.setProperty('--ih-burst', this.burst.toFixed(4));
     this.root.style.setProperty('--ih-event', this.event.toFixed(4));
+    this.root.style.setProperty('--ih-pinch', this.pinch.toFixed(4));
     this.root.style.setProperty('--ih-quality', this.quality.toFixed(4));
     this.root.style.setProperty('--ih-hue', config.hue.toFixed(2));
     this.root.style.setProperty('--ih-hue-2', config.hue2.toFixed(2));

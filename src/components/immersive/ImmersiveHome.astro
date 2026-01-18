@@ -82,6 +82,8 @@ const shards = Array.from({ length: 10 }).map((_, i) => ({
     <div class="ih-space">
       <div class="ih-layer ih-stars"></div>
       <div class="ih-layer ih-fog"></div>
+      <div class="ih-layer ih-grid"></div>
+      <div class="ih-layer ih-signal"></div>
       <div class="ih-layer ih-portal"></div>
       <div class="ih-layer ih-core">
         <span class="ih-core-shell"></span>
@@ -163,6 +165,34 @@ const shards = Array.from({ length: 10 }).map((_, i) => ({
         </div>
       </header>
 
+      <section class="ih-panel ih-rail" data-ih-panel data-ih-rail>
+        <p class="ih-eyebrow">Journey map</p>
+        <h3 class="ih-title ih-split" data-split>
+          The whole scroll is now choreographed, not just the hero
+        </h3>
+        <div class="ih-rail-track">
+          {
+            [
+              'Ignite',
+              'Prism',
+              'Swarm',
+              'Rift',
+              'Singularity',
+              'Afterglow',
+            ].map((label, i) => (
+              <div class="ih-rail-item" data-ih-rail-item data-index={i}>
+                <span class="ih-rail-dot" />
+                <span class="ih-rail-label">{label}</span>
+              </div>
+            ))
+          }
+        </div>
+        <p class="ih-lede">
+          Scroll progress drives the rail, lighting up the current chapter while
+          keeping the rest visible for context.
+        </p>
+      </section>
+
       <ImmersiveLabs client:visible />
 
       <section class="ih-panel ih-panel-outro" data-ih-panel>
@@ -208,8 +238,12 @@ const shards = Array.from({ length: 10 }).map((_, i) => ({
     --ih-scroll: 0;
     --ih-local: 0;
     --ih-vel: 0;
+    --ih-progress: 0;
     --ih-parallax-x: 0;
     --ih-parallax-y: 0;
+    --ih-pointer-x: 0;
+    --ih-pointer-y: 0;
+    --ih-energy: 0;
     --ih-burst: 0;
     --ih-event: 0;
     --ih-pinch: 0;
@@ -517,6 +551,54 @@ const shards = Array.from({ length: 10 }).map((_, i) => ({
     animation: ihFog 12s ease-in-out infinite;
   }
 
+  .ih-grid {
+    opacity: calc(0.12 + (var(--ih-vel) * 0.25) + (var(--ih-energy) * 0.2));
+    transform: translateZ(-40px);
+    background-image:
+      linear-gradient(
+        120deg,
+        rgba(99, 102, 241, 0.2),
+        rgba(34, 211, 238, 0.12)
+      ),
+      repeating-linear-gradient(
+        90deg,
+        rgba(148, 163, 184, 0.12) 0 1px,
+        transparent 1px 80px
+      ),
+      repeating-linear-gradient(
+        180deg,
+        rgba(148, 163, 184, 0.12) 0 1px,
+        transparent 1px 80px
+      );
+    mix-blend-mode: screen;
+    filter: blur(0.2px);
+    transform-origin: 50% 50%;
+    transform: translateZ(-40px) rotateZ(calc((var(--ih-scroll) - 0.5) * 6deg))
+      rotateX(calc(var(--ih-pointer-y) * -4deg))
+      rotateY(calc(var(--ih-pointer-x) * 4deg));
+  }
+
+  .ih-signal {
+    pointer-events: none;
+    opacity: calc(0.2 + (var(--ih-event) * 0.4) + (var(--ih-burst) * 0.2));
+    transform: translateZ(90px);
+  }
+
+  .ih-signal::before {
+    content: '';
+    position: absolute;
+    inset: -20%;
+    background: radial-gradient(
+      circle at calc(50% + (var(--ih-parallax-x) * 20%))
+        calc(50% + (var(--ih-parallax-y) * 20%)),
+      rgba(56, 189, 248, 0.25),
+      rgba(99, 102, 241, 0.1) 35%,
+      rgba(2, 6, 23, 0) 60%
+    );
+    filter: blur(calc(14px + (var(--ih-energy) * 12px)));
+    mix-blend-mode: screen;
+  }
+
   .ih-portal {
     pointer-events: none;
     opacity: 0.9;
@@ -703,6 +785,57 @@ const shards = Array.from({ length: 10 }).map((_, i) => ({
       0 30px 80px rgba(15, 23, 42, 0.4),
       inset 0 0 30px rgba(255, 255, 255, 0.03);
     backdrop-filter: blur(16px);
+  }
+
+  .ih-rail {
+    display: grid;
+    gap: 20px;
+  }
+
+  .ih-rail-track {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 16px;
+  }
+
+  .ih-rail-item {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    background: rgba(2, 6, 23, 0.45);
+    color: rgba(226, 232, 240, 0.65);
+    transition:
+      transform 200ms ease,
+      border-color 200ms ease,
+      box-shadow 200ms ease,
+      color 200ms ease;
+  }
+
+  .ih-rail-item.is-active {
+    border-color: rgba(99, 102, 241, 0.55);
+    color: #f8fafc;
+    transform: translateY(-4px);
+    box-shadow: 0 16px 30px rgba(99, 102, 241, 0.2);
+  }
+
+  .ih-rail-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.4);
+    box-shadow: 0 0 0 rgba(99, 102, 241, 0);
+    transition:
+      background 200ms ease,
+      box-shadow 200ms ease;
+  }
+
+  .ih-rail-item.is-active .ih-rail-dot {
+    background: rgba(99, 102, 241, 0.9);
+    box-shadow: 0 0 18px rgba(99, 102, 241, 0.8);
   }
 
   .ih-eyebrow {
@@ -933,6 +1066,10 @@ const shards = Array.from({ length: 10 }).map((_, i) => ({
 
     .ih-labs-canvas {
       aspect-ratio: 1 / 1;
+    }
+
+    .ih-rail-track {
+      grid-template-columns: 1fr;
     }
 
     .ih-prism {
