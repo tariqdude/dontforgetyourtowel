@@ -1,11 +1,25 @@
 import { getCollection } from 'astro:content';
+import type { CollectionEntry } from 'astro:content';
 import { isLegacyRouteUrl } from '../utils/legacy-routes';
 
-export async function GET() {
-  const caseStudies = await getCollection('caseStudies');
-  const blogPosts = await getCollection('blog');
+type SearchItem = {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  // NOTE: URLs in this index should be base-agnostic.
+  // Consumers (e.g. CommandPalette) must apply withBasePath() to navigate.
+  url: string;
+  date: string;
+  tags: string[];
+};
 
-  const caseStudyItems = caseStudies.map(entry => ({
+export async function GET() {
+  const caseStudies: CollectionEntry<'caseStudies'>[] =
+    await getCollection('caseStudies');
+  const blogPosts: CollectionEntry<'blog'>[] = await getCollection('blog');
+
+  const caseStudyItems: SearchItem[] = caseStudies.map(entry => ({
     id: `case-${entry.id}`,
     title: entry.data.title,
     description: entry.data.summary,
@@ -14,10 +28,10 @@ export async function GET() {
     // Consumers (e.g. CommandPalette) must apply withBasePath() to navigate.
     url: 'services/#case-studies',
     date: (entry.data.published ?? new Date()).toISOString(),
-    tags: ['case-study', entry.data.industry, ...entry.data.tags],
+    tags: ['case-study', entry.data.industry, ...(entry.data.tags ?? [])],
   }));
 
-  const blogItems = blogPosts
+  const blogItems: SearchItem[] = blogPosts
     .filter(entry => !entry.data.draft)
     .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf())
     .map(entry => ({
@@ -28,7 +42,7 @@ export async function GET() {
       // Base-agnostic URL (consumer applies withBasePath)
       url: `blog/${entry.id}/`,
       date: entry.data.pubDate.toISOString(),
-      tags: ['blog', ...entry.data.tags],
+      tags: ['blog', ...(entry.data.tags ?? [])],
     }));
 
   const staticPages = [
@@ -104,14 +118,18 @@ export async function GET() {
       url: 'terms/',
       tags: ['terms', 'legal'],
     },
-  ].map(page => ({
-    ...page,
-    date: new Date().toISOString(),
-  }));
-
-  const searchItems = [...caseStudyItems, ...blogItems, ...staticPages].filter(
-    item => !isLegacyRouteUrl(item.url)
+  ].map(
+    (page): SearchItem => ({
+      ...page,
+      date: new Date().toISOString(),
+    })
   );
+
+  const searchItems: SearchItem[] = [
+    ...caseStudyItems,
+    ...blogItems,
+    ...staticPages,
+  ].filter(item => !isLegacyRouteUrl(item.url));
 
   return new Response(JSON.stringify(searchItems), {
     status: 200,

@@ -8,7 +8,7 @@ export function getRelatedCaseStudies(
   allEntries: CollectionEntry<'caseStudies'>[],
   limit = 3
 ): CollectionEntry<'caseStudies'>[] {
-  const currentTags = new Set(currentEntry.data.tags || []);
+  const currentTags = new Set<string>(currentEntry.data.tags || []);
 
   const byMostRecent = (
     a: CollectionEntry<'caseStudies'>,
@@ -29,8 +29,8 @@ export function getRelatedCaseStudies(
   const scored = allEntries
     .filter(entry => entry.id !== currentEntry.id)
     .map(entry => {
-      const tags = entry.data.tags || [];
-      const shared = tags.filter(tag => currentTags.has(tag));
+      const tags: string[] = entry.data.tags || [];
+      const shared = tags.filter((tag: string) => currentTags.has(tag));
       return { entry, score: shared.length };
     })
     .filter(item => item.score > 0)
@@ -69,7 +69,7 @@ export function getRelatedBlogPosts(
   allEntries: CollectionEntry<'blog'>[],
   limit = 3
 ): CollectionEntry<'blog'>[] {
-  const currentTags = new Set(currentEntry.data.tags || []);
+  const currentTags = new Set<string>(currentEntry.data.tags || []);
 
   const byMostRecent = (
     a: CollectionEntry<'blog'>,
@@ -90,8 +90,8 @@ export function getRelatedBlogPosts(
   const scored = allEntries
     .filter(entry => entry.id !== currentEntry.id)
     .map(entry => {
-      const tags = entry.data.tags || [];
-      const shared = tags.filter(tag => currentTags.has(tag));
+      const tags: string[] = entry.data.tags || [];
+      const shared = tags.filter((tag: string) => currentTags.has(tag));
       return { entry, score: shared.length };
     })
     .filter(item => item.score > 0)
