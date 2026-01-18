@@ -1,0 +1,233 @@
+---
+const ariaLabel = 'Decorative orbital array animation';
+---
+
+<div class="orbital-stage" role="img" aria-label={ariaLabel}>
+  <div class="orbital-grid" aria-hidden="true"></div>
+  <div class="orbital-halo"></div>
+  <div class="orbital-core"></div>
+  <div class="orbit orbit-1">
+    <span class="orbital-dot"></span>
+    <span class="orbital-satellite satellite-1"></span>
+  </div>
+  <div class="orbit orbit-2">
+    <span class="orbital-dot"></span>
+    <span class="orbital-satellite satellite-2"></span>
+  </div>
+  <div class="orbit orbit-3">
+    <span class="orbital-dot"></span>
+    <span class="orbital-satellite satellite-3"></span>
+  </div>
+  <div class="orbit orbit-4">
+    <span class="orbital-dot"></span>
+    <span class="orbital-satellite satellite-4"></span>
+  </div>
+  <div class="signal-arc arc-a" aria-hidden="true"></div>
+  <div class="signal-arc arc-b" aria-hidden="true"></div>
+</div>
+
+<style>
+  .orbital-stage {
+    position: relative;
+    min-height: clamp(320px, 46vw, 520px);
+    border-radius: 24px;
+    overflow: hidden;
+    background: radial-gradient(
+      circle at 50% 20%,
+      rgba(30, 41, 59, 0.8),
+      #05060a 60%
+    );
+    display: grid;
+    place-items: center;
+    perspective: 1200px;
+    isolation: isolate;
+  }
+
+  .orbital-grid {
+    position: absolute;
+    inset: 10% 12%;
+    background-image: radial-gradient(
+      rgba(255, 255, 255, 0.08) 1px,
+      transparent 1px
+    );
+    background-size: 24px 24px;
+    opacity: 0.25;
+    transform: translateZ(-100px);
+    animation: gridSpin 18s linear infinite;
+  }
+
+  @keyframes gridSpin {
+    to {
+      transform: translateZ(-100px) rotate(360deg);
+    }
+  }
+
+  .orbital-halo {
+    position: absolute;
+    width: 140%;
+    aspect-ratio: 1;
+    background: conic-gradient(
+      from 0deg,
+      rgba(59, 130, 246, 0.25),
+      rgba(236, 72, 153, 0.2),
+      rgba(16, 185, 129, 0.2),
+      rgba(59, 130, 246, 0.25)
+    );
+    filter: blur(60px);
+    opacity: 0.7;
+    animation: halo-spin 24s linear infinite;
+  }
+
+  .orbital-core {
+    position: absolute;
+    width: clamp(90px, 14vw, 140px);
+    aspect-ratio: 1;
+    border-radius: 999px;
+    background: radial-gradient(
+      circle,
+      rgba(255, 255, 255, 0.8),
+      rgba(99, 102, 241, 0.4) 55%,
+      transparent 70%
+    );
+    box-shadow: 0 0 60px rgba(99, 102, 241, 0.4);
+    animation: core-pulse 7s ease-in-out infinite;
+  }
+
+  .orbit {
+    position: absolute;
+    width: 55%;
+    aspect-ratio: 1;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    transform-style: preserve-3d;
+    animation: orbit-spin 16s linear infinite;
+  }
+
+  .orbit-2 {
+    width: 70%;
+    transform: rotateX(70deg) rotateZ(20deg);
+    animation-duration: 22s;
+  }
+
+  .orbit-3 {
+    width: 82%;
+    transform: rotateY(70deg) rotateZ(-18deg);
+    animation-duration: 26s;
+  }
+
+  .orbit-4 {
+    width: 95%;
+    transform: rotateX(50deg) rotateY(20deg);
+    animation-duration: 30s;
+  }
+
+  .orbital-dot {
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    transform: translateX(-50%);
+    background: radial-gradient(circle, #fff, rgba(56, 189, 248, 0.6));
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.8);
+  }
+
+  .orbital-satellite {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: radial-gradient(
+      circle,
+      rgba(255, 255, 255, 0.9),
+      rgba(99, 102, 241, 0.5)
+    );
+    box-shadow: 0 0 14px rgba(99, 102, 241, 0.7);
+  }
+
+  .satellite-1 {
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .satellite-2 {
+    left: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  .satellite-3 {
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .satellite-4 {
+    right: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  .signal-arc {
+    position: absolute;
+    inset: 8% 14%;
+    border-radius: 50%;
+    border: 1px dashed rgba(56, 189, 248, 0.4);
+    opacity: 0.5;
+    animation: arcDrift 10s ease-in-out infinite;
+  }
+
+  .signal-arc.arc-b {
+    inset: 18% 22%;
+    border-color: rgba(236, 72, 153, 0.35);
+    animation-delay: 2s;
+  }
+
+  @keyframes arcDrift {
+    0%,
+    100% {
+      opacity: 0.35;
+      transform: scale(0.98);
+    }
+    50% {
+      opacity: 0.7;
+      transform: scale(1.03);
+    }
+  }
+
+  @keyframes orbit-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes halo-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes core-pulse {
+    0%,
+    100% {
+      transform: scale(0.95);
+      opacity: 0.7;
+    }
+    50% {
+      transform: scale(1.05);
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .orbital-halo,
+    .orbital-core,
+    .orbit,
+    .signal-arc,
+    .orbital-grid {
+      animation: none !important;
+    }
+  }
+</style>

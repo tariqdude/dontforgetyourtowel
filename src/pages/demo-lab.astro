@@ -8,6 +8,8 @@ import ParticleVortex from '../components/ui/ParticleVortex.astro';
 import InfinityTunnel from '../components/ui/InfinityTunnel.astro';
 import MatrixRain from '../components/ui/MatrixRain.astro';
 import DemoBentoMorphGrid from '../components/ui/DemoBentoMorphGrid.astro';
+import SpectralAurora from '../components/ui/SpectralAurora.astro';
+import OrbitalArray from '../components/ui/OrbitalArray.astro';
 
 import { withBasePath } from '../utils/helpers';
 
@@ -18,7 +20,9 @@ const toc = [
   { id: 'act-3', label: 'Act 3 — Infinity Tunnel' },
   { id: 'act-4', label: 'Act 4 — Matrix / Typography' },
   { id: 'act-5', label: 'Act 5 — Bento Morph Grid' },
-  { id: 'act-6', label: 'Act 6 — Integration Proof' },
+  { id: 'act-6', label: 'Act 6 — Spectral Aurora' },
+  { id: 'act-7', label: 'Act 7 — Orbital Array' },
+  { id: 'act-8', label: 'Act 8 — Integration Proof' },
 ];
 
 const pageTitle = 'Demo Lab';
@@ -116,6 +120,26 @@ const pageDescription =
           </div>
         </div>
 
+        <div
+          class="mt-5 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.18em] text-zinc-400"
+        >
+          <span
+            class="rounded-full border border-white/10 bg-white/5 px-3 py-1"
+          >
+            GPU-heavy
+          </span>
+          <span
+            class="rounded-full border border-white/10 bg-white/5 px-3 py-1"
+          >
+            CPU-light
+          </span>
+          <span
+            class="rounded-full border border-white/10 bg-white/5 px-3 py-1"
+          >
+            Interactive
+          </span>
+        </div>
+
         <noscript>
           <p
             class="mt-5 rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-zinc-200"
@@ -161,6 +185,16 @@ const pageDescription =
         a follow-up PR.
       </p>
       <div
+        class="mt-4 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.18em] text-zinc-400"
+      >
+        <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+          GPU-heavy
+        </span>
+        <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+          Depth cues
+        </span>
+      </div>
+      <div
         class="demo-module demo-module--3d mt-6 overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/30"
         data-demo-module="advanced-3d"
       >
@@ -176,6 +210,16 @@ const pageDescription =
         A high-density particle module with touch-safe controls.
       </p>
       <div
+        class="mt-4 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.18em] text-zinc-400"
+      >
+        <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+          GPU-heavy
+        </span>
+        <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+          Interactive
+        </span>
+      </div>
+      <div
         class="demo-module demo-module--vortex mt-6 overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/30"
         data-demo-module="particle-vortex"
       >
@@ -190,6 +234,16 @@ const pageDescription =
       <p class="mt-2 max-w-[75ch] text-sm text-zinc-300">
         Deep motion + depth illusion. This must respect reduced motion.
       </p>
+      <div
+        class="mt-4 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.18em] text-zinc-400"
+      >
+        <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+          GPU-heavy
+        </span>
+        <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+          Depth cues
+        </span>
+      </div>
       <div
         class="demo-module demo-module--tunnel mt-6 overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/30"
         data-demo-module="infinity-tunnel"
@@ -207,6 +261,16 @@ const pageDescription =
         CSS.
       </p>
       <div
+        class="mt-4 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.18em] text-zinc-400"
+      >
+        <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+          CPU-light
+        </span>
+        <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+          Typography
+        </span>
+      </div>
+      <div
         class="demo-module demo-module--matrix mt-6 overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/30"
         data-demo-module="matrix-rain"
       >
@@ -223,6 +287,16 @@ const pageDescription =
         smooth transitions and reduced-motion fallback.
       </p>
       <div
+        class="mt-4 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.18em] text-zinc-400"
+      >
+        <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+          Hybrid
+        </span>
+        <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+          Layout motion
+        </span>
+      </div>
+      <div
         class="demo-module demo-module--bento mt-6 overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/30"
         data-demo-module="bento-morph"
       >
@@ -232,7 +306,59 @@ const pageDescription =
 
     <section id="act-6" class="scroll-mt-24 pt-14">
       <h2 class="font-display text-2xl font-semibold text-white">
-        Act 6 — Integration Proof
+        Act 6 — Spectral Aurora
+      </h2>
+      <p class="mt-2 max-w-[75ch] text-sm text-zinc-300">
+        Layered gradients, glass refraction, and a holographic lattice to show
+        off high-end CSS composition.
+      </p>
+      <div
+        class="mt-4 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.18em] text-zinc-400"
+      >
+        <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+          GPU-heavy
+        </span>
+        <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+          Gradient field
+        </span>
+      </div>
+      <div
+        class="demo-module demo-module--aurora mt-6 overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/30"
+        data-demo-module="spectral-aurora"
+      >
+        <SpectralAurora />
+      </div>
+    </section>
+
+    <section id="act-7" class="scroll-mt-24 pt-14">
+      <h2 class="font-display text-2xl font-semibold text-white">
+        Act 7 — Orbital Array
+      </h2>
+      <p class="mt-2 max-w-[75ch] text-sm text-zinc-300">
+        A multi-axis orbital system with layered motion cues, tuned for clarity
+        even under reduced motion.
+      </p>
+      <div
+        class="mt-4 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.18em] text-zinc-400"
+      >
+        <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+          GPU-medium
+        </span>
+        <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+          3D motion
+        </span>
+      </div>
+      <div
+        class="demo-module demo-module--orbital mt-6 overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/30"
+        data-demo-module="orbital-array"
+      >
+        <OrbitalArray />
+      </div>
+    </section>
+
+    <section id="act-8" class="scroll-mt-24 pt-14">
+      <h2 class="font-display text-2xl font-semibold text-white">
+        Act 8 — Integration Proof
       </h2>
       <p class="mt-2 max-w-[75ch] text-sm text-zinc-300">
         Demonstrate base-path correctness and internal navigation behavior.
@@ -378,6 +504,31 @@ const pageDescription =
   html[data-demo-perf='true'] .demo-module--3d .carousel,
   .demo-module[data-demo-perf='true'].demo-module--3d .carousel {
     animation-duration: 30s !important;
+  }
+
+  html[data-demo-perf='true'] .demo-module--aurora .aurora-layer,
+  html[data-demo-perf='true'] .demo-module--aurora .aurora-mist,
+  .demo-module[data-demo-perf='true'].demo-module--aurora .aurora-layer,
+  .demo-module[data-demo-perf='true'].demo-module--aurora .aurora-mist {
+    animation-duration: 40s !important;
+    filter: blur(10px) saturate(110%) !important;
+    opacity: 0.35 !important;
+  }
+
+  html[data-demo-perf='true'] .demo-module--aurora .aurora-grid,
+  .demo-module[data-demo-perf='true'].demo-module--aurora .aurora-grid {
+    opacity: 0.15 !important;
+  }
+
+  html[data-demo-perf='true'] .demo-module--orbital .orbital-halo,
+  .demo-module[data-demo-perf='true'].demo-module--orbital .orbital-halo {
+    opacity: 0.2 !important;
+    filter: blur(20px) !important;
+  }
+
+  html[data-demo-perf='true'] .demo-module--orbital .orbit,
+  .demo-module[data-demo-perf='true'].demo-module--orbital .orbit {
+    animation-duration: 40s !important;
   }
 </style>
 

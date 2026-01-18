@@ -12,6 +12,12 @@ import ModernButton from './ModernButton.astro';
     Interactive 3D spiral • Move mouse to attract particles
   </p>
 
+  <div class="vortex-hud" aria-hidden="true">
+    <div class="hud-pill">Live field</div>
+    <div class="hud-pill">Magnetic arcs</div>
+    <div class="hud-pill">Mode adaptive</div>
+  </div>
+
   <div
     class="vortex-controls"
     role="group"
@@ -48,7 +54,7 @@ import ModernButton from './ModernButton.astro';
   </div>
 
   <div class="vortex-container" data-vortex-interactive>
-    <div class="vortex" data-vortex-system>
+    <div class="vortex" data-vortex-system data-mode="spiral">
       {
         Array.from({ length: 120 }).map((_, i) => {
           const angle = (i / 120) * 360 * 6;
@@ -82,6 +88,12 @@ import ModernButton from './ModernButton.astro';
           ))
         }
       </div>
+
+      <div class="vortex-grid" aria-hidden="true"></div>
+
+      <div class="vortex-arc arc-1" aria-hidden="true"></div>
+      <div class="vortex-arc arc-2" aria-hidden="true"></div>
+      <div class="vortex-arc arc-3" aria-hidden="true"></div>
 
       {/* Energy field */}
       <div class="energy-field"></div>
@@ -159,6 +171,27 @@ import ModernButton from './ModernButton.astro';
     z-index: 10;
   }
 
+  .vortex-hud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: center;
+    margin-bottom: 2.5rem;
+    position: relative;
+    z-index: 10;
+  }
+
+  .hud-pill {
+    padding: 0.35rem 0.85rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(15, 23, 42, 0.55);
+    color: rgba(226, 232, 240, 0.9);
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
   .vortex-container {
     perspective: 2000px;
     height: 700px;
@@ -175,6 +208,18 @@ import ModernButton from './ModernButton.astro';
     height: 700px;
     transform-style: preserve-3d;
     animation: vortexSpin 30s linear infinite;
+  }
+
+  .vortex[data-mode='sphere'] {
+    animation-duration: 22s;
+  }
+
+  .vortex[data-mode='explosion'] {
+    animation-duration: 18s;
+  }
+
+  .vortex[data-mode='chaos'] {
+    animation-duration: 12s;
   }
 
   @keyframes vortexSpin {
@@ -240,6 +285,65 @@ import ModernButton from './ModernButton.astro';
     animation:
       coreRotate 10s linear infinite,
       corePulse 3s ease-in-out infinite;
+  }
+
+  .vortex-grid {
+    position: absolute;
+    inset: 10% 15%;
+    border-radius: 50%;
+    background-image: radial-gradient(
+      rgba(255, 255, 255, 0.08) 1px,
+      transparent 1px
+    );
+    background-size: 24px 24px;
+    opacity: 0.3;
+    transform: translateZ(-200px);
+    animation: gridDrift 12s ease-in-out infinite;
+  }
+
+  @keyframes gridDrift {
+    0%,
+    100% {
+      transform: translateZ(-200px) rotate(0deg);
+      opacity: 0.2;
+    }
+    50% {
+      transform: translateZ(-200px) rotate(25deg);
+      opacity: 0.45;
+    }
+  }
+
+  .vortex-arc {
+    position: absolute;
+    inset: 5% 12%;
+    border-radius: 50%;
+    border: 1px dashed rgba(59, 130, 246, 0.5);
+    animation: arcPulse 6s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  .vortex-arc.arc-2 {
+    inset: 15% 20%;
+    border-color: rgba(168, 85, 247, 0.55);
+    animation-delay: 1.5s;
+  }
+
+  .vortex-arc.arc-3 {
+    inset: 25% 28%;
+    border-color: rgba(34, 211, 238, 0.5);
+    animation-delay: 3s;
+  }
+
+  @keyframes arcPulse {
+    0%,
+    100% {
+      opacity: 0.2;
+      transform: scale(0.98);
+    }
+    50% {
+      opacity: 0.6;
+      transform: scale(1.04);
+    }
   }
 
   @keyframes coreRotate {
@@ -398,6 +502,10 @@ import ModernButton from './ModernButton.astro';
     .vortex {
       transform: none;
     }
+    .vortex-grid,
+    .vortex-arc {
+      animation: none !important;
+    }
   }
 </style>
 
@@ -483,6 +591,7 @@ import ModernButton from './ModernButton.astro';
 
     if (vortexSystem) {
       vortexSystem.style.animationDuration = mode === 'chaos' ? '15s' : '30s';
+      vortexSystem.dataset.mode = mode;
     }
   };
 
@@ -514,6 +623,9 @@ import ModernButton from './ModernButton.astro';
 
     if (!vortexContainer) return;
     if (!hasPointer) return;
+
+    lastX += (targetX - lastX) * 0.12;
+    lastY += (targetY - lastY) * 0.12;
 
     const rotateX = lastY * 40;
     const rotateY = lastX * 40;
@@ -547,11 +659,14 @@ import ModernButton from './ModernButton.astro';
     rafId = requestAnimationFrame(renderFrame);
   };
 
-  const onMouseMove = (e: MouseEvent) => {
+  let targetX = 0;
+  let targetY = 0;
+
+  const onPointerMove = (e: PointerEvent | MouseEvent) => {
     if (!vortexContainer) return;
     const rect = vortexContainer.getBoundingClientRect();
-    lastX = (e.clientX - rect.left) / rect.width - 0.5;
-    lastY = (e.clientY - rect.top) / rect.height - 0.5;
+    targetX = (e.clientX - rect.left) / rect.width - 0.5;
+    targetY = (e.clientY - rect.top) / rect.height - 0.5;
     hasPointer = true;
     requestFrame();
   };
@@ -570,16 +685,20 @@ import ModernButton from './ModernButton.astro';
   const bindInteractive = () => {
     if (isInteractiveBound) return;
     if (!vortexContainer || !vortexSystem) return;
-    vortexContainer.addEventListener('mousemove', onMouseMove);
-    vortexContainer.addEventListener('mouseleave', onMouseLeave);
+    vortexContainer.addEventListener('pointermove', onPointerMove, {
+      passive: true,
+    });
+    vortexContainer.addEventListener('pointerleave', onMouseLeave, {
+      passive: true,
+    });
     isInteractiveBound = true;
   };
 
   const unbindInteractive = () => {
     if (!isInteractiveBound) return;
     if (!vortexContainer) return;
-    vortexContainer.removeEventListener('mousemove', onMouseMove);
-    vortexContainer.removeEventListener('mouseleave', onMouseLeave);
+    vortexContainer.removeEventListener('pointermove', onPointerMove);
+    vortexContainer.removeEventListener('pointerleave', onMouseLeave);
     onMouseLeave();
     isInteractiveBound = false;
   };
