@@ -1,0 +1,16 @@
+---
+import MarketingLayout from '../layouts/MarketingLayout.astro';
+import ImmersiveShowcase from '../components/immersive/ImmersiveShowcase.astro';
+
+const title = 'Immersive 3D Lab';
+const description =
+  'A full-screen, scroll-driven 3D showcase featuring cinematic WebGL-style layers and a modular scene system.';
+---
+
+<MarketingLayout
+  title={title}
+  description={description}
+  bodyClass="bg-zinc-950"
+>
+  <ImmersiveShowcase />
+</MarketingLayout>

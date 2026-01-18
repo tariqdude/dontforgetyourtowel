@@ -1,0 +1,464 @@
+---
+const scenes = [
+  {
+    id: 'signal',
+    label: 'Signal Horizon',
+    desc: 'Cinematic beams, orbitals, and data wakes that track scroll velocity.',
+  },
+  {
+    id: 'aurora',
+    label: 'Aurora Core',
+    desc: 'Chromatic nebula sweeps with prismatic energy rings.',
+  },
+  {
+    id: 'matrix',
+    label: 'Matrix Drift',
+    desc: 'Falling glyphs and depth stacks for retro-future motion.',
+  },
+  {
+    id: 'vortex',
+    label: 'Vortex Array',
+    desc: 'Spiral particle corridors and kinetic pulse walls.',
+  },
+];
+
+const particles = Array.from({ length: 42 }).map((_, i) => {
+  const x = Math.round(Math.random() * 90 + 5);
+  const y = Math.round(Math.random() * 70 + 15);
+  const delay = (i % 12) * 0.18;
+  const size = 2 + (i % 3);
+  return { x, y, delay, size };
+});
+---
+
+<section class="immersive" data-immersive>
+  <div class="immersive-hero">
+    <p class="immersive-kicker">Immersive 3D Lab</p>
+    <h1 class="immersive-title">Scroll-driven, full-screen 3D storytelling</h1>
+    <p class="immersive-subtitle">
+      A playground for next-gen motion, layered depth, and cinematic
+      interactions. Built to be modular, performant, and mobile-friendly.
+    </p>
+  </div>
+
+  <div class="immersive-stage" aria-hidden="true">
+    <div class="immersive-scene">
+      <div class="scene-layer layer-stars"></div>
+      <div class="scene-layer layer-aurora"></div>
+      <div class="scene-layer layer-grid"></div>
+      <div class="scene-layer layer-orbits">
+        <span class="orbit orbit-1"></span>
+        <span class="orbit orbit-2"></span>
+        <span class="orbit orbit-3"></span>
+      </div>
+      <div class="scene-layer layer-core">
+        <span class="core-shell"></span>
+        <span class="core-glow"></span>
+        <span class="core-ring"></span>
+      </div>
+      <div class="scene-layer layer-streams">
+        {
+          Array.from({ length: 12 }).map((_, i) => (
+            <span class="stream" style={`--i:${i}`} />
+          ))
+        }
+      </div>
+      <div class="scene-layer layer-particles">
+        {
+          particles.map(p => (
+            <span
+              class="particle"
+              style={`--x:${p.x};--y:${p.y};--delay:${p.delay}s;--size:${p.size}px`}
+            />
+          ))
+        }
+      </div>
+    </div>
+  </div>
+
+  <div class="immersive-sections">
+    {
+      scenes.map(scene => (
+        <article class="immersive-card" data-scene={scene.id}>
+          <h2>{scene.label}</h2>
+          <p>{scene.desc}</p>
+        </article>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .immersive {
+    position: relative;
+    min-height: 100vh;
+    background: radial-gradient(circle at top, #0b1120, #020617 65%);
+    color: #e2e8f0;
+    overflow: hidden;
+    padding: clamp(3rem, 6vw, 6rem) clamp(1.5rem, 4vw, 4rem) 8rem;
+  }
+
+  .immersive-hero {
+    max-width: 760px;
+    position: relative;
+    z-index: 5;
+  }
+
+  .immersive-kicker {
+    font-size: 0.7rem;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: rgba(148, 163, 184, 0.7);
+    margin-bottom: 1rem;
+  }
+
+  .immersive-title {
+    font-size: clamp(2.5rem, 7vw, 5rem);
+    line-height: 1.05;
+    font-weight: 800;
+    color: #f8fafc;
+    margin-bottom: 1.5rem;
+  }
+
+  .immersive-subtitle {
+    font-size: clamp(1rem, 2.4vw, 1.3rem);
+    color: rgba(226, 232, 240, 0.75);
+  }
+
+  .immersive-stage {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    margin: 0 -4rem;
+    pointer-events: none;
+    display: grid;
+    place-items: center;
+    z-index: 1;
+  }
+
+  .immersive-scene {
+    position: relative;
+    width: min(900px, 90vw);
+    aspect-ratio: 1;
+    transform-style: preserve-3d;
+    perspective: 1400px;
+    animation: sceneFloat 18s ease-in-out infinite;
+    transform: translateY(calc(var(--scroll-progress, 0) * -24px))
+      rotateX(calc(var(--scroll-progress, 0) * 4deg))
+      rotateZ(calc(var(--scroll-progress, 0) * -3deg));
+  }
+
+  .scene-layer {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+  }
+
+  .layer-stars {
+    background-image:
+      radial-gradient(rgba(255, 255, 255, 0.35) 1px, transparent 1px),
+      radial-gradient(rgba(255, 255, 255, 0.2) 1px, transparent 1px);
+    background-size:
+      80px 80px,
+      140px 140px;
+    opacity: 0.45;
+    transform: translateZ(-380px);
+    animation: starsDrift 22s ease-in-out infinite;
+  }
+
+  .layer-aurora {
+    background: linear-gradient(
+      120deg,
+      rgba(14, 165, 233, 0.25),
+      rgba(168, 85, 247, 0.25),
+      rgba(236, 72, 153, 0.25),
+      transparent 70%
+    );
+    background-size: 200% 200%;
+    mix-blend-mode: screen;
+    transform: translateZ(-240px);
+    opacity: 0.65;
+    animation: auroraSweep 16s ease-in-out infinite;
+  }
+
+  .layer-grid {
+    inset: 8% 10% 40%;
+    background-image:
+      linear-gradient(rgba(148, 163, 184, 0.25) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, 0.25) 1px, transparent 1px);
+    background-size: 50px 50px;
+    transform: translateZ(-120px) rotateX(70deg);
+    opacity: 0.4;
+  }
+
+  .layer-orbits .orbit {
+    position: absolute;
+    inset: 18% 18%;
+    border-radius: 50%;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    box-shadow: 0 0 24px rgba(99, 102, 241, 0.35);
+    animation: orbitSpin calc(18s - (var(--scroll-velocity, 0) * 4s)) linear
+      infinite;
+  }
+
+  .orbit-2 {
+    inset: 28% 28%;
+    transform: rotateX(70deg);
+    animation-duration: 24s;
+  }
+
+  .orbit-3 {
+    inset: 12% 12%;
+    transform: rotateY(75deg);
+    animation-duration: 28s;
+  }
+
+  .layer-core {
+    display: grid;
+    place-items: center;
+    transform: translateZ(120px);
+  }
+
+  .core-shell {
+    width: min(280px, 50vw);
+    aspect-ratio: 1;
+    border-radius: 30% 70% 60% 40%;
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.35),
+      rgba(236, 72, 153, 0.25)
+    );
+    box-shadow:
+      0 0 80px rgba(99, 102, 241, 0.45),
+      0 0 140px rgba(236, 72, 153, 0.35);
+    animation: corePulse 6s ease-in-out infinite;
+  }
+
+  .core-glow {
+    position: absolute;
+    width: min(140px, 24vw);
+    aspect-ratio: 1;
+    border-radius: 999px;
+    background: radial-gradient(
+      circle,
+      rgba(255, 255, 255, 0.7),
+      rgba(14, 165, 233, 0.1)
+    );
+    opacity: 0.5;
+    animation: glowSpin 8s linear infinite;
+  }
+
+  .core-ring {
+    position: absolute;
+    width: min(220px, 40vw);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    border: 1px dashed rgba(226, 232, 240, 0.45);
+    animation: ringSpin 12s linear infinite;
+  }
+
+  .layer-streams .stream {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 2px;
+    height: 180px;
+    background: linear-gradient(
+      to bottom,
+      transparent,
+      rgba(14, 165, 233, 0.8),
+      transparent
+    );
+    transform-origin: top;
+    transform: translate(-50%, -50%) rotate(calc(var(--i) * 30deg));
+    animation: streamPulse calc(4s - (var(--scroll-velocity, 0) * 1.5s))
+      ease-in-out infinite;
+    animation-delay: calc(var(--i) * 0.2s);
+  }
+
+  .layer-particles .particle {
+    position: absolute;
+    width: var(--size, 4px);
+    height: var(--size, 4px);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.8);
+    left: calc(var(--x) * 1%);
+    top: calc(var(--y) * 1%);
+    opacity: 0.6;
+    animation: particleFloat 8s ease-in-out infinite;
+    animation-delay: var(--delay, 0s);
+  }
+
+  .immersive-sections {
+    position: relative;
+    z-index: 5;
+    display: grid;
+    gap: 2.5rem;
+    margin-top: 70vh;
+  }
+
+  .immersive-card {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 24px;
+    padding: 2rem;
+    box-shadow: 0 24px 60px rgba(2, 6, 23, 0.45);
+    backdrop-filter: blur(12px);
+  }
+
+  .immersive-card h2 {
+    font-size: 1.6rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .immersive-card p {
+    color: rgba(226, 232, 240, 0.75);
+  }
+
+  @keyframes sceneFloat {
+    0%,
+    100% {
+      transform: translateY(0) scale(1);
+    }
+    50% {
+      transform: translateY(-12px) scale(1.02);
+    }
+  }
+
+  @keyframes starsDrift {
+    0%,
+    100% {
+      opacity: 0.3;
+      transform: translateZ(-380px) translateY(0);
+    }
+    50% {
+      opacity: 0.6;
+      transform: translateZ(-380px) translateY(12px);
+    }
+  }
+
+  @keyframes auroraSweep {
+    0%,
+    100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+
+  @keyframes orbitSpin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes corePulse {
+    0%,
+    100% {
+      transform: scale(0.96);
+    }
+    50% {
+      transform: scale(1.05);
+    }
+  }
+
+  @keyframes glowSpin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes ringSpin {
+    to {
+      transform: rotate(-360deg);
+    }
+  }
+
+  @keyframes streamPulse {
+    0%,
+    100% {
+      opacity: 0.3;
+    }
+    50% {
+      opacity: 0.8;
+    }
+  }
+
+  @keyframes particleFloat {
+    0%,
+    100% {
+      transform: translateY(0);
+      opacity: 0.4;
+    }
+    50% {
+      transform: translateY(-12px);
+      opacity: 0.9;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .immersive-stage {
+      margin: 0 -1.5rem;
+    }
+
+    .immersive-scene {
+      width: min(520px, 90vw);
+    }
+
+    .layer-streams .stream {
+      height: 140px;
+    }
+  }
+
+  @media (pointer: coarse) {
+    .immersive-stage {
+      position: relative;
+      height: auto;
+      margin: 2rem 0;
+    }
+
+    .immersive-scene {
+      animation: none;
+    }
+
+    .layer-streams,
+    .layer-particles {
+      display: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .immersive * {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+</style>
+
+<script>
+  const root = document.querySelector('[data-immersive]');
+  if (root) {
+    let lastScroll = window.scrollY;
+    let lastTime = performance.now();
+
+    const onScroll = () => {
+      const rect = root.getBoundingClientRect();
+      const total = rect.height - window.innerHeight;
+      const progress =
+        total > 0 ? Math.min(1, Math.max(0, -rect.top / total)) : 0;
+      const now = performance.now();
+      const delta = Math.abs(window.scrollY - lastScroll);
+      const time = Math.max(16, now - lastTime);
+      const velocity = Math.min(1, delta / time);
+      root.style.setProperty('--scroll-progress', progress.toFixed(3));
+      root.style.setProperty('--scroll-velocity', velocity.toFixed(3));
+      lastScroll = window.scrollY;
+      lastTime = now;
+    };
+
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+  }
+</script>
