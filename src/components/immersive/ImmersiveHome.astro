@@ -442,7 +442,9 @@ const chapters = [
       blur(calc((1 - var(--ih-quality)) * 0.9px));
   }
 
-  /* CSS-only fallback core (shown when WebGL is unavailable/disabled). */
+  /* CSS-only fallback core (shown when WebGL is unavailable/disabled).
+     IMPORTANT: keep this fully hidden during WebGL to avoid the two
+     "centers" fighting (canvas vs CSS) on mobile GPUs. */
   .ih-core {
     position: absolute;
     inset: 0;
@@ -582,17 +584,13 @@ const chapters = [
       scale(calc(1 + (var(--ih-pinch) * 0.04) + (var(--ih-event) * 0.015)));
   }
 
-  /* The authored "centerpiece" (modern, glassy, not low-poly) */
-  .ih-core {
-    position: absolute;
-    inset: 0;
-    transform-style: preserve-3d;
-    transform: translateZ(320px);
-    opacity: 0.95;
+  /* The CSS fallback core styles (kept authored/pretty, but only visible when
+     we are in CSS mode). */
+  .ih[data-ih-center='css'] .ih-core {
     mix-blend-mode: screen;
   }
 
-  .ih-core::before {
+  .ih[data-ih-center='css'] .ih-core::before {
     content: '';
     position: absolute;
     left: 50%;
@@ -612,7 +610,7 @@ const chapters = [
     filter: blur(10px) saturate(1.25);
   }
 
-  .ih-core::after {
+  .ih[data-ih-center='css'] .ih-core::after {
     content: '';
     position: absolute;
     left: 50%;
@@ -641,7 +639,7 @@ const chapters = [
     opacity: calc(0.55 + (var(--ih-burst) * 0.18) + (var(--ih-event) * 0.14));
   }
 
-  .ih-core-shell {
+  .ih[data-ih-center='css'] .ih-core-shell {
     position: absolute;
     left: 50%;
     top: 50%;
@@ -657,7 +655,7 @@ const chapters = [
     opacity: calc(0.5 + (var(--ih-event) * 0.2));
   }
 
-  .ih-core-spark {
+  .ih[data-ih-center='css'] .ih-core-spark {
     position: absolute;
     left: 50%;
     top: 50%;

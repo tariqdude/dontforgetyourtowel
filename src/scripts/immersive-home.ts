@@ -342,11 +342,27 @@ class ImmersiveThreeController {
   private raf = 0;
   private abortController = new AbortController();
   private contextLost = false;
+  private destroyed = false;
 
   private renderedOnce = false;
   private shaderFallbackStep = 0;
   private lastStaticRender = 0;
   private lastAnimRender = 0;
+
+  private fallbackToCss(status: string, detail: string): void {
+    // CSS fallback must be decisive: stop the WebGL loop so we don't keep
+    // hammering a broken driver/shader and "fight" the CSS center on mobile.
+    this.root.dataset.ihCenter = 'css';
+    this.root.dataset.ihStatus = status;
+    this.root.dataset.ihStatusDetail = detail;
+    this.recordActiveShaderMeta('css', null);
+    this.updateDebugOverlay();
+
+    // Defer teardown to get out of the current render/shader-error callstack.
+    window.setTimeout(() => {
+      this.destroy();
+    }, 0);
+  }
 
   private recordActiveShaderMeta(
     label: string,
@@ -562,11 +578,10 @@ class ImmersiveThreeController {
           'Shader compile failed; switched to ultra-safe WebGL shader';
         this.recordActiveShaderMeta('webgl-ultra', this.holoMaterial);
       } else {
-        this.root.dataset.ihCenter = 'css';
-        this.root.dataset.ihStatus = 'shader-error';
-        this.root.dataset.ihStatusDetail =
-          'Shader compile failed; switched to CSS fallback';
-        this.recordActiveShaderMeta('css', null);
+        this.fallbackToCss(
+          'shader-error',
+          'Shader compile failed; switched to CSS fallback'
+        );
       }
 
       this.updateDebugOverlay();
@@ -2534,6 +2549,9 @@ void main(){
   }
 
   public destroy(): void {
+    if (this.destroyed) return;
+    this.destroyed = true;
+
     window.cancelAnimationFrame(this.raf);
     this.abortController.abort();
     this.io?.disconnect();
