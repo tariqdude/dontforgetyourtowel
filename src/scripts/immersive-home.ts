@@ -1823,12 +1823,11 @@ function mount(): void {
   }
 
   if (reducedMotion) {
-    root.dataset.ihCenter = 'css';
+    // We still render the advanced WebGL hero, but the controller will
+    // automatically reduce animation frequency.
     root.dataset.ihStatus = 'reduced-motion';
     root.dataset.ihStatusDetail =
-      'prefers-reduced-motion is enabled; using CSS fallback';
-    mountedRoot = root;
-    return;
+      'prefers-reduced-motion is enabled; running WebGL in low-motion mode';
   }
 
   try {
