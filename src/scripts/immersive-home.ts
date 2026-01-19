@@ -338,6 +338,7 @@ class ImmersiveThreeController {
   private renderedOnce = false;
   private shaderFallbackStep = 0;
   private lastStaticRender = 0;
+  private lastAnimRender = 0;
 
   private recordActiveShaderMeta(
     label: string,
@@ -352,6 +353,14 @@ class ImmersiveThreeController {
     // Keep dataset sizes bounded; full shader is large.
     const snippet = frag.slice(0, 700);
     this.root.dataset.ihFragSnippet = snippet;
+  }
+
+  private isRootInViewport(): boolean {
+    // IntersectionObserver can be unreliable across mobile browsers (especially
+    // with large, scroll-driven sections). This is a cheap backstop.
+    const rect = this.root.getBoundingClientRect();
+    const vh = window.innerHeight || 0;
+    return rect.bottom > -64 && rect.top < vh + 64;
   }
 
   constructor(root: HTMLElement) {
@@ -1695,7 +1704,15 @@ void main(){
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
 
-    this.mobileScale = width < 640 ? 0.72 : width < 1024 ? 0.86 : 1;
+    // Mobile shader compilers vary wildly; we scale quality/pixel ratio, but keep
+    // the center legible. Slightly higher baseline than before.
+    this.mobileScale = width < 640 ? 0.78 : width < 1024 ? 0.9 : 1;
+
+    // Ultra-safe shader is extremely cheap: allow a higher effective scale so it
+    // doesn't look muddy on small screens.
+    if (this.root.dataset.ihCenter === 'webgl-ultra') {
+      this.mobileScale = Math.max(this.mobileScale, 0.92);
+    }
 
     const baseDpr = clamp(window.devicePixelRatio || 1, 1, 2);
     const ratio = clamp(baseDpr * this.quality * this.mobileScale, 0.75, 2);
@@ -2142,17 +2159,29 @@ void main(){
       last = now;
 
       if (!this.contextLost) {
-        const shouldAnimate = !this.reducedMotion && this.visible;
+        const inViewport = this.visible || this.isRootInViewport();
+        this.root.dataset.ihInView = inViewport ? '1' : '0';
 
-        if (shouldAnimate) {
-          this.update(dt, now);
-          this.renderedOnce = true;
-          this.root.dataset.ihRendered = '1';
+        if (inViewport) {
+          // Always animate when in view.
+          // In reduced-motion mode, we still animate but at a lower FPS so the
+          // hero doesn't feel "dead" (especially after deployment).
+          const targetFps = this.reducedMotion ? 14 : 60;
+          const frameBudget = 1 / targetFps;
+          const due = now - this.lastAnimRender >= frameBudget;
+
+          if (due || !this.renderedOnce) {
+            const stepDt = this.reducedMotion ? Math.min(dt, frameBudget) : dt;
+            this.update(stepDt, now);
+            this.lastAnimRender = now;
+            this.renderedOnce = true;
+            this.root.dataset.ihRendered = '1';
+          }
         } else {
-          // Low-frequency render prevents "blank" appearance on mobile Safari
-          // and also respects reduced-motion by minimizing changes.
+          // Out of view: occasionally render to avoid stale/blank results
+          // on some browsers, but don't burn battery.
           const needsFirstFrame = !this.renderedOnce;
-          const needsOccasional = now - this.lastStaticRender > 0.6;
+          const needsOccasional = now - this.lastStaticRender > 0.9;
           if (needsFirstFrame || needsOccasional) {
             this.update(1 / 60, now);
             this.renderedOnce = true;
