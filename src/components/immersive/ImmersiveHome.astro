@@ -186,6 +186,12 @@ const chapters = [
     overflow: clip;
     isolation: isolate;
 
+    /* Mobile interaction reliability:
+       - avoids double-tap zoom stealing our interactions
+       - keeps scroll behavior natural
+       - still allows pinch (we selectively preventDefault only during 2-finger gestures) */
+    touch-action: manipulation;
+
     /* driven by script */
     --ih-scroll: 0;
     --ih-local: 0;

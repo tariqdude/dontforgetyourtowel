@@ -371,6 +371,25 @@ class ImmersiveThreeController {
     return rect.bottom > -64 && rect.top < vh + 64;
   }
 
+  private isClientPointInRoot(x: number, y: number): boolean {
+    const rect = this.root.getBoundingClientRect();
+    return (
+      x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
+    );
+  }
+
+  private setPointerTargetFromClient(x: number, y: number): void {
+    const nx = (x / Math.max(1, window.innerWidth)) * 2 - 1;
+    const ny = (y / Math.max(1, window.innerHeight)) * 2 - 1;
+    this.pointerTarget.set(clamp(nx, -1, 1), clamp(ny, -1, 1));
+  }
+
+  private setPinchFromDistance(dist: number): void {
+    if (this.pinchBaseDist <= 0) this.pinchBaseDist = dist;
+    const raw = (dist - this.pinchBaseDist) / Math.max(1, this.pinchBaseDist);
+    this.pinchTarget = clamp(raw * 1.4, -1, 1);
+  }
+
   constructor(root: HTMLElement) {
     this.root = root;
     this.chapters = Array.from(
@@ -1702,9 +1721,7 @@ void main(){
       'pointermove',
       e => {
         if (e.pointerType === 'touch') return;
-        const nx = (e.clientX / Math.max(1, window.innerWidth)) * 2 - 1;
-        const ny = (e.clientY / Math.max(1, window.innerHeight)) * 2 - 1;
-        this.pointerTarget.set(clamp(nx, -1, 1), clamp(ny, -1, 1));
+        this.setPointerTargetFromClient(e.clientX, e.clientY);
       },
       { passive: true, signal }
     );
@@ -1724,18 +1741,13 @@ void main(){
 
       const cx = sx / this.pointers.size;
       const cy = sy / this.pointers.size;
-      const nx = (cx / Math.max(1, window.innerWidth)) * 2 - 1;
-      const ny = (cy / Math.max(1, window.innerHeight)) * 2 - 1;
-      this.pointerTarget.set(clamp(nx, -1, 1), clamp(ny, -1, 1));
+      this.setPointerTargetFromClient(cx, cy);
 
       if (pts.length >= 2) {
         const dx = pts[1].x - pts[0].x;
         const dy = pts[1].y - pts[0].y;
         const dist = Math.hypot(dx, dy);
-        if (this.pinchBaseDist <= 0) this.pinchBaseDist = dist;
-        const raw =
-          (dist - this.pinchBaseDist) / Math.max(1, this.pinchBaseDist);
-        this.pinchTarget = clamp(raw * 1.4, -1, 1);
+        this.setPinchFromDistance(dist);
       }
     };
 
@@ -1750,6 +1762,9 @@ void main(){
     };
 
     const onPointerDown = (e: PointerEvent) => {
+      // Touch input is handled via TouchEvents below so we can selectively
+      // preventDefault only for two-finger gestures (keeps scroll intact).
+      if (e.pointerType === 'touch') return;
       if (shouldIgnoreInteractiveTarget(e.target)) return;
 
       // Used by UI to fade the mobile interaction hint.
@@ -1768,7 +1783,7 @@ void main(){
       const now = performance.now();
       const dt = now - this.lastTapTime;
       this.lastTapTime = now;
-      if (e.pointerType === 'touch' && dt > 0 && dt < 320) {
+      if (dt > 0 && dt < 320) {
         this.accent = Math.min(1, this.accent + 1.0);
         this.burst = Math.min(1, this.burst + 0.95);
       } else {
@@ -1781,6 +1796,7 @@ void main(){
     };
 
     const onPointerMove = (e: PointerEvent) => {
+      if (e.pointerType === 'touch') return;
       const p = this.pointers.get(e.pointerId);
       if (!p) return;
       p.x = e.clientX;
@@ -1789,6 +1805,7 @@ void main(){
     };
 
     const onPointerUp = (e: PointerEvent) => {
+      if (e.pointerType === 'touch') return;
       if (this.pointers.has(e.pointerId)) {
         this.pointers.delete(e.pointerId);
       }
@@ -1797,6 +1814,119 @@ void main(){
         this.pinchTarget = 0;
       }
     };
+
+    // TouchEvents: reliable pinch detection + selective preventDefault.
+    // PointerEvents on mobile browsers often get swallowed by pinch-zoom.
+    const syncTouches = (touches: TouchList) => {
+      // Remove old touch pointers
+      for (const [id, meta] of this.pointers.entries()) {
+        if (meta.type !== 'touch') continue;
+        let stillPresent = false;
+        for (let i = 0; i < touches.length; i++) {
+          if (touches.item(i)?.identifier === id) {
+            stillPresent = true;
+            break;
+          }
+        }
+        if (!stillPresent) this.pointers.delete(id);
+      }
+
+      // Add/update current touches that are inside the immersive root.
+      for (let i = 0; i < touches.length; i++) {
+        const t = touches.item(i);
+        if (!t) continue;
+        if (!this.isClientPointInRoot(t.clientX, t.clientY)) continue;
+        this.pointers.set(t.identifier, {
+          x: t.clientX,
+          y: t.clientY,
+          type: 'touch',
+        });
+      }
+
+      updateFromPointers();
+
+      // If fewer than 2 touches remain, clear pinch state.
+      if (touches.length < 2) {
+        this.pinchBaseDist = 0;
+        this.pinchTarget = 0;
+      }
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      // Ignore if none of the touches are within our section.
+      let anyInside = false;
+      for (let i = 0; i < e.touches.length; i++) {
+        const t = e.touches.item(i);
+        if (!t) continue;
+        if (this.isClientPointInRoot(t.clientX, t.clientY)) {
+          anyInside = true;
+          break;
+        }
+      }
+      if (!anyInside) return;
+
+      this.root.dataset.ihTouched = '1';
+      this.maybeEnableGyro();
+
+      // Double-tap on touch: cinematic overcharge.
+      const now = performance.now();
+      const dt = now - this.lastTapTime;
+      this.lastTapTime = now;
+      if (e.touches.length === 1 && dt > 0 && dt < 320) {
+        this.accent = Math.min(1, this.accent + 1.0);
+        this.burst = Math.min(1, this.burst + 0.95);
+      } else {
+        this.burst = Math.min(1, this.burst + 0.6);
+      }
+
+      // Starting a 2-finger gesture: reset base so pinch feels immediate.
+      if (e.touches.length >= 2) {
+        this.pinchBaseDist = 0;
+      } else {
+        this.pinchTarget = Math.max(this.pinchTarget, 0.45);
+      }
+
+      syncTouches(e.touches);
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      // Only act if at least one touch is inside our section.
+      let anyInside = false;
+      for (let i = 0; i < e.touches.length; i++) {
+        const t = e.touches.item(i);
+        if (!t) continue;
+        if (this.isClientPointInRoot(t.clientX, t.clientY)) {
+          anyInside = true;
+          break;
+        }
+      }
+      if (!anyInside) return;
+
+      // Two-finger gestures: prevent browser zoom so we receive continuous updates.
+      if (e.touches.length >= 2) {
+        e.preventDefault();
+      }
+
+      syncTouches(e.touches);
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      syncTouches(e.touches);
+    };
+
+    window.addEventListener('touchstart', onTouchStart, {
+      passive: true,
+      signal,
+    });
+    window.addEventListener('touchmove', onTouchMove, {
+      passive: false,
+      signal,
+    });
+    window.addEventListener('touchend', onTouchEnd, { passive: true, signal });
+    window.addEventListener('touchcancel', onTouchEnd, {
+      passive: true,
+      signal,
+    });
 
     this.root.addEventListener('pointerdown', onPointerDown, {
       passive: true,
