@@ -38,6 +38,7 @@ export class ThreeStage {
 
   // Fullscreen "Liquid Glass Portal" pass (scene -> texture -> refractive composite).
   private portalTarget: THREE.WebGLRenderTarget | null = null;
+  private portalHasDepth = false;
   private portalScene: THREE.Scene | null = null;
   private portalCamera: THREE.OrthographicCamera | null = null;
   private portalMesh: THREE.Mesh | null = null;
@@ -48,6 +49,10 @@ export class ThreeStage {
     new THREE.Vector4(-10, -10, 0, 0),
   ];
   private portalRippleCursor = 0;
+
+  private portalCenterX = 0.5;
+  private portalCenterY = 0.5;
+  private portalRadius = 0.36;
 
   private input: InputState;
   private pointers = new Map<
@@ -172,6 +177,8 @@ export class ThreeStage {
   }
 
   private installPortalPass(): void {
+    this.portalHasDepth = Boolean(this.renderer.capabilities.isWebGL2);
+
     // Create a tiny target now; resize() will allocate the final size.
     this.portalTarget = new THREE.WebGLRenderTarget(1, 1, {
       minFilter: THREE.LinearFilter,
@@ -180,11 +187,20 @@ export class ThreeStage {
       stencilBuffer: false,
     });
 
+    if (this.portalHasDepth) {
+      const depthTex = new THREE.DepthTexture(1, 1);
+      depthTex.format = THREE.DepthFormat;
+      depthTex.type = THREE.UnsignedIntType;
+      this.portalTarget.depthTexture = depthTex;
+    }
+
     this.portalScene = new THREE.Scene();
     this.portalCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
     const uniforms = {
       tScene: { value: this.portalTarget.texture },
+      tDepth: { value: this.portalTarget.depthTexture ?? null },
+      uHasDepth: { value: this.portalHasDepth ? 1 : 0 },
       uResolution: { value: new THREE.Vector2(1, 1) },
       uRtResolution: { value: new THREE.Vector2(1, 1) },
       uTime: { value: 0 },
@@ -210,6 +226,8 @@ export class ThreeStage {
       fragmentShader: `
         precision highp float;
         uniform sampler2D tScene;
+        uniform sampler2D tDepth;
+        uniform float uHasDepth;
         uniform vec2 uResolution;
         uniform vec2 uRtResolution;
         uniform float uTime;
@@ -255,6 +273,13 @@ export class ThreeStage {
           return v;
         }
 
+        float depthFactor(vec2 uv) {
+          if (uHasDepth < 0.5) return 0.0;
+          // Depth is non-linear in clip space, but we only need a gentle bias.
+          float d = texture2D(tDepth, uv).x;
+          return smoothstep(0.08, 0.92, d);
+        }
+
         void main() {
           vec2 uv = vUv;
 
@@ -266,6 +291,7 @@ export class ThreeStage {
           vec2 dir = toCAspect / max(0.0001, dist);
 
           float mask = smoothstep(uRadius, uRadius - uSoftness, dist);
+          float df = depthFactor(uv);
 
           // Subtle animated grain (sells glass without heavy blur).
           vec2 nUv = vec2(uv.x * aspect, uv.y) * 3.0 + vec2(uTime * 0.05, uTime * 0.03);
@@ -280,7 +306,9 @@ export class ThreeStage {
           distort += beat * 0.018;
 
           float field = (rip * 0.65 + (n - 0.5) * 0.38);
-          vec2 offset = dir * (field * distort * mask);
+          // Depth-aware refraction: slightly stronger where depth suggests “more volume”.
+          float depthMul = mix(0.85, 1.25, df);
+          vec2 offset = dir * (field * distort * mask) * depthMul;
 
           // Chromatic edge inside the portal.
           float ca = (1.0 / max(1.0, min(uRtResolution.x, uRtResolution.y))) * 140.0;
@@ -299,6 +327,16 @@ export class ThreeStage {
           float core = pow(1.0 - clamp(dist / max(0.0001, uRadius), 0.0, 1.0), 2.6);
           vec3 highlight = vec3(0.06, 0.10, 0.16) * (core * 0.7 + edge * 0.85);
           col += highlight * (0.55 + 0.55 * n);
+
+          // Edge caustics (animated, cheap): adds premium “glass” readability.
+          float ang = atan(toCAspect.y, toCAspect.x);
+          float band = smoothstep(uRadius + 0.018, uRadius - 0.002, dist) * mask;
+          float streaks = sin(ang * 10.0 + uTime * 0.8) * 0.5 + 0.5;
+          streaks *= sin(ang * 17.0 - uTime * 0.55) * 0.5 + 0.5;
+          float caust = pow(streaks, 2.0);
+          caust *= (0.35 + 0.65 * n);
+          vec3 caustCol = mix(vec3(0.25, 0.50, 0.75), vec3(0.65, 0.35, 0.95), 0.35 + uEnergy * 0.35);
+          col += caustCol * band * caust * (0.06 + uEnergy * 0.08 + uBeat * 0.12);
 
           // Outside portal: slightly darker to emphasize the lens.
           col *= 1.0 - (1.0 - mask) * 0.085;
@@ -1103,14 +1141,14 @@ export class ThreeStage {
       // Center follows pointer subtly (mobile-friendly: small motion).
       const cx = 0.5 + this.input.pointer.x * 0.08;
       const cy = 0.5 - this.input.pointer.y * 0.06;
-      u.uCenter.value.set(
-        Math.max(0.25, Math.min(0.75, cx)),
-        Math.max(0.25, Math.min(0.75, cy))
-      );
+      this.portalCenterX = Math.max(0.25, Math.min(0.75, cx));
+      this.portalCenterY = Math.max(0.25, Math.min(0.75, cy));
+      u.uCenter.value.set(this.portalCenterX, this.portalCenterY);
 
       // Radius breathes with scroll + pinch; always readable on mobile.
       const radius = 0.33 + progress * 0.06 + Math.abs(this.input.pinch) * 0.03;
-      u.uRadius.value = Math.max(0.26, Math.min(0.46, radius));
+      this.portalRadius = Math.max(0.26, Math.min(0.46, radius));
+      u.uRadius.value = this.portalRadius;
       u.uSoftness.value = this.caps.coarsePointer ? 0.13 : 0.12;
 
       const distortBase = this.caps.coarsePointer ? 0.02 : 0.018;
@@ -1192,6 +1230,11 @@ export class ThreeStage {
       '--ih-grade',
       Math.min(1, this.energy * 0.55).toFixed(4)
     );
+
+    // Portal UI integration.
+    this.root.style.setProperty('--ih-portal-x', this.portalCenterX.toFixed(4));
+    this.root.style.setProperty('--ih-portal-y', this.portalCenterY.toFixed(4));
+    this.root.style.setProperty('--ih-portal-r', this.portalRadius.toFixed(4));
 
     // Keep a heartbeat for debugging.
     const shouldWriteDebug =
