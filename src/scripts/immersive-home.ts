@@ -420,6 +420,8 @@ class ImmersiveThreeController {
         uTech: { value: 0 },
         uQuality: { value: 1 },
         uResolution: { value: new THREE.Vector2(1, 1) },
+        uHue: { value: 0.58 },
+        uHue2: { value: 0.7 },
         uFov: { value: THREE.MathUtils.degToRad(45) },
         uAspect: { value: 1 },
         uCamPos: { value: new THREE.Vector3() },
@@ -440,7 +442,12 @@ void main(){
 }
 `,
       fragmentShader: `
-precision highp float;
+    #ifdef GL_FRAGMENT_PRECISION_HIGH
+    precision highp float;
+    #else
+    precision mediump float;
+    #endif
+    precision mediump int;
 varying vec2 vUv;
 
 uniform float uTime;
@@ -450,6 +457,8 @@ uniform float uAccent;
 uniform float uTech;
 uniform float uQuality;
 uniform vec2 uResolution;
+uniform float uHue;
+uniform float uHue2;
 uniform float uFov;
 uniform float uAspect;
 uniform vec3 uCamPos;
@@ -464,6 +473,12 @@ uniform float uDetail;
 #define PI 3.141592653589793
 
 float saturate(float x){ return clamp(x, 0.0, 1.0); }
+
+vec3 hsl2rgb(vec3 c){
+  // c.x = hue [0..1], c.y = sat, c.z = light
+  vec3 rgb = clamp(abs(mod(c.x * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+  return c.z + c.y * (rgb - 0.5) * (1.0 - abs(2.0 * c.z - 1.0));
+}
 
 // Hash / noise
 float ih_hash(vec2 p){
@@ -586,7 +601,7 @@ float mapCore(in vec3 p, out float mEmissive){
 }
 
 vec3 calcNormal(vec3 p){
-  float e = 0.0015;
+  float e = mix(0.0026, 0.0012, saturate(uQuality));
   float tmp;
   float dx = mapCore(p + vec3(e, 0.0, 0.0), tmp) - mapCore(p - vec3(e, 0.0, 0.0), tmp);
   float dy = mapCore(p + vec3(0.0, e, 0.0), tmp) - mapCore(p - vec3(0.0, e, 0.0), tmp);
@@ -594,12 +609,44 @@ vec3 calcNormal(vec3 p){
   return normalize(vec3(dx, dy, dz));
 }
 
+float softshadow(vec3 ro, vec3 rd){
+  // Simple SDF soft shadow along rd.
+  float res = 1.0;
+  float t = 0.02;
+  float tmp;
+  for (int i = 0; i < 24; i++) {
+    float h = mapCore(ro + rd * t, tmp);
+    res = min(res, 12.0 * h / t);
+    t += clamp(h, 0.02, 0.18);
+    if (res < 0.08 || t > 4.0) break;
+  }
+  return clamp(res, 0.0, 1.0);
+}
+
+float calcAO(vec3 p, vec3 n){
+  // Cheap AO by sampling distance field along the normal.
+  float ao = 0.0;
+  float sca = 1.0;
+  float tmp;
+  for (int i = 0; i < 5; i++) {
+    float h = 0.03 + float(i) * 0.06;
+    float d = mapCore(p + n * h, tmp);
+    ao += (h - d) * sca;
+    sca *= 0.7;
+  }
+  return clamp(1.0 - ao, 0.0, 1.0);
+}
+
 float grid(vec2 uv, float scale, float width){
+  // Derivative-free grid (avoids fwidth()), more robust on WebGL1.
+  // width is in "relative" units; we convert to an approximate pixel width using uResolution.
   vec2 p = uv * scale;
   vec2 a = abs(fract(p - 0.5) - 0.5);
-  vec2 w = fwidth(p);
-  float lx = 1.0 - smoothstep(width * w.x, (width + 1.2) * w.x, a.x);
-  float ly = 1.0 - smoothstep(width * w.y, (width + 1.2) * w.y, a.y);
+
+  float px = 1.0 / max(1.0, min(uResolution.x, uResolution.y));
+  float w = (width * px) * scale * 1.8;
+  float lx = 1.0 - smoothstep(w, w * 2.2, a.x);
+  float ly = 1.0 - smoothstep(w, w * 2.2, a.y);
   return max(lx, ly);
 }
 
@@ -632,7 +679,10 @@ void main(){
   // Accumulated glow along the ray (gives "holo" depth)
   float glow = 0.0;
 
+  int steps = int(mix(56.0, 92.0, saturate(uQuality)));
+
   for(int i=0;i<84;i++){
+    if (i >= steps) break;
     pos = ro + rd * t;
     float em;
     float d = mapCore(pos, em);
@@ -647,14 +697,24 @@ void main(){
   if(hit > 0.5){
     vec3 n = calcNormal(pos);
 
+    float ao = calcAO(pos, n);
+
     // Lighting (simple and crisp)
     vec3 l = normalize(vec3(0.45, 0.75, 0.55));
     float ndl = saturate(dot(n, l));
     float fres = pow(1.0 - saturate(dot(n, -rd)), 3.0);
 
+    float sh = softshadow(pos + n * 0.02, l);
+    ndl *= mix(0.65, 1.0, sh);
+
     // Tech palette
-    vec3 base = mix(vec3(0.03, 0.04, 0.07), vec3(0.03, 0.06, 0.08), uTech);
-    vec3 glowC = mix(vec3(0.10, 0.85, 1.00), vec3(0.85, 0.20, 1.00), uInterf * 0.35);
+    float hueA = fract(uHue);
+    float hueB = fract(uHue2);
+    vec3 baseA = hsl2rgb(vec3(hueA, 0.62, 0.12));
+    vec3 baseB = hsl2rgb(vec3(hueB, 0.72, 0.14));
+    vec3 base = mix(baseA, baseB, saturate(0.35 + uTech * 0.55));
+    vec3 glowC = hsl2rgb(vec3(mix(hueA, hueB, 0.55), 0.95, 0.55));
+    glowC = mix(glowC, vec3(0.10, 0.85, 1.00), 0.55);
 
     // Circuit/traces on the surface (procedural)
     vec2 suv = pos.xz * 0.85 + pos.y * 0.15;
@@ -674,10 +734,26 @@ void main(){
 
     vec3 emissive = glowC * (mEm * 0.9 + traces * 0.55 + packet * 0.9) * emI;
 
+    // Specular highlight (machined feel)
+    vec3 h = normalize(l - rd);
+    float ndh = saturate(dot(n, h));
+    float specPow = mix(60.0, 220.0, saturate(uTech));
+    float spec = pow(ndh, specPow) * (0.12 + uTech * 0.35);
+
     col = base;
-    col += ndl * vec3(0.08, 0.10, 0.14);
-    col += fres * glowC * (0.18 + uTech * 0.22);
+    col += ndl * vec3(0.10, 0.12, 0.16) * ao;
+    col += fres * glowC * (0.22 + uTech * 0.28);
     col += emissive;
+    col += glowC * spec * (0.85 + uAccent * 0.35);
+
+    // Screen-space HUD rings (adds "developed" sci-fi UI without extra geometry)
+    float rr = length(p);
+    float ring1 = 1.0 - smoothstep(0.002, 0.012, abs(rr - 0.55));
+    float ring2 = 1.0 - smoothstep(0.002, 0.012, abs(rr - 0.78));
+    float ticks = smoothstep(0.92, 1.0, sin(atan(p.y, p.x) * 24.0) * 0.5 + 0.5);
+    float hud = (ring1 * (0.35 + ticks * 0.65) + ring2 * 0.35) * (0.25 + uTech * 0.55);
+    hud *= (0.25 + uEnergy * 0.55 + uAccent * 0.35);
+    col += glowC * hud * 0.35;
 
     // Subtle scanline shimmer (very restrained)
     float scan = abs(fract(uv.y * 7.0 + uTime * 0.35 + uProgress * 0.8) - 0.5);
@@ -686,7 +762,11 @@ void main(){
   }
 
   // Volume glow always contributes (even if we didn't "hit")
-  col += vec3(0.08, 0.75, 1.0) * glow * (0.55 + uAccent * 0.25);
+  col += hsl2rgb(vec3(fract(mix(uHue, uHue2, 0.6)), 0.95, 0.55)) * glow * (0.42 + uAccent * 0.35);
+
+  // Dither to reduce banding (especially on mobile + low DPR)
+  float dither = ih_hash(gl_FragCoord.xy) - 0.5;
+  col += dither * 0.006 * (0.35 + uTech * 0.65) * mix(1.0, 0.55, uQuality);
 
   // Gamma-ish shaping
   col = pow(max(col, 0.0), vec3(0.98));
@@ -1105,6 +1185,8 @@ void main(){
         0.65,
         1
       );
+      this.holoMaterial.uniforms.uHue.value = config.hue / 360;
+      this.holoMaterial.uniforms.uHue2.value = config.hue2 / 360;
       this.holoMaterial.uniforms.uAspect.value = this.camera.aspect;
       this.holoMaterial.uniforms.uFov.value = THREE.MathUtils.degToRad(
         this.camera.fov
