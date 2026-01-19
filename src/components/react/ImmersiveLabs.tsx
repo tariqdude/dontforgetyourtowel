@@ -1,4 +1,3 @@
-/// <reference types="@react-three/fiber" />
 /** @jsxImportSource react */
 /** @jsxRuntime automatic */
 import * as THREE from 'three';

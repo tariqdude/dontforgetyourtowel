@@ -7,10 +7,6 @@ import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 
-type OnBeforeCompileShader = Parameters<
-  NonNullable<THREE.Material['onBeforeCompile']>
->[0];
-
 type SceneId =
   | 'origin'
   | 'interference'
@@ -318,6 +314,8 @@ class ImmersiveThreeController {
   private stars: THREE.Points;
   private holoCore: THREE.Mesh;
   private holoMaterial: THREE.ShaderMaterial;
+  private holoMaterialFull: THREE.ShaderMaterial | null = null;
+  private holoMaterialMobile: THREE.ShaderMaterial | null = null;
   private holoMaterialSafe: THREE.ShaderMaterial | null = null;
   private cameraRot3 = new THREE.Matrix3();
 
@@ -337,7 +335,7 @@ class ImmersiveThreeController {
   private contextLost = false;
 
   private renderedOnce = false;
-  private shaderFailed = false;
+  private shaderFallbackStep = 0;
   private lastStaticRender = 0;
 
   constructor(root: HTMLElement) {
@@ -386,15 +384,31 @@ class ImmersiveThreeController {
 
     const preferSafeCore =
       maxPrec !== 'highp' || !this.renderer.capabilities.isWebGL2;
-    root.dataset.ihCenter = preferSafeCore ? 'webgl-safe' : 'webgl';
+    const preferMobileCore = !preferSafeCore && this.isLikelyMobileDevice();
+
+    root.dataset.ihCenter = preferSafeCore
+      ? 'webgl-safe'
+      : preferMobileCore
+        ? 'webgl-mobile'
+        : 'webgl';
+
+    const initialProfile = preferSafeCore
+      ? 'safe'
+      : preferMobileCore
+        ? 'mobile'
+        : 'full';
 
     const {
       mesh: holoCore,
       material: holoMaterial,
+      fullMaterial,
+      mobileMaterial,
       safeMaterial,
-    } = this.createHoloCore(preferSafeCore);
+    } = this.createHoloCore(initialProfile);
     this.holoCore = holoCore;
     this.holoMaterial = holoMaterial;
+    this.holoMaterialFull = fullMaterial;
+    this.holoMaterialMobile = mobileMaterial;
     this.holoMaterialSafe = safeMaterial;
     this.scene.add(this.holoCore);
 
@@ -422,11 +436,48 @@ class ImmersiveThreeController {
     // a simpler shader profile. If that still fails, the CSS core fallback will
     // be shown via data attributes.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (this.renderer.debug as any).onShaderError = () => {
-      if (this.shaderFailed) return;
-      this.shaderFailed = true;
+    (this.renderer.debug as any).onShaderError = (
+      gl: WebGLRenderingContext | WebGL2RenderingContext,
+      program: WebGLProgram,
+      vertexShader: WebGLShader,
+      fragmentShader: WebGLShader
+    ) => {
+      // Capture logs (best-effort; some mobile browsers return empty strings).
+      try {
+        const pLog = gl.getProgramInfoLog(program) ?? '';
+        const vLog = gl.getShaderInfoLog(vertexShader) ?? '';
+        const fLog = gl.getShaderInfoLog(fragmentShader) ?? '';
+        const combined = [pLog, vLog, fLog]
+          .map(s => String(s || '').trim())
+          .filter(Boolean)
+          .join('\n---\n');
+        if (combined) this.root.dataset.ihShaderLog = combined.slice(0, 1200);
+      } catch {
+        // ignore
+      }
 
-      if (this.holoCore && this.holoMaterialSafe) {
+      // Fall back in steps: full -> mobileHQ -> safe -> CSS.
+      if (this.shaderFallbackStep > 2) return;
+      this.shaderFallbackStep += 1;
+
+      const current = this.holoMaterial;
+
+      if (
+        this.holoCore &&
+        current === this.holoMaterialFull &&
+        this.holoMaterialMobile
+      ) {
+        this.holoCore.material = this.holoMaterialMobile;
+        this.holoMaterial = this.holoMaterialMobile;
+        this.root.dataset.ihCenter = 'webgl-mobile';
+        this.root.dataset.ihStatus = 'shader-error';
+        this.root.dataset.ihStatusDetail =
+          'Full shader compile failed; switched to mobile HQ shader';
+      } else if (
+        this.holoCore &&
+        this.holoMaterialSafe &&
+        current !== this.holoMaterialSafe
+      ) {
         this.holoCore.material = this.holoMaterialSafe;
         this.holoMaterial = this.holoMaterialSafe;
         this.root.dataset.ihCenter = 'webgl-safe';
@@ -446,9 +497,11 @@ class ImmersiveThreeController {
     this.init();
   }
 
-  private createHoloCore(safe = false): {
+  private createHoloCore(profile: 'full' | 'mobile' | 'safe' = 'full'): {
     mesh: THREE.Mesh;
     material: THREE.ShaderMaterial;
+    fullMaterial: THREE.ShaderMaterial;
+    mobileMaterial: THREE.ShaderMaterial;
     safeMaterial: THREE.ShaderMaterial;
   } {
     // Fullscreen quad (clip-space). The fragment shader raymarches a high-detail
@@ -843,6 +896,234 @@ void main(){
 `,
     });
 
+    // Mobile-HQ shader: keeps the raymarched core + traces + HUD, but trims the
+    // heaviest bits (fbm microdetail, soft shadows, multi-tap AO).
+    const mobileMaterial = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.NormalBlending,
+      uniforms: material.uniforms,
+      vertexShader: material.vertexShader,
+      fragmentShader: `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+precision mediump int;
+varying vec2 vUv;
+
+uniform float uTime;
+uniform float uProgress;
+uniform float uEnergy;
+uniform float uAccent;
+uniform float uTech;
+uniform float uQuality;
+uniform vec2 uResolution;
+uniform float uHue;
+uniform float uHue2;
+uniform float uFov;
+uniform float uAspect;
+uniform vec3 uCamPos;
+uniform mat3 uCamRot;
+uniform vec2 uPointer;
+
+uniform float uSwirl;
+uniform float uSink;
+uniform float uInterf;
+uniform float uDetail;
+
+#define PI 3.141592653589793
+
+float saturate(float x){ return clamp(x, 0.0, 1.0); }
+
+vec3 hsl2rgb(vec3 c){
+  vec3 rgb = clamp(abs(mod(c.x * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+  return c.z + c.y * (rgb - 0.5) * (1.0 - abs(2.0 * c.z - 1.0));
+}
+
+mat2 rot(float a){
+  float c = cos(a), s = sin(a);
+  return mat2(c, -s, s, c);
+}
+
+float ih_hash(vec2 p){
+  p = fract(p * vec2(123.34, 345.45));
+  p += dot(p, p + 34.345);
+  return fract(p.x * p.y);
+}
+
+float sdSphere(vec3 p, float r){ return length(p) - r; }
+float sdBox(vec3 p, vec3 b){
+  vec3 q = abs(p) - b;
+  return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
+}
+float sdTorus(vec3 p, vec2 t){
+  vec2 q = vec2(length(p.xz) - t.x, p.y);
+  return length(q) - t.y;
+}
+
+float smin(float a, float b, float k){
+  float h = saturate(0.5 + 0.5 * (b - a) / k);
+  return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+float mapMobile(in vec3 p, out float mEm){
+  float boot = smoothstep(0.02, 0.18, uProgress) * (0.7 + uEnergy * 0.6);
+  float collapse = uSink * (0.25 + uEnergy * 0.35);
+  float swirl = uSwirl * (0.55 + uEnergy * 0.4);
+
+  p.xy += uPointer * 0.055;
+
+  float r = length(p.xy);
+  float ang = swirl * (r * r) + uTime * (0.11 + swirl * 0.06) + uProgress * 0.75;
+  p.xy = rot(ang) * p.xy;
+  p.z -= collapse * exp(-r * 1.6) * 0.20;
+
+  float core = sdSphere(p, 0.62);
+  float shell = abs(sdSphere(p, 0.9)) - 0.082;
+  float d = smin(core, shell, 0.24);
+
+  vec3 pr = p;
+  float ringSep = (0.11 + boot * 0.24) * (1.0 - collapse * 0.6);
+  float ringA = sdTorus(pr + vec3(0.0, ringSep, 0.0), vec2(0.9, 0.035));
+  float ringB = sdTorus(pr - vec3(0.0, ringSep, 0.0), vec2(0.78, 0.03));
+  d = smin(d, ringA, 0.21);
+  d = smin(d, ringB, 0.21);
+
+  // Lightweight vents (single box band)
+  vec3 pv = p;
+  pv.xz *= rot(0.45);
+  float vent = sdBox(pv - vec3(0.78, 0.0, 0.0), vec3(0.16, 0.05, 0.02));
+  d = smin(d, vent, 0.16);
+
+  // Interference channel cut
+  float wave = sin((p.x + p.y) * 5.0 + uTime * 1.25 + uProgress * 4.8) * 0.055 * uInterf;
+  float channel = sdTorus(p + vec3(0.0, wave, 0.0), vec2(0.58, 0.05));
+  d = min(d, channel);
+
+  float edge = smoothstep(0.06, 0.0, abs(core));
+  float rings = smoothstep(0.05, 0.0, abs(min(ringA, ringB)));
+  float vents = smoothstep(0.05, 0.0, abs(vent));
+  mEm = saturate(edge * 0.65 + rings * 0.85 + vents * 0.45);
+  return d;
+}
+
+vec3 calcNormal(vec3 p){
+  float e = mix(0.0028, 0.0015, saturate(uQuality));
+  float tmp;
+  float dx = mapMobile(p + vec3(e, 0.0, 0.0), tmp) - mapMobile(p - vec3(e, 0.0, 0.0), tmp);
+  float dy = mapMobile(p + vec3(0.0, e, 0.0), tmp) - mapMobile(p - vec3(0.0, e, 0.0), tmp);
+  float dz = mapMobile(p + vec3(0.0, 0.0, e), tmp) - mapMobile(p - vec3(0.0, 0.0, e), tmp);
+  return normalize(vec3(dx, dy, dz));
+}
+
+float ao1(vec3 p, vec3 n){
+  float tmp;
+  float h = 0.10;
+  float d = mapMobile(p + n * h, tmp);
+  return saturate(d / h);
+}
+
+float grid(vec2 uv, float scale, float width){
+  vec2 q = uv * scale;
+  vec2 a = abs(fract(q - 0.5) - 0.5);
+  float px = 1.0 / max(1.0, min(uResolution.x, uResolution.y));
+  float w = (width * px) * scale * 1.8;
+  float lx = 1.0 - smoothstep(w, w * 2.2, a.x);
+  float ly = 1.0 - smoothstep(w, w * 2.2, a.y);
+  return max(lx, ly);
+}
+
+void main(){
+  vec2 uv = vUv;
+  vec2 p = (uv * 2.0 - 1.0);
+  p.x *= uAspect;
+  float vign = smoothstep(1.15, 0.25, length(p));
+
+  float z = -1.0;
+  float k = tan(uFov * 0.5);
+  vec3 rdCam = normalize(vec3(p.x * k, p.y * k, z));
+  vec3 rd = normalize(uCamRot * rdCam);
+  vec3 ro = uCamPos;
+
+  float t = 0.0;
+  float maxT = 13.5;
+  float hit = 0.0;
+  float mEm = 0.0;
+  vec3 pos = ro;
+  float eps = mix(0.0029, 0.0015, saturate(uQuality));
+  float glow = 0.0;
+
+  for(int i=0;i<68;i++){
+    pos = ro + rd * t;
+    float em;
+    float d = mapMobile(pos, em);
+    glow += exp(-d * 11.0) * 0.009 * (0.7 + uTech * 0.6);
+    if (d < eps){ hit = 1.0; mEm = em; break; }
+    t += d * (0.88 + (1.0 - uQuality) * 0.32);
+    if (t > maxT) break;
+  }
+
+  float hueA = fract(uHue);
+  float hueB = fract(uHue2);
+  vec3 glowC = hsl2rgb(vec3(mix(hueA, hueB, 0.55), 0.95, 0.55));
+  glowC = mix(glowC, vec3(0.10, 0.85, 1.00), 0.55);
+
+  vec3 col = vec3(0.01, 0.015, 0.03);
+  float coreGlow = smoothstep(0.95, 0.15, length(p));
+  col += glowC * coreGlow * (0.034 + uTech * 0.06 + uAccent * 0.06);
+
+  if(hit > 0.5){
+    vec3 n = calcNormal(pos);
+    float ao = ao1(pos, n);
+
+    vec3 l = normalize(vec3(0.45, 0.75, 0.55));
+    float ndl = saturate(dot(n, l));
+    float fres = pow(1.0 - saturate(dot(n, -rd)), 3.0);
+
+    vec3 baseA = hsl2rgb(vec3(hueA, 0.62, 0.12));
+    vec3 baseB = hsl2rgb(vec3(hueB, 0.72, 0.14));
+    vec3 base = mix(baseA, baseB, saturate(0.35 + uTech * 0.55));
+
+    vec2 suv = pos.xz * 0.85 + pos.y * 0.15;
+    float g1 = grid(suv + vec2(uTime * 0.02, -uTime * 0.015), 10.0, 0.85);
+    float g2 = grid(suv + vec2(-uTime * 0.015, uTime * 0.02), 22.0, 0.8) * 0.7;
+    float traces = saturate(g1 * 0.7 + g2 * 0.5);
+
+    float emI = (0.25 + uTech * 0.75) * (0.65 + uEnergy * 0.8) + uAccent * 0.8;
+    vec3 emissive = glowC * (mEm * 0.95 + traces * 0.6) * emI;
+
+    vec3 h = normalize(l - rd);
+    float spec = pow(saturate(dot(n, h)), 140.0) * (0.10 + uTech * 0.26);
+
+    col = base;
+    col += ndl * vec3(0.10, 0.12, 0.16) * ao;
+    col += fres * glowC * (0.22 + uTech * 0.26);
+    col += emissive;
+    col += glowC * spec * (0.9 + uAccent * 0.35);
+
+    float rr = length(p);
+    float ring1 = 1.0 - smoothstep(0.002, 0.012, abs(rr - 0.55));
+    float ring2 = 1.0 - smoothstep(0.002, 0.012, abs(rr - 0.78));
+    float ticks = smoothstep(0.92, 1.0, sin(atan(p.y, p.x) * 24.0) * 0.5 + 0.5);
+    float hud = (ring1 * (0.35 + ticks * 0.65) + ring2 * 0.35) * (0.25 + uTech * 0.55);
+    hud *= (0.25 + uEnergy * 0.55 + uAccent * 0.35);
+    col += glowC * hud * 0.35;
+  }
+
+  col += glowC * glow * (0.48 + uAccent * 0.35);
+  float dither = ih_hash(gl_FragCoord.xy) - 0.5;
+  col += dither * 0.006 * (0.35 + uTech * 0.65) * mix(1.0, 0.6, uQuality);
+  col = pow(max(col, 0.0), vec3(0.98));
+  float alpha = vign * (0.33 + hit * 0.67);
+  alpha *= mix(0.88, 1.0, uQuality);
+  gl_FragColor = vec4(col, alpha);
+}
+`,
+    });
+
     // Safer, smaller fragment shader for weak/mobile GPUs and WebGL1 mediump.
     // Shares uniforms with the full material so we can swap without extra wiring.
     const safeMaterial = new THREE.ShaderMaterial({
@@ -1008,12 +1289,32 @@ void main(){
 `,
     });
 
-    const activeMaterial = safe ? safeMaterial : material;
+    const activeMaterial =
+      profile === 'safe'
+        ? safeMaterial
+        : profile === 'mobile'
+          ? mobileMaterial
+          : material;
 
     const mesh = new THREE.Mesh(geo, activeMaterial);
     mesh.frustumCulled = false;
     mesh.renderOrder = -10;
-    return { mesh, material: activeMaterial, safeMaterial };
+    return {
+      mesh,
+      material: activeMaterial,
+      fullMaterial: material,
+      mobileMaterial,
+      safeMaterial,
+    };
+  }
+
+  private isLikelyMobileDevice(): boolean {
+    // Keep this conservative: we only use it to pick a more compiler-friendly
+    // shader profile, not for layout/UX.
+    return (
+      window.matchMedia?.('(pointer: coarse)').matches ||
+      window.innerWidth < 768
+    );
   }
 
   private updateDebugOverlay(): void {
@@ -1037,6 +1338,12 @@ void main(){
     );
     if (this.root.dataset.ihWebglState) {
       lines.push(`ctx: ${this.root.dataset.ihWebglState}`);
+    }
+
+    const shaderLog = this.root.dataset.ihShaderLog ?? '';
+    if (shaderLog && (debugEnabled || status === 'shader-error')) {
+      lines.push('--- shader log ---');
+      lines.push(shaderLog);
     }
 
     this.debugEl.textContent = lines.join('\n');
