@@ -36,6 +36,19 @@ export class ThreeStage {
   private particlesPhase: Float32Array | null = null;
   private particlesSpeed: Float32Array | null = null;
 
+  // Fullscreen "Liquid Glass Portal" pass (scene -> texture -> refractive composite).
+  private portalTarget: THREE.WebGLRenderTarget | null = null;
+  private portalScene: THREE.Scene | null = null;
+  private portalCamera: THREE.OrthographicCamera | null = null;
+  private portalMesh: THREE.Mesh | null = null;
+  private portalMaterial: THREE.ShaderMaterial | null = null;
+  private portalRipples: THREE.Vector4[] = [
+    new THREE.Vector4(-10, -10, 0, 0),
+    new THREE.Vector4(-10, -10, 0, 0),
+    new THREE.Vector4(-10, -10, 0, 0),
+  ];
+  private portalRippleCursor = 0;
+
   private input: InputState;
   private pointers = new Map<
     number,
@@ -116,6 +129,9 @@ export class ThreeStage {
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.setClearColor(new THREE.Color(0x05070f));
 
+    // Two-pass portal compositing expects deterministic clears.
+    this.renderer.autoClear = true;
+
     // Mobile-first perf: cap coarse pointer devices to 30fps.
     this.frameInterval = caps.coarsePointer ? 1 / 30 : 1 / 60;
 
@@ -141,6 +157,8 @@ export class ThreeStage {
     this.installInputHandlers();
     this.installVisibility();
 
+    this.installPortalPass();
+
     this.syncViewportSize(true);
     this.resize();
 
@@ -151,6 +169,182 @@ export class ThreeStage {
 
     // Seed scene tracking so the first tick can still do a beat if desired.
     this.lastSceneId = this.root.dataset.ihScene;
+  }
+
+  private installPortalPass(): void {
+    // Create a tiny target now; resize() will allocate the final size.
+    this.portalTarget = new THREE.WebGLRenderTarget(1, 1, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+      depthBuffer: true,
+      stencilBuffer: false,
+    });
+
+    this.portalScene = new THREE.Scene();
+    this.portalCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+    const uniforms = {
+      tScene: { value: this.portalTarget.texture },
+      uResolution: { value: new THREE.Vector2(1, 1) },
+      uRtResolution: { value: new THREE.Vector2(1, 1) },
+      uTime: { value: 0 },
+      uCenter: { value: new THREE.Vector2(0.5, 0.5) },
+      uRadius: { value: 0.36 },
+      uSoftness: { value: 0.12 },
+      uDistort: { value: 0.02 },
+      uEnergy: { value: 0 },
+      uBeat: { value: 0 },
+      uRipples: { value: this.portalRipples },
+    };
+
+    this.portalMaterial = new THREE.ShaderMaterial({
+      uniforms,
+      // Fullscreen quad in clip space.
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = vec4(position.xy, 0.0, 1.0);
+        }
+      `,
+      fragmentShader: `
+        precision highp float;
+        uniform sampler2D tScene;
+        uniform vec2 uResolution;
+        uniform vec2 uRtResolution;
+        uniform float uTime;
+        uniform vec2 uCenter;
+        uniform float uRadius;
+        uniform float uSoftness;
+        uniform float uDistort;
+        uniform float uEnergy;
+        uniform float uBeat;
+        uniform vec4 uRipples[3];
+        varying vec2 vUv;
+
+        float hash21(vec2 p) {
+          p = fract(p * vec2(123.34, 345.45));
+          p += dot(p, p + 34.345);
+          return fract(p.x * p.y);
+        }
+
+        float noise2(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          float a = hash21(i);
+          float b = hash21(i + vec2(1.0, 0.0));
+          float c = hash21(i + vec2(0.0, 1.0));
+          float d = hash21(i + vec2(1.0, 1.0));
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+        }
+
+        float rippleField(vec2 uv) {
+          float v = 0.0;
+          for (int i = 0; i < 3; i++) {
+            vec4 r = uRipples[i];
+            float amp = r.w;
+            if (amp <= 0.0001) continue;
+            float t0 = r.z;
+            float age = max(0.0, uTime - t0);
+            vec2 c = r.xy;
+            float d = distance(uv, c);
+            float w = sin(d * 46.0 - age * 10.0) * exp(-age * 1.7) * exp(-d * 3.6);
+            v += amp * w;
+          }
+          return v;
+        }
+
+        void main() {
+          vec2 uv = vUv;
+
+          // Correct for aspect so the portal reads circular on any screen.
+          float aspect = max(0.0001, uResolution.x / uResolution.y);
+          vec2 toC = uv - uCenter;
+          vec2 toCAspect = vec2(toC.x * aspect, toC.y);
+          float dist = length(toCAspect);
+          vec2 dir = toCAspect / max(0.0001, dist);
+
+          float mask = smoothstep(uRadius, uRadius - uSoftness, dist);
+
+          // Subtle animated grain (sells glass without heavy blur).
+          vec2 nUv = vec2(uv.x * aspect, uv.y) * 3.0 + vec2(uTime * 0.05, uTime * 0.03);
+          float n = noise2(nUv);
+
+          // Ripple impulses from taps + scene beats.
+          float rip = rippleField(uv);
+          float beat = uBeat;
+
+          float distort = uDistort;
+          distort += (0.008 + uEnergy * 0.02) * (0.6 + 0.4 * n);
+          distort += beat * 0.018;
+
+          float field = (rip * 0.65 + (n - 0.5) * 0.38);
+          vec2 offset = dir * (field * distort * mask);
+
+          // Chromatic edge inside the portal.
+          float ca = (1.0 / max(1.0, min(uRtResolution.x, uRtResolution.y))) * 140.0;
+          ca *= mask * (0.35 + uEnergy * 0.9);
+          vec2 o1 = offset * (1.0 + ca);
+          vec2 o2 = offset;
+          vec2 o3 = offset * (1.0 - ca);
+
+          vec3 col;
+          col.r = texture2D(tScene, uv + o1).r;
+          col.g = texture2D(tScene, uv + o2).g;
+          col.b = texture2D(tScene, uv + o3).b;
+
+          // Glass highlight + edge gleam.
+          float edge = smoothstep(uRadius - uSoftness * 0.35, uRadius + 0.01, dist) * mask;
+          float core = pow(1.0 - clamp(dist / max(0.0001, uRadius), 0.0, 1.0), 2.6);
+          vec3 highlight = vec3(0.06, 0.10, 0.16) * (core * 0.7 + edge * 0.85);
+          col += highlight * (0.55 + 0.55 * n);
+
+          // Outside portal: slightly darker to emphasize the lens.
+          col *= 1.0 - (1.0 - mask) * 0.085;
+
+          // Gentle vignette to make fullscreen feel cinematic.
+          float vign = smoothstep(0.95, 0.25, length(uv - 0.5));
+          col *= 0.985 + vign * 0.05;
+
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
+      depthTest: false,
+      depthWrite: false,
+      transparent: false,
+      toneMapped: false,
+    });
+
+    const quad = new THREE.Mesh(
+      new THREE.PlaneGeometry(2, 2),
+      this.portalMaterial
+    );
+    quad.frustumCulled = false;
+    this.portalMesh = quad;
+    this.portalScene.add(quad);
+  }
+
+  private resizePortalTargets(w: number, h: number, dpr: number): void {
+    if (!this.portalTarget || !this.portalMaterial) return;
+
+    const scale = this.caps.coarsePointer ? 0.85 : 1.0;
+    const pw = Math.max(1, Math.round(w * dpr * scale));
+    const ph = Math.max(1, Math.round(h * dpr * scale));
+    this.portalTarget.setSize(pw, ph);
+
+    this.portalMaterial.uniforms.uResolution.value.set(w, h);
+    this.portalMaterial.uniforms.uRtResolution.value.set(pw, ph);
+  }
+
+  private addPortalRippleFromClient(x: number, y: number, amp: number): void {
+    if (!this.portalMaterial) return;
+    const uvx = Math.max(0, Math.min(1, x / Math.max(1, this.viewportW)));
+    const uvy = Math.max(0, Math.min(1, y / Math.max(1, this.viewportH)));
+    const slot =
+      this.portalRipples[this.portalRippleCursor % this.portalRipples.length];
+    slot.set(uvx, uvy, performance.now() / 1000, Math.max(0, Math.min(1, amp)));
+    this.portalRippleCursor++;
   }
 
   public getStatus(): ThreeStageStatus {
@@ -336,6 +530,9 @@ export class ThreeStage {
         this.root.dataset.ihTouched = '1';
         this.burst = Math.min(1, this.burst + 0.55);
         this.setPointerTargetFromClient(e.clientX, e.clientY);
+
+        // Glass ripple impulse.
+        this.addPortalRippleFromClient(e.clientX, e.clientY, 0.9);
       },
       { passive: true, signal }
     );
@@ -412,6 +609,10 @@ export class ThreeStage {
 
       // Tap burst.
       this.burst = Math.min(1, this.burst + 0.5);
+
+      // Glass ripple impulse (use the first touch as the origin).
+      const t0 = e.touches.item(0);
+      if (t0) this.addPortalRippleFromClient(t0.clientX, t0.clientY, 0.85);
 
       syncTouches(e.touches);
     };
@@ -551,6 +752,8 @@ export class ThreeStage {
     const dpr = Math.min(this.caps.maxDpr, this.caps.devicePixelRatio);
     this.renderer.setPixelRatio(dpr);
     this.renderer.setSize(w, h, false);
+
+    this.resizePortalTargets(w, h, dpr);
   }
 
   private computeScrollProgress(): number {
@@ -746,6 +949,13 @@ export class ThreeStage {
       this.burst = Math.min(1, this.burst + 0.35);
       this.root.style.setProperty('--ih-scene-beat', '1');
       this.root.dataset.ihSceneBeat = String(Date.now());
+
+      // Scene transition feels like a lens "thump".
+      this.addPortalRippleFromClient(
+        this.viewportW * 0.5,
+        this.viewportH * 0.42,
+        0.75
+      );
     }
 
     // Beat decays over time.
@@ -886,8 +1096,43 @@ export class ThreeStage {
       pMat.size = 0.028 + this.energy * 0.01;
     }
 
+    // Update portal uniforms (fullscreen glass composite).
+    if (this.portalMaterial) {
+      const u = this.portalMaterial.uniforms;
+      u.uTime.value = now;
+      // Center follows pointer subtly (mobile-friendly: small motion).
+      const cx = 0.5 + this.input.pointer.x * 0.08;
+      const cy = 0.5 - this.input.pointer.y * 0.06;
+      u.uCenter.value.set(
+        Math.max(0.25, Math.min(0.75, cx)),
+        Math.max(0.25, Math.min(0.75, cy))
+      );
+
+      // Radius breathes with scroll + pinch; always readable on mobile.
+      const radius = 0.33 + progress * 0.06 + Math.abs(this.input.pinch) * 0.03;
+      u.uRadius.value = Math.max(0.26, Math.min(0.46, radius));
+      u.uSoftness.value = this.caps.coarsePointer ? 0.13 : 0.12;
+
+      const distortBase = this.caps.coarsePointer ? 0.02 : 0.018;
+      u.uDistort.value =
+        distortBase + (0.012 + this.energy * 0.02) + this.sceneBeat * 0.012;
+      u.uEnergy.value = this.energy;
+      u.uBeat.value = this.sceneBeat;
+    }
+
     // Render.
-    this.renderer.render(this.scene, this.camera);
+    if (this.portalTarget && this.portalScene && this.portalCamera) {
+      this.renderer.setRenderTarget(this.portalTarget);
+      this.renderer.clear(true, true, true);
+      this.renderer.render(this.scene, this.camera);
+
+      this.renderer.setRenderTarget(null);
+      this.renderer.clear(true, true, true);
+      this.renderer.render(this.portalScene, this.portalCamera);
+    } else {
+      // Fallback: direct render.
+      this.renderer.render(this.scene, this.camera);
+    }
 
     this.writeCssVars(now);
   }
@@ -993,6 +1238,25 @@ export class ThreeStage {
       (this.shell.material as THREE.Material).dispose();
       this.particles.geometry.dispose();
       (this.particles.material as THREE.Material).dispose();
+
+      try {
+        (
+          this.portalMesh?.geometry as THREE.BufferGeometry | undefined
+        )?.dispose?.();
+      } catch {
+        // ignore
+      }
+      try {
+        this.portalMaterial?.dispose();
+      } catch {
+        // ignore
+      }
+      try {
+        this.portalTarget?.dispose();
+      } catch {
+        // ignore
+      }
+
       this.renderer.dispose();
     } catch {
       // ignore
