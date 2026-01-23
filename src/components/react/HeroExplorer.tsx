@@ -26,6 +26,8 @@ import '@/styles/hero-explorer.css';
 
 type QualityTier = 'desktop' | 'mobile' | 'low';
 
+type BurstRef = React.MutableRefObject<number>;
+
 type Chapter = {
   id: string;
   title: string;
@@ -294,6 +296,99 @@ const EnergyRing = ({ quality }: { quality: QualityTier }) => {
   );
 };
 
+const Shockwave = ({ burstRef }: { burstRef: BurstRef }) => {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const matRef = useRef<THREE.MeshBasicMaterial>(null);
+  const ageRef = useRef(0);
+
+  useFrame((_, delta) => {
+    if (!meshRef.current || !matRef.current) return;
+
+    if (burstRef.current > 0.001 && ageRef.current === 0) {
+      // Arm on burst start.
+      ageRef.current = 0.0001;
+    }
+
+    if (ageRef.current > 0) {
+      ageRef.current += delta;
+      const t = Math.min(1, ageRef.current / 1.15);
+      const ease = 1 - Math.pow(1 - t, 3);
+      meshRef.current.scale.setScalar(1 + ease * 2.2);
+      matRef.current.opacity = (1 - ease) * 0.22;
+      meshRef.current.rotation.z += delta * 0.35;
+      if (t >= 1) ageRef.current = 0;
+    } else {
+      matRef.current.opacity = 0;
+      meshRef.current.scale.setScalar(1);
+    }
+  });
+
+  return (
+    <mesh ref={meshRef} position={[0, 0.05, 0]} rotation={[Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[2.25, 2.55, 220]} />
+      <meshBasicMaterial
+        ref={matRef}
+        transparent
+        opacity={0}
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+        color="#60a5fa"
+      />
+    </mesh>
+  );
+};
+
+const AuroraVeil = ({
+  quality,
+  burstRef,
+}: {
+  quality: QualityTier;
+  burstRef: BurstRef;
+}) => {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const matRef = useRef<THREE.MeshBasicMaterial>(null);
+  const scroll = useScroll();
+
+  useFrame(({ clock }, delta) => {
+    if (!meshRef.current || !matRef.current) return;
+    const t = clock.getElapsedTime();
+    const progress = scroll.offset;
+    const burst = burstRef.current;
+
+    meshRef.current.rotation.z = t * 0.06 + progress * 0.35;
+    meshRef.current.position.y = -0.2 + Math.sin(t * 0.35) * 0.12;
+    meshRef.current.scale.setScalar(1.15 + progress * 0.25);
+
+    const alphaBase = quality === 'desktop' ? 0.16 : 0.11;
+    matRef.current.opacity = alphaBase + burst * 0.22;
+    // Subtle hue drift: keep it filmic (no full rainbow).
+    const hue = 205 + Math.sin(t * 0.12) * 18 + progress * 22;
+    matRef.current.color.setHSL(hue / 360, 0.78, 0.62);
+
+    // Decay burst here too so it still feels responsive even if other systems are off.
+    burstRef.current = Math.max(0, burstRef.current - delta * 0.9);
+  });
+
+  return (
+    <mesh
+      ref={meshRef}
+      position={[0, -0.15, -2.6]}
+      rotation={[0, 0, 0.1]}
+      frustumCulled={false}
+    >
+      <planeGeometry args={[10, 6, 1, 1]} />
+      <meshBasicMaterial
+        ref={matRef}
+        transparent
+        opacity={0.14}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+        color="#60a5fa"
+      />
+    </mesh>
+  );
+};
+
 const PrismaticShards = ({ quality }: { quality: QualityTier }) => {
   const count = quality === 'desktop' ? 96 : quality === 'mobile' ? 56 : 40;
   const meshRef = useRef<THREE.InstancedMesh>(null);
@@ -503,9 +598,53 @@ const GlyphOrbit = ({ quality }: { quality: QualityTier }) => {
 };
 
 const Scene = ({ quality }: { quality: QualityTier }) => {
+  const burstRef = useRef(0);
+  const bloomRef = useRef<any>(null);
+  const chromaRef = useRef<any>(null);
+  const noiseRef = useRef<any>(null);
+  const scroll = useScroll();
+
   const reducedMotion =
     typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  useEffect(() => {
+    const onBurst = () => {
+      burstRef.current = 1;
+    };
+    window.addEventListener('hero:burst', onBurst as EventListener);
+    return () =>
+      window.removeEventListener('hero:burst', onBurst as EventListener);
+  }, []);
+
+  useFrame((_, delta) => {
+    const burst = burstRef.current;
+    const progress = scroll.offset;
+    const energy = 0.25 + progress * 0.55 + burst * 0.85;
+
+    // Mutate post FX live for “smart” responsiveness.
+    if (bloomRef.current) {
+      bloomRef.current.intensity =
+        (quality === 'desktop' ? 0.95 : 0.55) +
+        energy * (quality === 'desktop' ? 0.55 : 0.35);
+    }
+    if (chromaRef.current) {
+      const amt = quality === 'desktop' ? 0.0014 : 0.001;
+      chromaRef.current.offset?.set(
+        amt + burst * 0.0022,
+        amt * 0.7 + burst * 0.0016
+      );
+    }
+    if (noiseRef.current) {
+      noiseRef.current.opacity =
+        (quality === 'desktop' ? 0.04 : 0.025) + burst * 0.055;
+    }
+
+    // If reduced motion is on, keep bursts extremely subtle.
+    if (reducedMotion) {
+      burstRef.current = Math.max(0, burstRef.current - delta * 1.8);
+    }
+  });
 
   return (
     <>
@@ -541,6 +680,8 @@ const Scene = ({ quality }: { quality: QualityTier }) => {
 
       <PortalTorus quality={quality} />
       {!reducedMotion && <EnergyRing quality={quality} />}
+      {!reducedMotion && <AuroraVeil quality={quality} burstRef={burstRef} />}
+      {!reducedMotion && <Shockwave burstRef={burstRef} />}
       <GlyphOrbit quality={quality} />
       <NebulaField quality={quality} />
       {!reducedMotion && <PrismaticShards quality={quality} />}
@@ -569,16 +710,21 @@ const Scene = ({ quality }: { quality: QualityTier }) => {
       {!reducedMotion && (
         <EffectComposer multisampling={quality === 'desktop' ? 4 : 0}>
           <Bloom
+            ref={bloomRef}
             intensity={quality === 'desktop' ? 1.05 : 0.55}
             luminanceThreshold={0.35}
           />
           <ChromaticAberration
+            ref={chromaRef}
             offset={new THREE.Vector2(0.0016, 0.0012)}
             blendFunction={BlendFunction.NORMAL}
             radialModulation={false}
             modulationOffset={0}
           />
-          <Noise opacity={quality === 'desktop' ? 0.045 : 0.025} />
+          <Noise
+            ref={noiseRef}
+            opacity={quality === 'desktop' ? 0.045 : 0.025}
+          />
           <Vignette eskil={false} offset={0.22} darkness={0.68} />
         </EffectComposer>
       )}
@@ -586,7 +732,7 @@ const Scene = ({ quality }: { quality: QualityTier }) => {
   );
 };
 
-const DiscoveryRail = () => {
+const DiscoveryRail = ({ onBurst }: { onBurst: () => void }) => {
   const items = [
     {
       id: 'shaders',
@@ -621,8 +767,13 @@ const DiscoveryRail = () => {
         <article key={item.id} className="hero-explorer__rail-card">
           <div className="hero-explorer__rail-pill">{item.title}</div>
           <p>{item.desc}</p>
-          <button type="button" className="hero-explorer__rail-btn">
-            Load on demand
+          <button
+            type="button"
+            className="hero-explorer__rail-btn"
+            onClick={onBurst}
+            aria-label={`${item.title}: trigger burst demo`}
+          >
+            Trigger burst
           </button>
         </article>
       ))}
@@ -664,6 +815,9 @@ const HeroExplorer = () => {
     >
       <div className="hero-explorer__sticky">
         <Canvas
+          onPointerDown={() => {
+            window.dispatchEvent(new CustomEvent('hero:burst'));
+          }}
           dpr={dpr}
           gl={{
             antialias: quality === 'desktop',
@@ -686,7 +840,11 @@ const HeroExplorer = () => {
         )}
       </div>
 
-      <DiscoveryRail />
+      <DiscoveryRail
+        onBurst={() => {
+          window.dispatchEvent(new CustomEvent('hero:burst'));
+        }}
+      />
     </section>
   );
 };

@@ -116,14 +116,6 @@ const BASE_COMMANDS: CommandItem[] = [
     category: 'Navigation',
   },
   {
-    id: 'nav-demo-lab',
-    label: 'Open Demo Lab',
-    icon: Layout,
-    action: () => navigate(withBasePath('demo-lab/')),
-    category: 'Navigation',
-    keywords: ['demo', 'lab', 'animations', 'motion'],
-  },
-  {
     id: 'nav-shop-demo',
     label: 'Open Shop Demo',
     icon: Box,

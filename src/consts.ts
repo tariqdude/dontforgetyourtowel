@@ -13,7 +13,7 @@ const analyticsEnabled =
   analyticsFlag === 'true' || analyticsFlag === '1' || analyticsFlag === true;
 
 // MSP/IT services branding (safe defaults; customise as needed)
-export const SITE_TITLE = 'Apex Managed IT';
+export const SITE_TITLE = 'Olive Chicago';
 export const SITE_DESCRIPTION =
   'Enterprise-grade managed IT, cybersecurity, cloud, and AI consulting for growing businesses.';
 export const SITE_URL = DEPLOYMENT.siteUrl;
@@ -28,7 +28,7 @@ export const CONTACT_EMAIL =
 export const SITE_CONFIG = {
   title: SITE_TITLE,
   description: SITE_DESCRIPTION,
-  author: 'Apex Managed IT',
+  author: 'Olive Chicago',
   defaultLanguage: 'en-US',
   // Social links
   social: {

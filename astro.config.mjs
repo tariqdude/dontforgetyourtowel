@@ -34,7 +34,7 @@ export default defineConfig({
     // We intentionally keep both integrations, but scope them to distinct directories.
     preact({
       include: ['src/components/**/*.jsx', 'src/components/**/*.tsx'],
-      exclude: ['src/components/solid/**'],
+      exclude: ['src/components/react/**', 'src/components/solid/**'],
     }),
     react({
       include: [

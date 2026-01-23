@@ -9,6 +9,7 @@ test.describe('Homepage', () => {
   test('should display hero section', async ({ page }) => {
     await page.goto('./');
     await expect(page.locator('.hero-explorer')).toBeVisible();
+    await expect(page.locator('.hero-explorer canvas')).toBeVisible();
   });
 
   test('should have working navigation', async ({ page, isMobile }) => {
