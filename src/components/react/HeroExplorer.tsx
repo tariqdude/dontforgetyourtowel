@@ -223,7 +223,11 @@ const TunnelRings = ({ quality }: { quality: QualityTier }) => {
     const gate = chapterGate('tunnel', idx, nextIdx, t);
 
     const time = clock.getElapsedTime();
-    const hue = THREE.MathUtils.lerp(chapters[idx].hue, chapters[nextIdx].hue, t);
+    const hue = THREE.MathUtils.lerp(
+      chapters[idx].hue,
+      chapters[nextIdx].hue,
+      t
+    );
     const base = quality === 'desktop' ? 0.22 : 0.16;
     matRef.current.opacity = gate * base;
     matRef.current.color.setHSL(hue / 360, 0.85, 0.62);
@@ -289,10 +293,15 @@ const VoxelCity = ({ quality }: { quality: QualityTier }) => {
     const gate = chapterGate('glyphcity', idx, nextIdx, t);
     const time = clock.getElapsedTime();
 
-    const hue = THREE.MathUtils.lerp(chapters[idx].hue, chapters[nextIdx].hue, t);
+    const hue = THREE.MathUtils.lerp(
+      chapters[idx].hue,
+      chapters[nextIdx].hue,
+      t
+    );
     matRef.current.color.setHSL(hue / 360, 0.25, 0.12);
     matRef.current.emissive.setHSL(hue / 360, 0.65, 0.22);
-    matRef.current.emissiveIntensity = (quality === 'desktop' ? 0.95 : 0.7) * gate;
+    matRef.current.emissiveIntensity =
+      (quality === 'desktop' ? 0.95 : 0.7) * gate;
     matRef.current.opacity = gate * 0.75;
 
     for (let i = 0; i < seeds.length; i += 1) {
@@ -345,7 +354,11 @@ const HudBillboard = ({ quality }: { quality: QualityTier }) => {
     groupRef.current.translateZ(-2.6);
     groupRef.current.rotation.z += Math.sin(time * 0.15) * 0.0008;
 
-    const hue = THREE.MathUtils.lerp(chapters[idx].hue, chapters[nextIdx].hue, t);
+    const hue = THREE.MathUtils.lerp(
+      chapters[idx].hue,
+      chapters[nextIdx].hue,
+      t
+    );
     matRef.current.color.setHSL(hue / 360, 0.9, 0.62);
     matRef.current.opacity = gate * (quality === 'desktop' ? 0.18 : 0.14);
   });
@@ -353,7 +366,14 @@ const HudBillboard = ({ quality }: { quality: QualityTier }) => {
   return (
     <group ref={groupRef} frustumCulled={false}>
       <mesh>
-        <planeGeometry args={[3.4, 2.1, quality === 'desktop' ? 28 : 18, quality === 'desktop' ? 18 : 12]} />
+        <planeGeometry
+          args={[
+            3.4,
+            2.1,
+            quality === 'desktop' ? 28 : 18,
+            quality === 'desktop' ? 18 : 12,
+          ]}
+        />
         <meshBasicMaterial
           ref={matRef}
           transparent
@@ -748,10 +768,11 @@ const PortalTorus = ({ quality }: { quality: QualityTier }) => {
     torusRef.current.rotation.x = Math.sin(t * 0.34) * 0.22 + Math.PI / 2.2;
     torusRef.current.rotation.y = t * 0.18;
 
-    const { idx, nextIdx, t: blendT } = getChapterBlend(
-      scroll.offset,
-      chapters.length
-    );
+    const {
+      idx,
+      nextIdx,
+      t: blendT,
+    } = getChapterBlend(scroll.offset, chapters.length);
     const gate = clamp01(
       chapterGate('lens', idx, nextIdx, blendT) +
         chapterGate('prism', idx, nextIdx, blendT) +
