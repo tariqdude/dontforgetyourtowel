@@ -4,7 +4,7 @@ test.describe('Homepage', () => {
   test('should load successfully', async ({ page }) => {
     await page.goto('./');
     await expect(page).toHaveTitle(
-      /Enterprise IT solutions that scale with your business/i
+      /Next.?gen digital ops, engineered for motion and intelligence/i
     );
   });
 
@@ -13,7 +13,7 @@ test.describe('Homepage', () => {
     const hero = page.locator('h1').first();
     await expect(hero).toBeVisible();
     await expect(hero).toContainText(
-      /Enterprise IT solutions that scale with your business/i
+      /Next.?gen digital ops, engineered for motion and intelligence/i
     );
   });
 

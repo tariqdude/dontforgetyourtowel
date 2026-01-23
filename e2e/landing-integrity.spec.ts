@@ -18,7 +18,7 @@ test.describe('Landing Page Integrity', () => {
   }) => {
     const heading = page.locator('h1');
     await expect(heading).toContainText(
-      'Enterprise IT solutions that scale with your business'
+      /Next.?gen digital ops, engineered for motion and intelligence/i
     );
   });
 
