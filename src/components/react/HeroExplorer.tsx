@@ -110,6 +110,26 @@ const chapters: Chapter[] = [
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
+const smoothstep = (edge0: number, edge1: number, x: number) => {
+  const t = clamp01((x - edge0) / Math.max(1e-6, edge1 - edge0));
+  return t * t * (3 - 2 * t);
+};
+
+// Weighted chapter timing so each scene has time to be seen + interacted with.
+// Values roughly represent “screenfuls” of scroll per chapter.
+const chapterWeights: number[] = [
+  1.15, // lens
+  1.65, // tunnel
+  1.65, // glyphcity
+  1.45, // nebula
+  1.45, // field
+  1.45, // prism
+  1.35, // lattice
+  1.35, // flare
+  1.35, // horizon
+  1.05, // afterglow
+];
+
 const chapterGate = (
   chapterId: string,
   idx: number,
@@ -123,13 +143,36 @@ const chapterGate = (
   return 0;
 };
 
-const getChapterBlend = (offset: number, length: number) => {
-  const total = Math.max(1, length - 1);
-  const rawProgress = offset * total;
-  const idx = Math.min(length - 1, Math.max(0, Math.floor(rawProgress)));
-  const nextIdx = Math.min(length - 1, idx + 1);
-  const t = clamp01(rawProgress - idx);
-  return { idx, nextIdx, t };
+const getChapterBlend = (
+  offset: number,
+  weights: number[] = chapterWeights,
+  transitionWindow = 0.14
+) => {
+  const len = weights.length;
+  const total = weights.reduce((sum, w) => sum + Math.max(0.2, w), 0);
+  const p = clamp01(offset) * total;
+
+  let idx = 0;
+  let start = 0;
+  for (let i = 0; i < len; i += 1) {
+    const w = Math.max(0.2, weights[i] ?? 1);
+    const end = start + w;
+    if (p <= end || i === len - 1) {
+      idx = i;
+      break;
+    }
+    start = end;
+  }
+
+  const w = Math.max(0.2, weights[idx] ?? 1);
+  const localT = clamp01((p - start) / w);
+  const nextIdx = Math.min(len - 1, idx + 1);
+
+  // Blend only near the end of the chapter (keeps the scene “whole”).
+  const t = smoothstep(1 - transitionWindow, 1, localT);
+  const transition = Math.sin(Math.PI * t); // 0 → 1 → 0 during the blend
+
+  return { idx, nextIdx, t, localT, transition, total };
 };
 
 const useQualityTier = (): QualityTier => {
@@ -179,7 +222,7 @@ const CameraRig = ({ chapters }: { chapters: Chapter[] }) => {
   const vLookNext = useMemo(() => new THREE.Vector3(), []);
 
   useFrame(() => {
-    const { idx, nextIdx, t } = getChapterBlend(scroll.offset, chapters.length);
+    const { idx, nextIdx, t } = getChapterBlend(scroll.offset, chapterWeights);
 
     const current = chapters[idx];
     const next = chapters[nextIdx];
@@ -219,7 +262,7 @@ const TunnelRings = ({ quality }: { quality: QualityTier }) => {
 
   useFrame(({ clock }) => {
     if (!meshRef.current || !matRef.current) return;
-    const { idx, nextIdx, t } = getChapterBlend(scroll.offset, chapters.length);
+    const { idx, nextIdx, t } = getChapterBlend(scroll.offset, chapterWeights);
     const gate = chapterGate('tunnel', idx, nextIdx, t);
 
     const time = clock.getElapsedTime();
@@ -289,7 +332,7 @@ const VoxelCity = ({ quality }: { quality: QualityTier }) => {
 
   useFrame(({ clock }) => {
     if (!meshRef.current || !matRef.current) return;
-    const { idx, nextIdx, t } = getChapterBlend(scroll.offset, chapters.length);
+    const { idx, nextIdx, t } = getChapterBlend(scroll.offset, chapterWeights);
     const gate = chapterGate('glyphcity', idx, nextIdx, t);
     const time = clock.getElapsedTime();
 
@@ -345,7 +388,7 @@ const HudBillboard = ({ quality }: { quality: QualityTier }) => {
 
   useFrame(({ clock }) => {
     if (!groupRef.current || !matRef.current) return;
-    const { idx, nextIdx, t } = getChapterBlend(scroll.offset, chapters.length);
+    const { idx, nextIdx, t } = getChapterBlend(scroll.offset, chapterWeights);
     const gate = chapterGate('field', idx, nextIdx, t);
     const time = clock.getElapsedTime();
 
@@ -480,7 +523,7 @@ const EnergyRing = ({ quality }: { quality: QualityTier }) => {
 
   useFrame(({ clock }) => {
     if (!ringRef.current || !matRef.current) return;
-    const { idx, nextIdx, t } = getChapterBlend(scroll.offset, chapters.length);
+    const { idx, nextIdx, t } = getChapterBlend(scroll.offset, chapterWeights);
     const hue = THREE.MathUtils.lerp(
       chapters[idx].hue,
       chapters[nextIdx].hue,
@@ -641,7 +684,7 @@ const PrismaticShards = ({ quality }: { quality: QualityTier }) => {
     const time = clock.getElapsedTime();
     const progress = scroll.offset;
 
-    const { idx, nextIdx, t } = getChapterBlend(progress, chapters.length);
+    const { idx, nextIdx, t } = getChapterBlend(progress, chapterWeights);
     const hue = THREE.MathUtils.lerp(
       chapters[idx].hue,
       chapters[nextIdx].hue,
@@ -715,6 +758,7 @@ const ScrollAtmosphere = () => {
       hostRef.current.style.removeProperty('--hero-progress');
       hostRef.current.style.removeProperty('--hero-hue');
       hostRef.current.style.removeProperty('--hero-energy');
+      hostRef.current.style.removeProperty('--hero-transition');
       hostRef.current.style.removeProperty('--hero-reveal');
       delete hostRef.current.dataset.heroEnd;
     };
@@ -725,7 +769,10 @@ const ScrollAtmosphere = () => {
     const time = clock.getElapsedTime();
     const progress = scroll.offset;
 
-    const { idx, nextIdx, t } = getChapterBlend(progress, chapters.length);
+    const { idx, nextIdx, t, transition } = getChapterBlend(
+      progress,
+      chapterWeights
+    );
     const hue = THREE.MathUtils.lerp(
       chapters[idx].hue,
       chapters[nextIdx].hue,
@@ -741,6 +788,7 @@ const ScrollAtmosphere = () => {
       host.style.setProperty('--hero-progress', progress.toFixed(4));
       host.style.setProperty('--hero-hue', hue.toFixed(1));
       host.style.setProperty('--hero-energy', energy.toFixed(4));
+      host.style.setProperty('--hero-transition', transition.toFixed(4));
 
       // Reveal bottom info only near the end of the scroll.
       const reveal = clamp01((progress - 0.88) / 0.12);
@@ -772,7 +820,7 @@ const PortalTorus = ({ quality }: { quality: QualityTier }) => {
       idx,
       nextIdx,
       t: blendT,
-    } = getChapterBlend(scroll.offset, chapters.length);
+    } = getChapterBlend(scroll.offset, chapterWeights);
     const gate = clamp01(
       chapterGate('lens', idx, nextIdx, blendT) +
         chapterGate('prism', idx, nextIdx, blendT) +
@@ -818,7 +866,7 @@ const LatticePlane = ({ quality }: { quality: QualityTier }) => {
 
   useFrame(({ clock }) => {
     if (!meshRef.current || !matRef.current) return;
-    const { idx, nextIdx, t } = getChapterBlend(scroll.offset, chapters.length);
+    const { idx, nextIdx, t } = getChapterBlend(scroll.offset, chapterWeights);
     const gate = chapterGate('lattice', idx, nextIdx, t);
     const time = clock.getElapsedTime();
 
@@ -867,7 +915,7 @@ const IonJets = ({ quality }: { quality: QualityTier }) => {
 
   useFrame(({ clock }) => {
     if (!groupRef.current || !matRef.current) return;
-    const { idx, nextIdx, t } = getChapterBlend(scroll.offset, chapters.length);
+    const { idx, nextIdx, t } = getChapterBlend(scroll.offset, chapterWeights);
     const gate = chapterGate('flare', idx, nextIdx, t);
     const time = clock.getElapsedTime();
 
@@ -920,7 +968,7 @@ const HorizonHalo = ({ quality }: { quality: QualityTier }) => {
 
   useFrame(({ clock }) => {
     if (!meshRef.current || !matRef.current) return;
-    const { idx, nextIdx, t } = getChapterBlend(scroll.offset, chapters.length);
+    const { idx, nextIdx, t } = getChapterBlend(scroll.offset, chapterWeights);
     const gate = chapterGate('horizon', idx, nextIdx, t);
     const time = clock.getElapsedTime();
     const hue = THREE.MathUtils.lerp(
@@ -971,7 +1019,7 @@ const GlyphOrbit = ({ quality }: { quality: QualityTier }) => {
 
   useFrame(({ clock }) => {
     if (!groupRef.current) return;
-    const { idx, nextIdx, t } = getChapterBlend(scroll.offset, chapters.length);
+    const { idx, nextIdx, t } = getChapterBlend(scroll.offset, chapterWeights);
     const gate = clamp01(
       chapterGate('nebula', idx, nextIdx, t) +
         chapterGate('glyphcity', idx, nextIdx, t)
@@ -1058,6 +1106,7 @@ const Scene = ({ quality }: { quality: QualityTier }) => {
   return (
     <>
       <ScrollAtmosphere />
+      {!reducedMotion && <TransitionCurtain quality={quality} />}
       <color attach="background" args={['#030712']} />
       <fog attach="fog" args={['#030712', 8, 28]} />
       <ambientLight intensity={0.35} />
@@ -1129,6 +1178,50 @@ const Scene = ({ quality }: { quality: QualityTier }) => {
   );
 };
 
+const TransitionCurtain = ({ quality }: { quality: QualityTier }) => {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const matRef = useRef<THREE.MeshBasicMaterial>(null);
+  const scroll = useScroll();
+  const { camera } = useThree();
+
+  useFrame(() => {
+    if (!meshRef.current || !matRef.current) return;
+
+    const { idx, nextIdx, t, transition } = getChapterBlend(
+      scroll.offset,
+      chapterWeights,
+      0.12
+    );
+
+    meshRef.current.position.copy(camera.position);
+    meshRef.current.quaternion.copy(camera.quaternion);
+    meshRef.current.translateZ(-0.75);
+
+    const hue = THREE.MathUtils.lerp(
+      chapters[idx].hue,
+      chapters[nextIdx].hue,
+      t
+    );
+    const maxOpacity = quality === 'desktop' ? 0.16 : 0.12;
+    matRef.current.opacity = transition * maxOpacity;
+    matRef.current.color.setHSL(hue / 360, 0.32, 0.07);
+    meshRef.current.visible = matRef.current.opacity > 0.002;
+  });
+
+  return (
+    <mesh ref={meshRef} frustumCulled={false}>
+      <planeGeometry args={[10, 10, 1, 1]} />
+      <meshBasicMaterial
+        ref={matRef}
+        transparent
+        opacity={0}
+        depthWrite={false}
+        color="#000000"
+      />
+    </mesh>
+  );
+};
+
 const DiscoveryRail = ({ onBurst }: { onBurst: () => void }) => {
   const items = [
     {
@@ -1190,11 +1283,14 @@ const HeroExplorer = () => {
     );
   }, [quality]);
 
-  const pages = chapters.length + 0.8;
+  const pages = useMemo(() => {
+    const total = chapterWeights.reduce((sum, w) => sum + Math.max(0.2, w), 0);
+    return total + 0.9;
+  }, []);
 
   const heroPagesForCss = useMemo(() => {
     // Slightly longer than ScrollControls pages so the sticky + rail feels spacious.
-    const target = Math.max(6, Math.round(pages * 1.15));
+    const target = Math.max(10, Math.round(pages * 1.18));
     return String(target);
   }, [pages]);
 

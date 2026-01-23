@@ -4,6 +4,7 @@
   --hero-progress: 0;
   --hero-hue: 210;
   --hero-energy: 0.2;
+  --hero-transition: 0;
   --hero-reveal: 0;
 
   /* Long scroll: driven by React setting --hero-pages */
