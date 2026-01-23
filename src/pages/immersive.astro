@@ -1,10 +1,11 @@
 ---
 import MarketingLayout from '../layouts/MarketingLayout.astro';
 import ImmersiveHome from '../components/immersive/ImmersiveHome.astro';
+import HeroExplorerLazy from '../components/react/HeroExplorerLazy.tsx';
 
 const title = 'Immersive 3D Lab';
 const description =
-  'A full-screen, scroll-driven 3D showcase featuring cinematic WebGL-style layers and a modular scene system.';
+  'R3F portal hero + the original immersive CSS layers and scroll story in one dedicated space.';
 ---
 
 <MarketingLayout
@@ -18,5 +19,9 @@ const description =
   showMobileNav={false}
   showLiveChat={false}
 >
+  <section class="relative min-h-screen bg-zinc-950">
+    <HeroExplorerLazy client:visible />
+  </section>
+
   <ImmersiveHome />
 </MarketingLayout>
