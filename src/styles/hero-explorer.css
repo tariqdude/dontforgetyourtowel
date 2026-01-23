@@ -1,6 +1,12 @@
 .hero-explorer {
   position: relative;
-  min-height: 240vh;
+  --hero-pages: 6;
+  --hero-progress: 0;
+  --hero-hue: 210;
+  --hero-energy: 0.2;
+
+  /* Long scroll: driven by React setting --hero-pages */
+  min-height: calc(var(--hero-pages) * 120vh);
   background:
     radial-gradient(
       120% 80% at 50% 8%,
@@ -15,6 +21,37 @@
     #040712;
   color: #e2e8f0;
   overflow: hidden;
+}
+
+.hero-explorer::before {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      80% 60% at 40% 18%,
+      hsla(var(--hero-hue), 92%, 60%, 0.2),
+      transparent 62%
+    ),
+    radial-gradient(
+      70% 55% at 62% 28%,
+      hsla(calc(var(--hero-hue) + 60), 90%, 56%, 0.14),
+      transparent 70%
+    ),
+    radial-gradient(
+      120% 90% at 50% 100%,
+      rgba(34, 211, 238, 0.1),
+      transparent 55%
+    );
+  opacity: calc(0.25 + (var(--hero-energy) * 0.35));
+  transform: translate3d(
+    calc((var(--hero-progress) - 0.5) * -32px),
+    calc((var(--hero-progress) - 0.5) * 22px),
+    0
+  );
+  filter: blur(20px) saturate(1.2);
+  will-change: transform, opacity;
 }
 
 .hero-explorer__sticky {
@@ -63,6 +100,16 @@
   backdrop-filter: blur(16px);
   border: 1px solid rgba(94, 234, 255, 0.14);
   transform: translateY(calc(var(--i, 0) * 8px));
+}
+
+.hero-explorer__label {
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+}
+
+.hero-explorer__label h3 {
+  text-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
 }
 
 .hero-explorer__label h3 {
@@ -138,7 +185,7 @@
 
 @media (max-width: 860px) {
   .hero-explorer {
-    min-height: 200vh;
+    min-height: calc(var(--hero-pages) * 105vh);
   }
 
   .hero-explorer__labels {

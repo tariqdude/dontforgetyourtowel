@@ -4,14 +4,21 @@ const chapters = [
   // Longer, more cinematic scroll (chapters can repeat scenes intentionally)
   { id: 'origin' },
   { id: 'origin' },
+  { id: 'origin' },
+  { id: 'interference' },
   { id: 'interference' },
   { id: 'interference' },
   { id: 'field' },
   { id: 'field' },
+  { id: 'field' },
+  { id: 'lensing' },
   { id: 'lensing' },
   { id: 'lensing' },
   { id: 'collapse' },
   { id: 'collapse' },
+  { id: 'collapse' },
+  { id: 'afterglow' },
+  { id: 'afterglow' },
   { id: 'afterglow' },
   { id: 'afterglow' },
 ];
@@ -41,6 +48,7 @@ const chapters = [
       </div>
 
       <div class="ih-layer ih-stars"></div>
+      <div class="ih-layer ih-constellations"></div>
       <div class="ih-layer ih-fog"></div>
       <div class="ih-layer ih-halo"></div>
       <div class="ih-layer ih-rings"></div>
@@ -902,6 +910,45 @@ const chapters = [
     );
   }
 
+  .ih-constellations {
+    opacity: calc(0.22 + (var(--ih-energy-soft, 0) * 0.45));
+    transform: translateZ(-520px);
+    background-image:
+      radial-gradient(
+        circle at 20% 35%,
+        rgba(34, 211, 238, 0.22) 1px,
+        transparent 2px
+      ),
+      radial-gradient(
+        circle at 72% 28%,
+        rgba(99, 102, 241, 0.22) 1px,
+        transparent 2px
+      ),
+      radial-gradient(
+        circle at 58% 76%,
+        rgba(236, 72, 153, 0.18) 1px,
+        transparent 2px
+      ),
+      radial-gradient(
+        circle at 42% 58%,
+        rgba(255, 255, 255, 0.16) 1px,
+        transparent 2px
+      );
+    background-size:
+      260px 260px,
+      340px 340px,
+      420px 420px,
+      520px 520px;
+    background-position:
+      0 0,
+      80px 40px,
+      -60px 120px,
+      120px -80px;
+    animation: ihConstellations 26s linear infinite;
+    will-change: transform, opacity, background-position;
+    mix-blend-mode: screen;
+  }
+
   .ih-fog {
     opacity: 0.9;
     transform: translateZ(-320px);
@@ -1352,6 +1399,16 @@ const chapters = [
     50% {
       transform: translateZ(-320px) translateY(-18px);
       opacity: 1;
+    }
+  }
+
+  @keyframes ihConstellations {
+    to {
+      background-position:
+        220px 180px,
+        -160px 240px,
+        300px -180px,
+        -240px -120px;
     }
   }
 

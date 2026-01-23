@@ -63,7 +63,46 @@ const chapters: Chapter[] = [
     cam: { position: [0, -0.2, 6.2], lookAt: [0, 0, 0] },
     hue: 310,
   },
+  {
+    id: 'prism',
+    title: 'Prismatic Shards',
+    copy: 'Glass fragments wake up and orbit; scroll increases shimmer and density.',
+    cam: { position: [0.35, 0.25, 5.35], lookAt: [0, 0, 0] },
+    hue: 285,
+  },
+  {
+    id: 'lattice',
+    title: 'Data Lattice',
+    copy: 'A faint lattice grid emerges behind the portal, bending with depth.',
+    cam: { position: [-0.55, -0.05, 5.7], lookAt: [0, 0, 0] },
+    hue: 220,
+  },
+  {
+    id: 'flare',
+    title: 'Ion Flare',
+    copy: 'Energy ring surges; particles accelerate and the bloom blooms harder.',
+    cam: { position: [0.0, 0.15, 5.05], lookAt: [0, 0, 0] },
+    hue: 185,
+  },
+  {
+    id: 'horizon',
+    title: 'Horizon Drift',
+    copy: 'Long tail: the portal stabilizes into a calm field with subtle motion.',
+    cam: { position: [0.0, -0.35, 6.75], lookAt: [0, 0, 0] },
+    hue: 205,
+  },
 ];
+
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+
+const getChapterBlend = (offset: number, length: number) => {
+  const total = Math.max(1, length - 1);
+  const rawProgress = offset * total;
+  const idx = Math.min(length - 1, Math.max(0, Math.floor(rawProgress)));
+  const nextIdx = Math.min(length - 1, idx + 1);
+  const t = clamp01(rawProgress - idx);
+  return { idx, nextIdx, t };
+};
 
 const useQualityTier = (): QualityTier => {
   const [tier, setTier] = useState<QualityTier>('desktop');
@@ -92,7 +131,7 @@ const useQualityTier = (): QualityTier => {
   }, []);
 
   useEffect(() => {
-    const save = () => document.documentElement.dataset.quality = tier;
+    const save = () => (document.documentElement.dataset.quality = tier);
     save();
     return () => {
       delete document.documentElement.dataset.quality;
@@ -107,11 +146,7 @@ const CameraRig = ({ chapters }: { chapters: Chapter[] }) => {
   const { camera } = useThree();
 
   useFrame(() => {
-    const total = Math.max(1, chapters.length - 1);
-    const rawProgress = scroll.offset * total;
-    const idx = Math.min(chapters.length - 1, Math.max(0, Math.floor(rawProgress)));
-    const nextIdx = Math.min(chapters.length - 1, idx + 1);
-    const t = Math.min(1, Math.max(0, rawProgress - idx));
+    const { idx, nextIdx, t } = getChapterBlend(scroll.offset, chapters.length);
 
     const current = chapters[idx];
     const next = chapters[nextIdx];
@@ -132,7 +167,8 @@ const CameraRig = ({ chapters }: { chapters: Chapter[] }) => {
 };
 
 const NebulaField = ({ quality }: { quality: QualityTier }) => {
-  const count = quality === 'desktop' ? 2200 : quality === 'mobile' ? 1100 : 700;
+  const count =
+    quality === 'desktop' ? 2200 : quality === 'mobile' ? 1100 : 700;
   const positions = useMemo(() => {
     const arr = new Float32Array(count * 3);
     for (let i = 0; i < count; i += 1) {
@@ -197,7 +233,9 @@ const RibbonField = ({ quality }: { quality: QualityTier }) => {
     <group rotation={[Math.PI / 2.4, 0, 0]}>
       {ribbonPoints.map((pts, i) => (
         <mesh key={i}>
-          <tubeGeometry args={[new THREE.CatmullRomCurve3(pts), 120, 0.02, 6, false]} />
+          <tubeGeometry
+            args={[new THREE.CatmullRomCurve3(pts), 120, 0.02, 6, false]}
+          />
           <meshStandardMaterial
             color={new THREE.Color(`hsl(${180 + i * 8}, 68%, 64%)`)}
             emissive={new THREE.Color(`hsl(${190 + i * 7}, 82%, 40%)`)}
@@ -211,6 +249,190 @@ const RibbonField = ({ quality }: { quality: QualityTier }) => {
       ))}
     </group>
   );
+};
+
+const EnergyRing = ({ quality }: { quality: QualityTier }) => {
+  const ringRef = useRef<THREE.Mesh>(null);
+  const matRef = useRef<THREE.MeshBasicMaterial>(null);
+  const scroll = useScroll();
+
+  useFrame(({ clock }) => {
+    if (!ringRef.current || !matRef.current) return;
+    const { idx, nextIdx, t } = getChapterBlend(scroll.offset, chapters.length);
+    const hue = THREE.MathUtils.lerp(
+      chapters[idx].hue,
+      chapters[nextIdx].hue,
+      t
+    );
+
+    const time = clock.getElapsedTime();
+    const progress = scroll.offset;
+    const swell = 0.08 + Math.sin(time * 1.4) * 0.02;
+    const pulse =
+      0.22 + Math.sin((progress * 10 + time * 0.75) * Math.PI * 2) * 0.08;
+    const scale = 1 + swell + progress * 0.12;
+
+    ringRef.current.rotation.z = time * 0.22 + progress * 1.15;
+    ringRef.current.scale.setScalar(scale);
+    matRef.current.opacity =
+      quality === 'desktop' ? 0.22 + pulse : 0.14 + pulse * 0.6;
+    matRef.current.color.setHSL(hue / 360, 0.85, 0.62);
+  });
+
+  return (
+    <mesh ref={ringRef} position={[0, 0.05, 0]} rotation={[Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[2.35, 2.75, quality === 'desktop' ? 240 : 160]} />
+      <meshBasicMaterial
+        ref={matRef}
+        transparent
+        opacity={0.18}
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+        color="#22d3ee"
+      />
+    </mesh>
+  );
+};
+
+const PrismaticShards = ({ quality }: { quality: QualityTier }) => {
+  const count = quality === 'desktop' ? 96 : quality === 'mobile' ? 56 : 40;
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const matRef = useRef<THREE.MeshStandardMaterial>(null);
+  const scroll = useScroll();
+
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+
+  const seeds = useMemo(
+    () =>
+      Array.from({ length: count }).map((_, i) => {
+        const r = 2.4 + Math.random() * 2.4;
+        const a = (i / count) * Math.PI * 2 + Math.random() * 0.35;
+        const y = (Math.random() - 0.5) * 2.1;
+        return {
+          r,
+          a,
+          y,
+          spin: 0.15 + Math.random() * 0.45,
+          tilt: (Math.random() - 0.5) * 0.8,
+          drift: (Math.random() - 0.5) * 0.18,
+          s: 0.12 + Math.random() * 0.22,
+        };
+      }),
+    [count]
+  );
+
+  useFrame(({ clock }) => {
+    if (!meshRef.current) return;
+    const time = clock.getElapsedTime();
+    const progress = scroll.offset;
+
+    const { idx, nextIdx, t } = getChapterBlend(progress, chapters.length);
+    const hue = THREE.MathUtils.lerp(
+      chapters[idx].hue,
+      chapters[nextIdx].hue,
+      t
+    );
+    if (matRef.current) {
+      matRef.current.emissive.setHSL(hue / 360, 0.65, 0.35);
+      matRef.current.color.setHSL(hue / 360, 0.35, 0.62);
+      matRef.current.opacity = quality === 'desktop' ? 0.42 : 0.32;
+    }
+
+    for (let i = 0; i < seeds.length; i += 1) {
+      const s = seeds[i];
+      const angle = s.a + time * s.spin + progress * 2.4;
+      const wobble = Math.sin(time * 0.9 + i * 0.35) * 0.08;
+      const rr = s.r + wobble + progress * 0.25;
+
+      dummy.position.set(
+        Math.cos(angle) * rr,
+        s.y + Math.sin(time * 0.7 + i) * 0.08 + s.drift * (progress - 0.5),
+        Math.sin(angle) * rr
+      );
+
+      dummy.rotation.set(
+        s.tilt + time * (0.12 + i * 0.0009),
+        time * (0.2 + i * 0.0011) + progress * 1.1,
+        angle * 0.35
+      );
+
+      const scale = s.s * (1 + Math.sin(time + i * 0.2) * 0.15);
+      dummy.scale.setScalar(scale);
+      dummy.updateMatrix();
+      meshRef.current.setMatrixAt(i, dummy.matrix);
+    }
+
+    meshRef.current.instanceMatrix.needsUpdate = true;
+  });
+
+  return (
+    <instancedMesh
+      ref={meshRef}
+      args={[undefined, undefined, count]}
+      frustumCulled={false}
+    >
+      <icosahedronGeometry args={[0.18, 0]} />
+      <meshStandardMaterial
+        ref={matRef}
+        transparent
+        opacity={0.38}
+        roughness={0.25}
+        metalness={0.4}
+        emissive={new THREE.Color('#1d4ed8')}
+        emissiveIntensity={quality === 'desktop' ? 0.8 : 0.55}
+        depthWrite={false}
+      />
+    </instancedMesh>
+  );
+};
+
+const ScrollAtmosphere = () => {
+  const scroll = useScroll();
+  const { gl, scene } = useThree();
+  const hostRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    hostRef.current = gl.domElement.closest(
+      '.hero-explorer'
+    ) as HTMLElement | null;
+    return () => {
+      if (!hostRef.current) return;
+      hostRef.current.style.removeProperty('--hero-progress');
+      hostRef.current.style.removeProperty('--hero-hue');
+      hostRef.current.style.removeProperty('--hero-energy');
+    };
+  }, [gl]);
+
+  useFrame(({ clock }) => {
+    const host = hostRef.current;
+    const time = clock.getElapsedTime();
+    const progress = scroll.offset;
+
+    const { idx, nextIdx, t } = getChapterBlend(progress, chapters.length);
+    const hue = THREE.MathUtils.lerp(
+      chapters[idx].hue,
+      chapters[nextIdx].hue,
+      t
+    );
+
+    const energy = clamp01(
+      0.15 +
+        Math.abs(Math.sin((progress * 1.15 + time * 0.12) * Math.PI * 2)) * 0.55
+    );
+
+    if (host) {
+      host.style.setProperty('--hero-progress', progress.toFixed(4));
+      host.style.setProperty('--hero-hue', hue.toFixed(1));
+      host.style.setProperty('--hero-energy', energy.toFixed(4));
+    }
+
+    if (scene.fog) {
+      const fog = scene.fog as THREE.Fog;
+      fog.color.setHSL(hue / 360, 0.35, 0.055);
+    }
+  });
+
+  return null;
 };
 
 const PortalTorus = ({ quality }: { quality: QualityTier }) => {
@@ -287,6 +509,7 @@ const Scene = ({ quality }: { quality: QualityTier }) => {
 
   return (
     <>
+      <ScrollAtmosphere />
       <color attach="background" args={['#030712']} />
       <fog attach="fog" args={['#030712', 8, 28]} />
       <ambientLight intensity={0.35} />
@@ -317,8 +540,10 @@ const Scene = ({ quality }: { quality: QualityTier }) => {
       />
 
       <PortalTorus quality={quality} />
+      {!reducedMotion && <EnergyRing quality={quality} />}
       <GlyphOrbit quality={quality} />
       <NebulaField quality={quality} />
+      {!reducedMotion && <PrismaticShards quality={quality} />}
       {!reducedMotion && <RibbonField quality={quality} />}
 
       <Scroll html>
@@ -329,7 +554,9 @@ const Scene = ({ quality }: { quality: QualityTier }) => {
               className="hero-explorer__label"
               style={{ '--i': idx } as CSSProperties}
             >
-              <p className="hero-explorer__kicker">{String(idx + 1).padStart(2, '0')}</p>
+              <p className="hero-explorer__kicker">
+                {String(idx + 1).padStart(2, '0')}
+              </p>
               <h3>{ch.title}</h3>
               <p>{ch.copy}</p>
             </div>
@@ -341,7 +568,10 @@ const Scene = ({ quality }: { quality: QualityTier }) => {
 
       {!reducedMotion && (
         <EffectComposer multisampling={quality === 'desktop' ? 4 : 0}>
-          <Bloom intensity={quality === 'desktop' ? 1.05 : 0.55} luminanceThreshold={0.35} />
+          <Bloom
+            intensity={quality === 'desktop' ? 1.05 : 0.55}
+            luminanceThreshold={0.35}
+          />
           <ChromaticAberration
             offset={new THREE.Vector2(0.0016, 0.0012)}
             blendFunction={BlendFunction.NORMAL}
@@ -373,6 +603,16 @@ const DiscoveryRail = () => {
       title: 'Portal Variants',
       desc: 'Refraction presets for lens, ripple, and prismatic glass.',
     },
+    {
+      id: 'aurora',
+      title: 'Aurora Veil',
+      desc: 'Scroll-synced hue grading + low-noise fog veil for depth.',
+    },
+    {
+      id: 'shards',
+      title: 'Prism Shards',
+      desc: 'Instanced prismatic fragments orbit and shimmer as you scroll.',
+    },
   ];
 
   return (
@@ -400,18 +640,35 @@ const HeroExplorer = () => {
   }, []);
 
   const dpr = useMemo(() => {
-    const target = quality === 'desktop' ? 1.75 : quality === 'mobile' ? 1.35 : 1;
-    return Math.min(target, typeof window !== 'undefined' ? window.devicePixelRatio ?? 1.5 : 1.25);
+    const target =
+      quality === 'desktop' ? 1.75 : quality === 'mobile' ? 1.35 : 1;
+    return Math.min(
+      target,
+      typeof window !== 'undefined' ? (window.devicePixelRatio ?? 1.5) : 1.25
+    );
   }, [quality]);
 
   const pages = chapters.length + 0.8;
 
+  const heroPagesForCss = useMemo(() => {
+    // Slightly longer than ScrollControls pages so the sticky + rail feels spacious.
+    const target = Math.max(6, Math.round(pages * 1.15));
+    return String(target);
+  }, [pages]);
+
   return (
-    <section className="hero-explorer" data-hero-quality={quality}>
+    <section
+      className="hero-explorer"
+      data-hero-quality={quality}
+      style={{ '--hero-pages': heroPagesForCss } as CSSProperties}
+    >
       <div className="hero-explorer__sticky">
         <Canvas
           dpr={dpr}
-          gl={{ antialias: quality === 'desktop', powerPreference: 'high-performance' }}
+          gl={{
+            antialias: quality === 'desktop',
+            powerPreference: 'high-performance',
+          }}
           camera={{ position: [0, 0, 7], fov: 46 }}
         >
           <Suspense fallback={null}>
