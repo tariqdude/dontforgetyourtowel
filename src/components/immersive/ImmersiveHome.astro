@@ -1,28 +1,68 @@
 ---
 import ImmersiveLabs from '../react/ImmersiveLabs.tsx';
 const chapters = [
-  // Longer, more cinematic scroll (chapters can repeat scenes intentionally)
-  { id: 'origin' },
-  { id: 'origin' },
-  { id: 'interference' },
-  { id: 'interference' },
-  { id: 'field' },
-  { id: 'field' },
-  { id: 'lensing' },
-  { id: 'lensing' },
-  { id: 'collapse' },
-  { id: 'collapse' },
-  { id: 'afterglow' },
-  { id: 'afterglow' },
-  { id: 'warp' },
-  { id: 'warp' },
+  {
+    id: 'scene00',
+    title: 'Origin Core',
+    caption: 'Cinematic resonance chamber tuned to scroll.',
+  },
+  {
+    id: 'scene01',
+    title: 'Liquid‑Metal SDF Relic',
+    caption: 'A living artifact morphing across materials.',
+  },
+  {
+    id: 'scene02',
+    title: 'Million Fireflies',
+    caption: 'Swarm intelligence in a luminous flow-field.',
+  },
+  {
+    id: 'scene03',
+    title: 'Kinetic Typography Monolith',
+    caption: 'Editorial letters assembling then shattering.',
+  },
+  {
+    id: 'scene04',
+    title: 'Non‑Euclidean Corridor',
+    caption: 'Impossible geometry folding through portals.',
+  },
+  {
+    id: 'scene05',
+    title: 'Crystal Refraction Garden',
+    caption: 'Dangerous light bending through prisms.',
+  },
+  {
+    id: 'scene06',
+    title: 'Blueprint → Object Assembly',
+    caption: 'Line truth inflates into solid reality.',
+  },
+  {
+    id: 'scene07',
+    title: 'Volumetric Ink Chamber',
+    caption: 'Ink clouds carve a hidden silhouette.',
+  },
+  {
+    id: 'scene08',
+    title: 'Cloth & Light',
+    caption: 'A colossal banner wrapping past the lens.',
+  },
+  {
+    id: 'scene09',
+    title: 'Sculpted Point Cloud',
+    caption: 'Scan-grade points re‑lit in real time.',
+  },
+  {
+    id: 'scene10',
+    title: 'Fractal Finale',
+    caption: 'Infinite descent collapsing into a mark.',
+  },
 ];
 ---
 
 <section
   class="ih"
   data-ih=""
-  data-ih-scene="origin"
+  data-ih-scene="scene00"
   style={`--ih-chapters:${chapters.length}`}
 >
   <div class="ih-stage" aria-hidden="true">
@@ -35,6 +75,17 @@ const chapters = [
       </div>
 
       <div class="ih-debug" data-ih-debug aria-hidden="true"></div>
+
+      <div class="ih-floor" data-ih-floor aria-live="polite">
+        <div class="ih-floor-index" data-ih-floor-index>01</div>
+        <div class="ih-floor-copy">
+          <div class="ih-floor-title" data-ih-floor-title>Origin Core</div>
+          <div class="ih-floor-caption" data-ih-floor-caption>
+            Cinematic resonance chamber tuned to scroll.
+          </div>
+          <div class="ih-floor-hint" data-ih-floor-hint>Scroll to descend</div>
+        </div>
+      </div>
 
       <div class="ih-hint" data-ih-hint aria-hidden="true">
         <span class="ih-hint-pill">Tap to pulse · Pinch to zoom</span>
@@ -59,7 +110,13 @@ const chapters = [
   <div class="ih-track" aria-hidden="true">
     {
       chapters.map(ch => (
-        <section class="ih-chapter" data-ih-chapter="" data-scene={ch.id} />
+        <section
+          class="ih-chapter"
+          data-ih-chapter=""
+          data-scene={ch.id}
+          data-title={ch.title}
+          data-caption={ch.caption}
+        />
       ))
     }
   </div>
@@ -106,18 +163,10 @@ const chapters = [
         </h3>
         <div class="ih-rail-track">
           {
-            [
-              'Origin',
-              'Interference',
-              'Field',
-              'Lensing',
-              'Collapse',
-              'Afterglow',
-              'Warp',
-            ].map((label, i) => (
+            chapters.map((ch, i) => (
               <div class="ih-rail-item" data-ih-rail-item data-index={i}>
                 <span class="ih-rail-dot" />
-                <span class="ih-rail-label">{label}</span>
+                <span class="ih-rail-label">{ch.title}</span>
               </div>
             ))
           }
@@ -535,6 +584,52 @@ const chapters = [
       transform 180ms ease;
     pointer-events: none;
     white-space: pre-wrap;
+  }
+
+  .ih-floor {
+    position: absolute;
+    left: clamp(16px, 3vw, 40px);
+    top: clamp(18px, 4vh, 48px);
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 16px;
+    padding: 14px 18px;
+    border-radius: 18px;
+    background: rgba(2, 6, 23, 0.55);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 18px 60px rgba(2, 6, 23, 0.45);
+    z-index: 4;
+    max-width: min(80vw, 520px);
+  }
+
+  .ih-floor-index {
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+      'Courier New', monospace;
+    font-size: 1.1rem;
+    letter-spacing: 0.2em;
+    color: rgba(226, 232, 240, 0.8);
+  }
+
+  .ih-floor-title {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #f8fafc;
+  }
+
+  .ih-floor-caption {
+    font-size: 0.9rem;
+    color: rgba(226, 232, 240, 0.78);
+    margin-top: 4px;
+  }
+
+  .ih-floor-hint {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: rgba(148, 163, 184, 0.7);
+    margin-top: 8px;
   }
 
   .ih-hint {
@@ -1339,6 +1434,13 @@ const chapters = [
 
     .ih-panel {
       padding: 24px;
+    }
+
+    .ih-floor {
+      left: 12px;
+      right: 12px;
+      grid-template-columns: 1fr;
+      gap: 8px;
     }
 
     .ih-labs-scene {

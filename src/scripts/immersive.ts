@@ -1,7 +1,7 @@
 import { createAstroMount } from './immersive/core/lifecycle';
 import { getImmersiveCaps } from './immersive/core/caps';
 import { setupImmersiveChoreography } from './immersive/ui/choreography';
-import { ThreeStage } from './immersive/three/stage';
+import { SceneDirector } from './immersive/three/scene-director';
 
 type IHWindow = Window & {
   __ih2?: {
@@ -43,14 +43,14 @@ const mount = () => {
   cleanups.push(setupImmersiveChoreography(root, caps));
 
   // 3D stage (optional).
-  let stage: ThreeStage | null = null;
+  let stage: SceneDirector | null = null;
   if (!caps.webgl) {
     root.dataset.ihCenter = 'css';
     root.dataset.ihStatus = 'webgl-unavailable';
     root.dataset.ihStatusDetail = 'WebGL not available';
   } else {
     try {
-      stage = new ThreeStage(root, canvas, caps);
+      stage = new SceneDirector(root, canvas, caps);
     } catch (err) {
       root.dataset.ihCenter = 'css';
       root.dataset.ihStatus = 'init-failed';
