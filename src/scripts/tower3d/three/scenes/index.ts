@@ -360,6 +360,11 @@ class RaymarchScene extends SceneBase {
         uniform vec2 uPointer;
         uniform float uMode;
 
+        vec3 filmic(vec3 x) {
+          x = max(vec3(0.0), x);
+          return (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14);
+        }
+
         float sdSphere(vec3 p, float r) {
           return length(p) - r;
         }
@@ -427,12 +432,39 @@ class RaymarchScene extends SceneBase {
 
         vec3 shade(vec3 p, vec3 rd) {
           vec3 n = getNormal(p);
-          vec3 lightDir = normalize(vec3(0.6, 0.8, 0.4));
-          float diff = clamp(dot(n, lightDir), 0.0, 1.0);
-          float rim = pow(1.0 - clamp(dot(n, -rd), 0.0, 1.0), 2.4);
-          vec3 base = mix(vec3(0.1, 0.14, 0.2), vec3(0.5, 0.7, 1.0), diff);
-          vec3 metal = mix(vec3(0.75, 0.82, 0.9), vec3(1.0, 0.4, 0.7), 0.35 + uProgress * 0.4);
-          return mix(base, metal, 0.6) + rim * vec3(0.3, 0.5, 0.9);
+          vec3 lightA = normalize(vec3(0.6, 0.85, 0.45));
+          vec3 lightB = normalize(vec3(-0.45, 0.25, 0.85));
+
+          float diffA = clamp(dot(n, lightA), 0.0, 1.0);
+          float diffB = clamp(dot(n, lightB), 0.0, 1.0);
+          float diff = diffA * 0.75 + diffB * 0.45;
+
+          vec3 hA = normalize(lightA - rd);
+          float specA = pow(clamp(dot(n, hA), 0.0, 1.0), 64.0);
+          vec3 hB = normalize(lightB - rd);
+          float specB = pow(clamp(dot(n, hB), 0.0, 1.0), 32.0);
+
+          float fres = pow(1.0 - clamp(dot(n, -rd), 0.0, 1.0), 5.0);
+          float rim = pow(1.0 - clamp(dot(n, -rd), 0.0, 1.0), 2.25);
+
+          // Tiny AO approximation (3 taps) — heavy but worth it.
+          float ao = 0.0;
+          ao += (0.02 - mapScene(p + n * 0.02));
+          ao += (0.05 - mapScene(p + n * 0.05));
+          ao += (0.09 - mapScene(p + n * 0.09));
+          ao = clamp(1.0 - ao * 2.0, 0.0, 1.0);
+
+          vec3 baseCool = mix(vec3(0.06, 0.09, 0.14), vec3(0.45, 0.72, 1.1), diff);
+          vec3 baseHot = mix(vec3(0.08, 0.06, 0.1), vec3(1.15, 0.42, 0.72), diff);
+          float modeMix = smoothstep(0.0, 2.0, uMode);
+          vec3 base = mix(baseCool, baseHot, 0.2 + 0.6 * modeMix);
+
+          vec3 specCol = mix(vec3(0.6, 0.8, 1.2), vec3(1.2, 0.6, 0.9), 0.25 + 0.5 * uProgress);
+          vec3 col = base * ao;
+          col += (specA * 0.9 + specB * 0.55) * specCol;
+          col += rim * (0.12 + 0.35 * uProgress) * vec3(0.35, 0.55, 1.0);
+          col += fres * 0.25 * vec3(0.5, 0.75, 1.2);
+          return col;
         }
 
         void main() {
@@ -444,7 +476,7 @@ class RaymarchScene extends SceneBase {
 
           float t = 0.0;
           float hit = -1.0;
-          for (int i = 0; i < 72; i++) {
+          for (int i = 0; i < 110; i++) {
             vec3 p = ro + rd * t;
             float d = mapScene(p);
             if (d < 0.001) {
@@ -455,16 +487,17 @@ class RaymarchScene extends SceneBase {
             if (t > 7.0) break;
           }
 
-          vec3 col = vec3(0.02, 0.04, 0.08);
+          vec3 col = vec3(0.015, 0.025, 0.06);
           if (hit > 0.0) {
             vec3 p = ro + rd * hit;
             col = shade(p, rd);
-            float fog = exp(-hit * 0.35);
-            col = mix(vec3(0.01, 0.02, 0.04), col, fog);
+            float fog = exp(-hit * (0.28 + 0.12 * sin(uTime * 0.2)));
+            col = mix(vec3(0.01, 0.015, 0.03), col, fog);
           }
 
           float vign = smoothstep(1.2, 0.2, length(uv));
           col *= 0.75 + vign * 0.35;
+          col = filmic(col);
           gl_FragColor = vec4(col, 1.0);
         }
       `,
@@ -503,7 +536,7 @@ class SwarmScene extends SceneBase {
     const cam = this.camera as THREE.PerspectiveCamera;
     cam.position.set(0, 0, 7.5);
 
-    const count = 1800;
+    const count = 6500;
     const positions = new Float32Array(count * 3);
     const velocities = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
@@ -523,7 +556,7 @@ class SwarmScene extends SceneBase {
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     const mat = new THREE.PointsMaterial({
       color: new THREE.Color(0x8ef3ff),
-      size: 0.028,
+      size: 0.024,
       transparent: true,
       opacity: 0.7,
       depthWrite: false,
@@ -542,8 +575,8 @@ class SwarmScene extends SceneBase {
     const arr = attr.array as Float32Array;
     const count = arr.length / 3;
     const t = ctx.time;
-    const pull = 0.35 + ctx.localProgress * 0.8;
-    const swirl = 0.4 + ctx.localProgress * 1.1;
+    const pull = 0.28 + ctx.localProgress * 0.95;
+    const swirl = 0.55 + ctx.localProgress * 1.35;
     const pointer = ctx.pointer;
 
     for (let i = 0; i < count; i++) {
@@ -557,10 +590,10 @@ class SwarmScene extends SceneBase {
       const bz = this.base[idx + 2];
 
       const ax =
-        Math.sin(t * 0.9 + py * 0.6) * swirl - px * 0.12 + pointer.x * 0.4;
-      const ay = Math.cos(t * 0.7 + px * 0.8) * 0.4 - py * 0.08;
+        Math.sin(t * 0.95 + py * 0.65) * swirl - px * 0.11 + pointer.x * 0.55;
+      const ay = Math.cos(t * 0.75 + px * 0.85) * 0.42 - py * 0.07;
       const az =
-        Math.cos(t * 0.8 + px * 0.5) * swirl - pz * 0.12 + pointer.y * 0.35;
+        Math.cos(t * 0.82 + px * 0.55) * swirl - pz * 0.11 + pointer.y * 0.48;
 
       this.velocities[idx] =
         this.velocities[idx] * 0.92 + ax * 0.02 + (bx - px) * pull * 0.01;
@@ -569,9 +602,9 @@ class SwarmScene extends SceneBase {
       this.velocities[idx + 2] =
         this.velocities[idx + 2] * 0.92 + az * 0.02 + (bz - pz) * pull * 0.01;
 
-      arr[idx] += this.velocities[idx] * ctx.dt * 2.4;
-      arr[idx + 1] += this.velocities[idx + 1] * ctx.dt * 2.4;
-      arr[idx + 2] += this.velocities[idx + 2] * ctx.dt * 2.4;
+      arr[idx] += this.velocities[idx] * ctx.dt * 2.15;
+      arr[idx + 1] += this.velocities[idx + 1] * ctx.dt * 2.15;
+      arr[idx + 2] += this.velocities[idx + 2] * ctx.dt * 2.15;
     }
 
     attr.needsUpdate = true;
@@ -674,8 +707,9 @@ class KineticTypeScene extends SceneBase {
 class CorridorScene extends SceneBase {
   private frames: THREE.InstancedMesh;
   private portal: THREE.Mesh;
+  private portalMat: THREE.ShaderMaterial;
   private color = new THREE.Color();
-  private frameCount = 26;
+  private frameCount = 70;
 
   constructor() {
     super('scene04');
@@ -704,12 +738,62 @@ class CorridorScene extends SceneBase {
     this.scene.add(this.frames);
 
     const portalGeo = new THREE.CircleGeometry(0.8, 64);
-    const portalMat = new THREE.MeshBasicMaterial({
-      color: 0x8ad1ff,
+    this.portalMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uProgress: { value: 0 },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        precision highp float;
+        varying vec2 vUv;
+        uniform float uTime;
+        uniform float uProgress;
+
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          float a = hash(i);
+          float b = hash(i + vec2(1.0, 0.0));
+          float c = hash(i + vec2(0.0, 1.0));
+          float d = hash(i + vec2(1.0, 1.0));
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+        }
+
+        void main() {
+          vec2 uv = vUv;
+          vec2 p = uv - 0.5;
+          float r = length(p);
+          float a = atan(p.y, p.x);
+
+          float t = uTime * 0.25;
+          float bands = sin(a * 6.0 + t * 6.0) * 0.5 + 0.5;
+          float n = noise(p * 6.0 + vec2(t, -t));
+
+          float ring = smoothstep(0.48 + 0.1 * uProgress, 0.12, r);
+          float core = smoothstep(0.22, 0.0, r);
+
+          vec3 col = mix(vec3(0.05, 0.09, 0.15), vec3(0.35, 0.75, 1.25), bands);
+          col += n * 0.35;
+          col *= ring;
+          col += core * vec3(0.25, 0.55, 1.0);
+          float alpha = ring * (0.35 + 0.55 * uProgress);
+          gl_FragColor = vec4(col, alpha);
+        }
+      `,
       transparent: true,
-      opacity: 0.6,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
     });
-    this.portal = new THREE.Mesh(portalGeo, portalMat);
+    this.portal = new THREE.Mesh(portalGeo, this.portalMat);
     this.portal.position.z = -4.0;
     this.scene.add(this.portal);
 
@@ -728,8 +812,8 @@ class CorridorScene extends SceneBase {
     cam.lookAt(0, 0, -6);
 
     this.portal.scale.setScalar(1 + Math.sin(t * 1.4) * 0.05 + progress * 0.25);
-    const portalMat = this.portal.material as THREE.MeshBasicMaterial;
-    portalMat.opacity = 0.45 + progress * 0.4;
+    this.portalMat.uniforms.uTime.value = t;
+    this.portalMat.uniforms.uProgress.value = progress;
 
     const frameMat = this.frames.material as THREE.MeshStandardMaterial;
     this.color.setHSL(0.55 + progress * 0.2, 0.85, 0.55);
@@ -916,16 +1000,45 @@ class InkScene extends SceneBase {
           return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
         }
 
+        float fbm(vec2 p) {
+          float v = 0.0;
+          float a = 0.5;
+          mat2 m = mat2(1.6, 1.2, -1.2, 1.6);
+          for (int i = 0; i < 5; i++) {
+            v += a * noise(p);
+            p = m * p;
+            a *= 0.55;
+          }
+          return v;
+        }
+
         void main() {
           vec2 uv = vUv;
           vec2 p = (uv - 0.5) * vec2(uResolution.x / uResolution.y, 1.0);
-          float t = uTime * 0.2;
-          float n = noise(p * 2.2 + t);
-          float ink = smoothstep(0.15 + uProgress * 0.2, 0.75, n);
-          float reveal = smoothstep(0.2, 0.8, uProgress);
-          float silhouette = smoothstep(0.25, 0.5, length(p + uPointer * 0.2));
-          float fog = mix(ink, silhouette, reveal);
-          vec3 col = mix(vec3(0.02, 0.02, 0.03), vec3(0.7, 0.75, 0.9), fog);
+          float t = uTime * 0.18;
+
+          // Curl-ish advection
+          vec2 q = p;
+          q += vec2(sin(q.y * 2.3 + t), cos(q.x * 2.1 - t)) * 0.08;
+          q += uPointer * 0.18;
+
+          float n = fbm(q * 2.8 + t);
+          float m = fbm(q * 5.8 - t * 0.7);
+          float ink = smoothstep(0.18 + uProgress * 0.16, 0.88, n + m * 0.35);
+
+          float reveal = smoothstep(0.12, 0.92, uProgress);
+          float silhouette = smoothstep(0.42, 0.06, length(p + uPointer * 0.22));
+          float body = mix(ink, silhouette, reveal);
+
+          vec3 bg = vec3(0.015, 0.017, 0.024);
+          vec3 hi = vec3(0.65, 0.78, 1.15);
+          vec3 mid = vec3(0.22, 0.28, 0.42);
+          vec3 col = mix(bg, mid, body);
+          col = mix(col, hi, pow(body, 3.0) * 0.75);
+
+          // Vignette
+          float vig = smoothstep(1.0, 0.25, length(p));
+          col *= 0.72 + 0.38 * vig;
           gl_FragColor = vec4(col, 1.0);
         }
       `,
@@ -956,7 +1069,7 @@ class ClothScene extends SceneBase {
 
   constructor() {
     super('scene08');
-    const geo = new THREE.PlaneGeometry(5, 3.2, 90, 60);
+    const geo = new THREE.PlaneGeometry(5, 3.2, 140, 90);
     const uniforms = {
       uTime: { value: 0 },
       uProgress: { value: 0 },
@@ -966,26 +1079,43 @@ class ClothScene extends SceneBase {
       uniforms,
       vertexShader: `
         varying vec2 vUv;
+        varying float vWave;
         uniform float uTime;
         uniform float uProgress;
         uniform float uWind;
+        float hash(float n) { return fract(sin(n) * 43758.5453); }
         void main() {
           vUv = uv;
           vec3 pos = position;
-          float wave = sin((pos.x + uTime * 1.2) * 2.0) * 0.08;
-          float ripple = cos((pos.y + uTime * 1.6) * 3.0) * 0.05;
-          float gust = sin(uTime * 0.7 + pos.x * 1.5) * 0.12 * uWind;
-          pos.z += wave + ripple + gust;
-          pos.x += sin(uTime + pos.y * 1.2) * 0.05 * uProgress;
+          float wave = sin((pos.x + uTime * 1.3) * 2.2) * 0.09;
+          float ripple = cos((pos.y + uTime * 1.7) * 3.4) * 0.06;
+          float gust = sin(uTime * 0.8 + pos.x * 1.7) * 0.16 * uWind;
+          float wrinkle = sin((pos.x + pos.y) * 6.0 + uTime * 2.0) * 0.015;
+          float waveSum = wave + ripple + gust + wrinkle;
+          vWave = waveSum;
+          pos.z += waveSum;
+          pos.x += sin(uTime + pos.y * 1.3) * 0.06 * uProgress;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
         }
       `,
       fragmentShader: `
         varying vec2 vUv;
+        varying float vWave;
         void main() {
-          vec3 base = mix(vec3(0.05, 0.08, 0.12), vec3(0.4, 0.5, 0.7), vUv.x);
-          float sheen = smoothstep(0.2, 0.8, vUv.y) * 0.35;
-          gl_FragColor = vec4(base + sheen, 1.0);
+          vec3 a = vec3(0.04, 0.06, 0.09);
+          vec3 b = vec3(0.42, 0.55, 0.78);
+          vec3 base = mix(a, b, smoothstep(0.0, 1.0, vUv.x));
+
+          // Fake weave + sheen
+          float weave = sin(vUv.x * 180.0) * sin(vUv.y * 120.0);
+          float sheen = smoothstep(-0.02, 0.08, vWave) * 0.65;
+          base += weave * 0.03;
+          base += sheen * vec3(0.25, 0.35, 0.55);
+
+          // Edge darkening for depth
+          float edge = smoothstep(0.95, 0.6, abs(vUv.x - 0.5) * 2.0);
+          base *= 0.8 + 0.2 * edge;
+          gl_FragColor = vec4(base, 1.0);
         }
       `,
       side: THREE.DoubleSide,
@@ -1022,8 +1152,8 @@ class PointCloudScene extends SceneBase {
     const cam = this.camera as THREE.PerspectiveCamera;
     cam.position.set(0, 0, 7);
 
-    const geoA = new THREE.TorusKnotGeometry(1.2, 0.35, 260, 20);
-    const geoB = new THREE.SphereGeometry(1.4, 28, 20);
+    const geoA = new THREE.TorusKnotGeometry(1.25, 0.34, 520, 28);
+    const geoB = new THREE.IcosahedronGeometry(1.6, 6);
     const positionsA = geoA.getAttribute('position').array as Float32Array;
     const positionsB = geoB.getAttribute('position').array as Float32Array;
 
@@ -1042,7 +1172,7 @@ class PointCloudScene extends SceneBase {
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     const mat = new THREE.PointsMaterial({
       color: new THREE.Color(0x8bd8ff),
-      size: 0.02,
+      size: 0.016,
       transparent: true,
       opacity: 0.7,
       depthWrite: false,
@@ -1069,6 +1199,21 @@ class PointCloudScene extends SceneBase {
     this.color.setHSL(0.55 + progress * 0.2, 0.85, 0.65);
     mat.color.copy(this.color);
     mat.size = 0.016 + progress * 0.018;
+
+    // Heavy camera drift for depth.
+    const cam = this.camera as THREE.PerspectiveCamera;
+    cam.position.x = damp(cam.position.x, ctx.pointer.x * 0.6, 3, ctx.dt);
+    cam.position.y = damp(cam.position.y, ctx.pointer.y * 0.35, 3, ctx.dt);
+    cam.lookAt(0, 0, 0);
+
+    this.points.rotation.y +=
+      ctx.dt * (0.12 + Math.abs(ctx.scrollVelocity) * 0.08);
+    this.points.rotation.x = damp(
+      this.points.rotation.x,
+      ctx.pointer.y * 0.35,
+      4,
+      ctx.dt
+    );
   }
 }
 

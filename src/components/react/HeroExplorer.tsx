@@ -212,6 +212,8 @@ const useQualityTier = (): QualityTier => {
   return tier;
 };
 
+type HeroExplorerMode = 'full' | 'landing';
+
 const CameraRig = ({ chapters }: { chapters: Chapter[] }) => {
   const scroll = useScroll();
   const { camera } = useThree();
@@ -1271,7 +1273,13 @@ const DiscoveryRail = ({ onBurst }: { onBurst: () => void }) => {
   );
 };
 
-const HeroExplorer = ({ showPost = true }: { showPost?: boolean }) => {
+const HeroExplorer = ({
+  showPost = true,
+  mode = 'full',
+}: {
+  showPost?: boolean;
+  mode?: HeroExplorerMode;
+}) => {
   const quality = useQualityTier();
 
   const dpr = useMemo(() => {
@@ -1284,15 +1292,17 @@ const HeroExplorer = ({ showPost = true }: { showPost?: boolean }) => {
   }, [quality]);
 
   const pages = useMemo(() => {
+    if (mode === 'landing') return 1.01;
     const total = chapterWeights.reduce((sum, w) => sum + Math.max(0.2, w), 0);
     return total + 0.9;
-  }, []);
+  }, [mode]);
 
   const heroPagesForCss = useMemo(() => {
+    if (mode === 'landing') return '1';
     // Slightly longer than ScrollControls pages so the sticky + rail feels spacious.
     const target = Math.max(10, Math.round(pages * 1.18));
     return String(target);
-  }, [pages]);
+  }, [mode, pages]);
 
   return (
     <section

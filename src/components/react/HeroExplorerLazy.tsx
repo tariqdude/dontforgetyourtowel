@@ -64,7 +64,7 @@ const hasWebGL = () => {
 const HeroExplorerLazy = () =>
   hasWebGL() ? (
     <Suspense fallback={<Loading />}>
-      <HeroExplorer showPost={false} />
+      <HeroExplorer showPost={false} mode="landing" />
     </Suspense>
   ) : (
     <NoWebGL />

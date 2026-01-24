@@ -82,7 +82,8 @@ export const getTowerCaps = (): TowerCaps => {
   );
 
   const devicePixelRatio = Math.max(1, Number(window.devicePixelRatio || 1));
-  const maxDpr = coarsePointer ? 1.5 : 2;
+  // Modern phones can handle higher pixel density; still keep an upper bound.
+  const maxDpr = coarsePointer ? 2 : 2.5;
 
   let webgl = false;
   let webgl2 = false;

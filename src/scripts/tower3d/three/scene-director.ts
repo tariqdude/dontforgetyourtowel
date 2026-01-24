@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import gsap from 'gsap';
 import type { TowerCaps } from '../core/caps';
 import { createScenes } from './scenes';
 import type { SceneRuntime, TowerScene } from './scenes';
@@ -33,8 +34,15 @@ export class SceneDirector {
   private transitionCamera: THREE.OrthographicCamera;
   private transitionMaterial: THREE.ShaderMaterial;
   private transitionMesh: THREE.Mesh;
+
+  private postScene: THREE.Scene;
+  private postCamera: THREE.OrthographicCamera;
+  private postMaterial: THREE.ShaderMaterial;
+  private postMesh: THREE.Mesh;
+
   private rtA: THREE.WebGLRenderTarget;
   private rtB: THREE.WebGLRenderTarget;
+  private rtBlend: THREE.WebGLRenderTarget;
 
   private pointer = new THREE.Vector2();
   private pointerTarget = new THREE.Vector2();
@@ -55,6 +63,8 @@ export class SceneDirector {
   private sceneIndex = 0;
   private localProgress = 0;
   private scrollProgress = 0;
+
+  private easeInOut = gsap.parseEase('power3.inOut');
 
   constructor(root: HTMLElement, canvas: HTMLCanvasElement, caps: TowerCaps) {
     this.root = root;
@@ -99,6 +109,11 @@ export class SceneDirector {
         uniform float uNoiseScale;
         uniform float uEdge;
 
+        vec3 filmic(vec3 x) {
+          x = max(vec3(0.0), x);
+          return (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14);
+        }
+
         float hash(vec2 p) {
           return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
         }
@@ -116,11 +131,36 @@ export class SceneDirector {
 
         void main() {
           vec2 uv = vUv;
-          float n = noise(uv * uNoiseScale + uProgress * 0.6);
-          float edge = smoothstep(uProgress - uEdge, uProgress + uEdge, n);
-          vec4 fromCol = texture2D(tFrom, uv);
-          vec4 toCol = texture2D(tTo, uv);
-          gl_FragColor = mix(fromCol, toCol, edge);
+          vec2 center = uv - 0.5;
+          float r = length(center);
+
+          // Directional drift + subtle zoom makes the transition feel like a camera move.
+          float p = clamp(uProgress, 0.0, 1.0);
+          float zoom = mix(1.0, 1.02, p);
+          uv = (uv - 0.5) / zoom + 0.5;
+          uv += vec2(0.015, -0.01) * (p - 0.5);
+
+          // Noisy edge wipe (stable-ish + cinematic)
+          float n = noise(uv * uNoiseScale + vec2(p * 1.1, p * 0.7));
+          float edge = smoothstep(p - uEdge, p + uEdge, n);
+
+          // Mild chromatic separation near edges during transition
+          float ca = 0.0025 * smoothstep(0.15, 0.85, r) * (0.35 + 0.65 * sin(p * 3.14159));
+          vec2 caDir = normalize(center + 1e-6) * ca;
+
+          vec3 fromCol;
+          fromCol.r = texture2D(tFrom, uv + caDir).r;
+          fromCol.g = texture2D(tFrom, uv).g;
+          fromCol.b = texture2D(tFrom, uv - caDir).b;
+
+          vec3 toCol;
+          toCol.r = texture2D(tTo, uv + caDir).r;
+          toCol.g = texture2D(tTo, uv).g;
+          toCol.b = texture2D(tTo, uv - caDir).b;
+
+          vec3 col = mix(fromCol, toCol, edge);
+          col = filmic(col);
+          gl_FragColor = vec4(col, 1.0);
         }
       `,
       depthTest: false,
@@ -132,6 +172,80 @@ export class SceneDirector {
     );
     this.transitionScene.add(this.transitionMesh);
 
+    this.postScene = new THREE.Scene();
+    this.postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    this.postMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        tScene: { value: null },
+        uTime: { value: 0 },
+        uVignette: { value: 0.42 },
+        uGrain: { value: 0.09 },
+        uChromatic: { value: 0.0035 },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = vec4(position.xy, 0.0, 1.0);
+        }
+      `,
+      fragmentShader: `
+        precision highp float;
+        varying vec2 vUv;
+        uniform sampler2D tScene;
+        uniform float uTime;
+        uniform float uVignette;
+        uniform float uGrain;
+        uniform float uChromatic;
+
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+
+        vec3 sampleChromatic(vec2 uv, float strength) {
+          vec2 c = uv - 0.5;
+          float r = length(c);
+          vec2 dir = normalize(c + 1e-6);
+          float amt = strength * smoothstep(0.12, 0.9, r);
+          vec2 off = dir * amt;
+          vec3 col;
+          col.r = texture2D(tScene, uv + off).r;
+          col.g = texture2D(tScene, uv).g;
+          col.b = texture2D(tScene, uv - off).b;
+          return col;
+        }
+
+        void main() {
+          vec2 uv = vUv;
+          vec2 c = uv - 0.5;
+          float r = length(c);
+
+          // Subtle breathing warp (keeps motion alive without UI)
+          float wobble = 0.0025 * sin(uTime * 0.6 + r * 8.0);
+          uv += normalize(c + 1e-6) * wobble;
+
+          vec3 col = sampleChromatic(uv, uChromatic);
+
+          // Vignette
+          float vig = smoothstep(0.92, 0.25, r);
+          col *= mix(1.0 - uVignette, 1.0, vig);
+
+          // Film grain
+          float g = (hash(uv * vec2(1920.0, 1080.0) + uTime * 60.0) - 0.5);
+          col += g * uGrain;
+
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
+      depthTest: false,
+      depthWrite: false,
+    });
+    this.postMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(2, 2),
+      this.postMaterial
+    );
+    this.postScene.add(this.postMesh);
+
     this.rtA = new THREE.WebGLRenderTarget(1, 1, {
       minFilter: THREE.LinearFilter,
       magFilter: THREE.LinearFilter,
@@ -142,6 +256,13 @@ export class SceneDirector {
       minFilter: THREE.LinearFilter,
       magFilter: THREE.LinearFilter,
       depthBuffer: true,
+      stencilBuffer: false,
+    });
+
+    this.rtBlend = new THREE.WebGLRenderTarget(1, 1, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+      depthBuffer: false,
       stencilBuffer: false,
     });
 
@@ -219,7 +340,7 @@ export class SceneDirector {
     if (!force && w === this.size.width && h === this.size.height) return;
 
     const baseDpr = Math.max(1, this.caps.devicePixelRatio);
-    const capDpr = this.caps.coarsePointer ? 1.3 : 2;
+    const capDpr = this.caps.coarsePointer ? 2 : 2.5;
     const targetDpr = Math.min(this.caps.maxDpr, capDpr, baseDpr);
 
     this.size = { width: w, height: h, dpr: targetDpr };
@@ -228,6 +349,7 @@ export class SceneDirector {
 
     this.rtA.setSize(w * this.size.dpr, h * this.size.dpr);
     this.rtB.setSize(w * this.size.dpr, h * this.size.dpr);
+    this.rtBlend.setSize(w * this.size.dpr, h * this.size.dpr);
   }
 
   private computeScroll(): void {
@@ -249,11 +371,12 @@ export class SceneDirector {
   }
 
   private resolveSceneId(): string {
+    const chapterScene = this.chapters[this.sceneIndex]?.dataset.scene;
+    if (chapterScene && this.sceneById.has(chapterScene)) return chapterScene;
+
     const fromDataset = this.root.dataset.towerScene || this.root.dataset.scene;
     if (fromDataset && this.sceneById.has(fromDataset)) return fromDataset;
-    const fallbackScene = this.chapters[this.sceneIndex]?.dataset.scene;
-    if (fallbackScene && this.sceneById.has(fallbackScene))
-      return fallbackScene;
+
     return this.activeScene.id;
   }
 
@@ -314,10 +437,15 @@ export class SceneDirector {
     this.root.dataset.towerSceneIndex = String(this.sceneIndex);
 
     const runtime = this.buildRuntime(dt, now);
+    this.postMaterial.uniforms.uTime.value = now;
 
     if (this.transition?.active) {
       const state = this.transition;
       state.t = clamp(state.t + dt / Math.max(0.001, state.duration), 0, 1);
+
+      const eased = this.caps.reducedMotion
+        ? state.t
+        : clamp(Number(this.easeInOut(state.t)), 0, 1);
 
       state.from.update(runtime);
       state.to.update(runtime);
@@ -330,11 +458,18 @@ export class SceneDirector {
       this.renderer.clear(true, true, true);
       state.to.render(runtime);
 
-      this.renderer.setRenderTarget(null);
       this.transitionMaterial.uniforms.tFrom.value = this.rtA.texture;
       this.transitionMaterial.uniforms.tTo.value = this.rtB.texture;
-      this.transitionMaterial.uniforms.uProgress.value = state.t;
+      this.transitionMaterial.uniforms.uProgress.value = eased;
+
+      // Blend into an intermediate target, then apply global post.
+      this.renderer.setRenderTarget(this.rtBlend);
+      this.renderer.clear(true, true, true);
       this.renderer.render(this.transitionScene, this.transitionCamera);
+
+      this.renderer.setRenderTarget(null);
+      this.postMaterial.uniforms.tScene.value = this.rtBlend.texture;
+      this.renderer.render(this.postScene, this.postCamera);
 
       if (state.t >= 1) {
         this.transition = null;
@@ -343,8 +478,13 @@ export class SceneDirector {
     }
 
     this.activeScene.update(runtime);
-    this.renderer.setRenderTarget(null);
+    this.renderer.setRenderTarget(this.rtA);
+    this.renderer.clear(true, true, true);
     this.activeScene.render(runtime);
+
+    this.renderer.setRenderTarget(null);
+    this.postMaterial.uniforms.tScene.value = this.rtA.texture;
+    this.renderer.render(this.postScene, this.postCamera);
   }
 
   public destroy(): void {
@@ -355,8 +495,11 @@ export class SceneDirector {
     this.scenes.forEach(scene => scene.dispose());
     this.rtA.dispose();
     this.rtB.dispose();
+    this.rtBlend.dispose();
     this.transitionMaterial.dispose();
     this.transitionMesh.geometry.dispose();
+    this.postMaterial.dispose();
+    this.postMesh.geometry.dispose();
     this.renderer.dispose();
   }
 }

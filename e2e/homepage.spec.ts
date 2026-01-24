@@ -36,7 +36,7 @@ test.describe('Homepage', () => {
 
     // Enter the classic marketing site, then validate header navigation.
     await Promise.all([
-      page.waitForURL(/.*\/home\/?$/, { timeout: 15000 }),
+      page.waitForURL(/.*\/services\/?$/, { timeout: 15000 }),
       page.getByRole('link', { name: /enter site/i }).click(),
     ]);
 
