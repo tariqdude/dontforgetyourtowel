@@ -165,6 +165,44 @@ const description = 'This page is available offline thanks to service workers';
     <Footer />
 
     <script>
+      // VS Code Simple Browser / local preview can get stuck on this page if an old
+      // service worker keeps serving the offline fallback. On localhost, auto-clean.
+      (async () => {
+        try {
+          const isLocalHost =
+            location.hostname === 'localhost' ||
+            location.hostname === '127.0.0.1' ||
+            location.hostname === '[::1]';
+
+          if (!isLocalHost) return;
+
+          if ('serviceWorker' in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map(r => r.unregister()));
+          }
+
+          if ('caches' in window) {
+            const keys = await caches.keys();
+            await Promise.all(
+              keys
+                .filter(k => k.startsWith('github-pages-project-'))
+                .map(k => caches.delete(k))
+            );
+          }
+
+          // After cleanup, bounce back to the homepage.
+          // Respect base paths like /dontforgetyourtowel/ used in local preview.
+          const parts = location.pathname.split('/').filter(Boolean);
+          const base =
+            parts.length === 0 || parts[0] === 'offline'
+              ? '/'
+              : `/${parts[0]}/`;
+          location.replace(base);
+        } catch {
+          // ignore
+        }
+      })();
+
       // Check connection status
       function updateConnectionStatus() {
         const statusIcon = document.getElementById('status-icon');

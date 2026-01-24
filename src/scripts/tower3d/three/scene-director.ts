@@ -76,9 +76,12 @@ export class SceneDirector {
         tScene: { value: null },
         uTime: { value: 0 },
         uCut: { value: 0 },
+        uResolution: { value: new THREE.Vector2(1, 1) },
         uVignette: { value: 0.26 },
         uGrain: { value: 0.06 },
         uChromatic: { value: 0.0026 },
+        uGlow: { value: this.caps.coarsePointer ? 0.26 : 0.34 },
+        uGlowThreshold: { value: 0.72 },
       },
       vertexShader: `
         varying vec2 vUv;
@@ -93,9 +96,12 @@ export class SceneDirector {
         uniform sampler2D tScene;
         uniform float uTime;
         uniform float uCut;
+        uniform vec2 uResolution;
         uniform float uVignette;
         uniform float uGrain;
         uniform float uChromatic;
+        uniform float uGlow;
+        uniform float uGlowThreshold;
 
         float hash(vec2 p) {
           return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -124,6 +130,31 @@ export class SceneDirector {
           uv += normalize(c + 1e-6) * wobble;
 
           vec3 col = sampleChromatic(uv, uChromatic);
+
+          // Cheap highlight glow/halation (no multi-pass blur).
+          vec2 px = vec2(1.0) / max(uResolution, vec2(1.0));
+          vec3 glow = vec3(0.0);
+          float wsum = 0.0;
+
+          vec2 o1 = px * 1.25;
+          vec2 o2 = px * 2.5;
+
+          // 8 taps (cardinals + diagonals)
+          vec3 s;
+          float w;
+
+          w = 0.35; s = texture2D(tScene, uv + vec2(o1.x, 0.0)).rgb; glow += max(s - vec3(uGlowThreshold), 0.0) * w; wsum += w;
+          w = 0.35; s = texture2D(tScene, uv + vec2(-o1.x, 0.0)).rgb; glow += max(s - vec3(uGlowThreshold), 0.0) * w; wsum += w;
+          w = 0.35; s = texture2D(tScene, uv + vec2(0.0, o1.y)).rgb; glow += max(s - vec3(uGlowThreshold), 0.0) * w; wsum += w;
+          w = 0.35; s = texture2D(tScene, uv + vec2(0.0, -o1.y)).rgb; glow += max(s - vec3(uGlowThreshold), 0.0) * w; wsum += w;
+
+          w = 0.25; s = texture2D(tScene, uv + vec2(o2.x, o2.y)).rgb; glow += max(s - vec3(uGlowThreshold), 0.0) * w; wsum += w;
+          w = 0.25; s = texture2D(tScene, uv + vec2(-o2.x, o2.y)).rgb; glow += max(s - vec3(uGlowThreshold), 0.0) * w; wsum += w;
+          w = 0.25; s = texture2D(tScene, uv + vec2(o2.x, -o2.y)).rgb; glow += max(s - vec3(uGlowThreshold), 0.0) * w; wsum += w;
+          w = 0.25; s = texture2D(tScene, uv + vec2(-o2.x, -o2.y)).rgb; glow += max(s - vec3(uGlowThreshold), 0.0) * w; wsum += w;
+
+          glow /= max(wsum, 1e-6);
+          col += glow * uGlow;
 
           // Robust chapter-cut mask (prevents jarring pops without complex RT blends)
           float cut = clamp(uCut, 0.0, 1.0);
@@ -241,6 +272,11 @@ export class SceneDirector {
     this.renderer.setSize(w, h, false);
 
     this.rtA.setSize(w * this.size.dpr, h * this.size.dpr);
+
+    const res = this.postMaterial.uniforms.uResolution?.value as
+      | THREE.Vector2
+      | undefined;
+    res?.set(w * this.size.dpr, h * this.size.dpr);
   }
 
   private computeScroll(dt: number): void {

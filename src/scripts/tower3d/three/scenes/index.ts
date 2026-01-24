@@ -369,6 +369,17 @@ class RaymarchScene extends SceneBase {
           return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
         }
 
+        float sdRoundBox(vec3 p, vec3 b, float r) {
+          vec3 q = abs(p) - b;
+          return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0) - r;
+        }
+
+        mat2 rot(float a) {
+          float s = sin(a);
+          float c = cos(a);
+          return mat2(c, -s, s, c);
+        }
+
         float sdTorus(vec3 p, vec2 t) {
           vec2 q = vec2(length(p.xz) - t.x, p.y);
           return length(q) - t.y;
@@ -381,11 +392,23 @@ class RaymarchScene extends SceneBase {
 
         float mapBase(vec3 p) {
           float t = uProgress;
-          float a = sdSphere(p, 1.05);
-          float b = sdBox(p, vec3(0.9));
-          float c = sdTorus(p, vec2(0.8, 0.25));
-          float d = opSmoothUnion(a, b, 0.35);
-          float e = opSmoothUnion(d, c, 0.3 + 0.2 * sin(uTime * 0.3));
+          // Rotate the world slightly so it reads volumetric, not planar.
+          vec3 q = p;
+          q.xz *= rot(0.22 * uTime + 0.9 * t);
+          q.yz *= rot(0.15 * uTime);
+
+          // Avoid the literal "box" silhouette: rounded lens + torus blend.
+          float a = sdSphere(q, 1.08);
+          float b = sdRoundBox(q, vec3(0.74), 0.28);
+          float c = sdTorus(q, vec2(0.84, 0.22));
+          float d = opSmoothUnion(a, b, 0.42);
+          float e = opSmoothUnion(d, c, 0.32 + 0.18 * sin(uTime * 0.3));
+
+          // Pointer dent (local indentation) to add strong depth cues.
+          vec2 pp = uPointer * 0.75;
+          float dent = 0.22 * exp(-dot(q.xy - pp, q.xy - pp) * 1.9) * (0.35 + 0.65 * t);
+          e -= dent;
+
           float morph = smoothstep(0.2, 0.8, t);
           return mix(d, e, morph);
         }
@@ -663,14 +686,19 @@ class KineticTypeScene extends SceneBase {
       grid.forEach((row, y) => {
         Array.from(row).forEach((cell, x) => {
           if (cell !== '1') return;
-          const px = (letterIndex - letters.length / 2) * spacing + x * 0.16;
-          const py = (grid.length / 2 - y) * 0.2;
-          pixels.push(new THREE.Vector3(px, py, 0));
+          const px =
+            (letterIndex - (letters.length - 1) / 2) * spacing +
+            (x - (row.length - 1) / 2) * 0.16;
+          const py = ((grid.length - 1) / 2) * 0.2 - y * 0.2;
+          // Add a tiny bit of depth so it reads 3D, not a flat sprite.
+          const pz = (Math.random() - 0.5) * 0.22;
+          pixels.push(new THREE.Vector3(px, py, pz));
         });
       });
     });
 
-    const geo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
+    // Faceted voxel-gems instead of literal cubes (avoids the "box" look).
+    const geo = new THREE.OctahedronGeometry(0.09, 0);
     const mat = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0.6, 0.7, 0.9),
       emissive: new THREE.Color(0.25, 0.35, 0.95),
@@ -724,15 +752,11 @@ class KineticTypeScene extends SceneBase {
     this.mesh.instanceMatrix.needsUpdate = true;
 
     const cam = this.camera as THREE.PerspectiveCamera;
-    cam.position.x = damp(
-      cam.position.x,
-      (ctx.pointer.x - 0.5) * 1.15,
-      4,
-      ctx.dt
-    );
+    // Tower pointer is in [-1, 1]. Keep the camera centered and stable.
+    cam.position.x = damp(cam.position.x, ctx.pointer.x * 0.65, 4, ctx.dt);
     cam.position.y = damp(
       cam.position.y,
-      0.15 - (ctx.pointer.y - 0.5) * 0.55,
+      0.1 + ctx.pointer.y * 0.35,
       4,
       ctx.dt
     );

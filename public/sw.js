@@ -15,6 +15,18 @@ const STATIC_ASSET_PATHS = [
   'favicon-512.png',
 ];
 
+const isLocalHost = (() => {
+  try {
+    return (
+      self.location.hostname === 'localhost' ||
+      self.location.hostname === '127.0.0.1' ||
+      self.location.hostname === '[::1]'
+    );
+  } catch {
+    return false;
+  }
+})();
+
 const trimSlashes = value => value.replace(/^\/+|\/+$/g, '');
 
 const resolveBasePath = () => {
@@ -49,6 +61,13 @@ const STATIC_ASSETS = STATIC_ASSET_PATHS.map(withBase);
 // Install event - cache static assets
 self.addEventListener('install', event => {
   console.log('[Service Worker] Installing...');
+
+  // Local preview/dev: don't cache or control requests.
+  if (isLocalHost) {
+    event.waitUntil(self.skipWaiting());
+    return;
+  }
+
   event.waitUntil(
     caches
       .open(CACHE_NAME)
@@ -85,25 +104,46 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   console.log('[Service Worker] Activating...');
   event.waitUntil(
-    caches
-      .keys()
-      .then(cacheNames => {
-        return Promise.all(
-          cacheNames.map(cacheName => {
-            if (cacheName !== CACHE_NAME) {
-              console.log('[Service Worker] Deleting old cache:', cacheName);
-              return caches.delete(cacheName);
-            }
-          })
+    (async () => {
+      const cacheNames = await caches.keys();
+
+      // Local preview/dev: remove ourselves and any caches.
+      if (isLocalHost) {
+        await Promise.all(
+          cacheNames
+            .filter(name => name.startsWith('github-pages-project-'))
+            .map(name => caches.delete(name))
         );
-      })
-      .then(() => self.clients.claim())
+        try {
+          await self.registration.unregister();
+        } catch {
+          // ignore
+        }
+        return;
+      }
+
+      await Promise.all(
+        cacheNames.map(cacheName => {
+          if (cacheName !== CACHE_NAME) {
+            console.log('[Service Worker] Deleting old cache:', cacheName);
+            return caches.delete(cacheName);
+          }
+        })
+      );
+
+      await self.clients.claim();
+    })()
   );
 });
 
 // Fetch event - network first, fallback to cache
 self.addEventListener('fetch', event => {
   const { request } = event;
+
+  // Local preview/dev: do not intercept network at all.
+  if (isLocalHost) {
+    return;
+  }
 
   // Skip cross-origin requests
   if (!request.url.startsWith(self.location.origin)) {
