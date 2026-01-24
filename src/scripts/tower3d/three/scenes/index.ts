@@ -360,11 +360,6 @@ class RaymarchScene extends SceneBase {
         uniform vec2 uPointer;
         uniform float uMode;
 
-        vec3 filmic(vec3 x) {
-          x = max(vec3(0.0), x);
-          return (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14);
-        }
-
         float sdSphere(vec3 p, float r) {
           return length(p) - r;
         }
@@ -470,9 +465,19 @@ class RaymarchScene extends SceneBase {
         void main() {
           vec2 uv = (vUv * 2.0 - 1.0);
           uv.x *= uResolution.x / max(1.0, uResolution.y);
-          vec3 ro = vec3(0.0, 0.0, 3.2);
-          ro.xy += uPointer * 0.35;
-          vec3 rd = normalize(vec3(uv, -1.6));
+
+          // Cinematic camera drift so it reads as a space, not a flat square.
+          float camOrbit = 0.22 + 0.18 * smoothstep(0.0, 1.0, uProgress);
+          vec3 ro = vec3(
+            sin(uTime * 0.22) * camOrbit,
+            cos(uTime * 0.19) * camOrbit * 0.75,
+            3.15
+          );
+          ro.xy += uPointer * 0.42;
+
+          // Slight lens warp for depth
+          uv *= 1.0 + 0.08 * dot(uv, uv);
+          vec3 rd = normalize(vec3(uv, -1.55));
 
           float t = 0.0;
           float hit = -1.0;
@@ -487,17 +492,23 @@ class RaymarchScene extends SceneBase {
             if (t > 7.0) break;
           }
 
-          vec3 col = vec3(0.015, 0.025, 0.06);
+          // Deep-space background with subtle sparkle
+          float star = step(0.996, fract(sin(dot(uv * 700.0, vec2(12.9898, 78.233))) * 43758.5453));
+          vec3 col = mix(vec3(0.012, 0.016, 0.03), vec3(0.02, 0.03, 0.06), smoothstep(0.0, 1.2, uv.y + 0.3));
+          col += star * vec3(0.25, 0.35, 0.55);
           if (hit > 0.0) {
             vec3 p = ro + rd * hit;
             col = shade(p, rd);
             float fog = exp(-hit * (0.28 + 0.12 * sin(uTime * 0.2)));
             col = mix(vec3(0.01, 0.015, 0.03), col, fog);
+
+            // Tiny pseudo-bloom from highlights (keeps it vivid under ACES)
+            float l = max(max(col.r, col.g), col.b);
+            col += smoothstep(0.8, 1.6, l) * vec3(0.05, 0.08, 0.14);
           }
 
-          float vign = smoothstep(1.2, 0.2, length(uv));
-          col *= 0.75 + vign * 0.35;
-          col = filmic(col);
+          float vign = smoothstep(1.25, 0.22, length(uv));
+          col *= 0.78 + vign * 0.38;
           gl_FragColor = vec4(col, 1.0);
         }
       `,
@@ -532,7 +543,8 @@ class SwarmScene extends SceneBase {
 
   constructor() {
     super('scene02');
-    this.scene.fog = new THREE.FogExp2(0x04070f, 0.08);
+    this.scene.background = new THREE.Color(0x050a14);
+    this.scene.fog = new THREE.FogExp2(0x050a14, 0.07);
     const cam = this.camera as THREE.PerspectiveCamera;
     cam.position.set(0, 0, 7.5);
 
@@ -575,8 +587,13 @@ class SwarmScene extends SceneBase {
     const arr = attr.array as Float32Array;
     const count = arr.length / 3;
     const t = ctx.time;
-    const pull = 0.28 + ctx.localProgress * 0.95;
-    const swirl = 0.55 + ctx.localProgress * 1.35;
+    const impulse = clamp(
+      Math.abs(ctx.scrollVelocity) * 1.1 + ctx.pointerVelocity.length() * 0.75,
+      0,
+      1
+    );
+    const pull = 0.28 + ctx.localProgress * 0.95 + impulse * 0.55;
+    const swirl = 0.55 + ctx.localProgress * 1.35 + impulse * 1.0;
     const pointer = ctx.pointer;
 
     for (let i = 0; i < count; i++) {
@@ -602,9 +619,10 @@ class SwarmScene extends SceneBase {
       this.velocities[idx + 2] =
         this.velocities[idx + 2] * 0.92 + az * 0.02 + (bz - pz) * pull * 0.01;
 
-      arr[idx] += this.velocities[idx] * ctx.dt * 2.15;
-      arr[idx + 1] += this.velocities[idx + 1] * ctx.dt * 2.15;
-      arr[idx + 2] += this.velocities[idx + 2] * ctx.dt * 2.15;
+      const speed = 2.1 + impulse * 1.15;
+      arr[idx] += this.velocities[idx] * ctx.dt * speed;
+      arr[idx + 1] += this.velocities[idx + 1] * ctx.dt * speed;
+      arr[idx + 2] += this.velocities[idx + 2] * ctx.dt * speed;
     }
 
     attr.needsUpdate = true;
@@ -612,8 +630,8 @@ class SwarmScene extends SceneBase {
     const mat = this.points.material as THREE.PointsMaterial;
     this.color.setHSL(0.52 + ctx.localProgress * 0.18, 0.85, 0.65);
     mat.color.copy(this.color);
-    mat.size = 0.02 + ctx.localProgress * 0.018;
-    mat.opacity = 0.45 + ctx.localProgress * 0.45;
+    mat.size = 0.02 + ctx.localProgress * 0.018 + impulse * 0.01;
+    mat.opacity = 0.45 + ctx.localProgress * 0.4 + impulse * 0.22;
   }
 }
 
@@ -625,7 +643,8 @@ class KineticTypeScene extends SceneBase {
 
   constructor() {
     super('scene03');
-    this.scene.fog = new THREE.FogExp2(0x05080f, 0.08);
+    this.scene.background = new THREE.Color(0x070a14);
+    this.scene.fog = new THREE.FogExp2(0x070a14, 0.07);
     const cam = this.camera as THREE.PerspectiveCamera;
     cam.position.set(0, 0, 8);
 
@@ -654,7 +673,7 @@ class KineticTypeScene extends SceneBase {
     const geo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
     const mat = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0.6, 0.7, 0.9),
-      emissive: new THREE.Color(0.2, 0.3, 0.8),
+      emissive: new THREE.Color(0.25, 0.35, 0.95),
       metalness: 0.45,
       roughness: 0.25,
     });
@@ -679,7 +698,14 @@ class KineticTypeScene extends SceneBase {
   update(ctx: SceneRuntime): void {
     const progress = ctx.localProgress;
     const t = ctx.time;
-    const scatter = Math.sin(progress * Math.PI) * 1.6;
+    const impulse = clamp(
+      Math.abs(ctx.scrollVelocity) * 1.15 + ctx.pointerVelocity.length() * 0.9,
+      0,
+      1
+    );
+    const breathe = 0.25 + 0.2 * Math.sin(t * 0.85);
+    const scatter =
+      Math.sin(progress * Math.PI) * 1.6 + breathe + impulse * 0.95;
 
     for (let i = 0; i < this.offsets.length; i++) {
       const base = this.offsets[i];
@@ -697,6 +723,21 @@ class KineticTypeScene extends SceneBase {
     }
     this.mesh.instanceMatrix.needsUpdate = true;
 
+    const cam = this.camera as THREE.PerspectiveCamera;
+    cam.position.x = damp(
+      cam.position.x,
+      (ctx.pointer.x - 0.5) * 1.15,
+      4,
+      ctx.dt
+    );
+    cam.position.y = damp(
+      cam.position.y,
+      0.15 - (ctx.pointer.y - 0.5) * 0.55,
+      4,
+      ctx.dt
+    );
+    cam.lookAt(0, 0, 0);
+
     const mat = this.mesh.material as THREE.MeshStandardMaterial;
     this.color.setHSL(0.62 + progress * 0.2, 0.75, 0.6);
     mat.color.copy(this.color);
@@ -713,7 +754,8 @@ class CorridorScene extends SceneBase {
 
   constructor() {
     super('scene04');
-    this.scene.fog = new THREE.FogExp2(0x03060f, 0.12);
+    this.scene.background = new THREE.Color(0x040913);
+    this.scene.fog = new THREE.FogExp2(0x040913, 0.105);
     const cam = this.camera as THREE.PerspectiveCamera;
     cam.position.set(0, 0, 4.5);
 
@@ -799,16 +841,40 @@ class CorridorScene extends SceneBase {
 
     const key = new THREE.DirectionalLight(0xffffff, 1.2);
     key.position.set(2, 4, 6);
-    this.scene.add(key);
+    const pulseA = new THREE.PointLight(0x7fd2ff, 1.6, 18, 2);
+    pulseA.position.set(-1.2, 0.4, -1.8);
+    const pulseB = new THREE.PointLight(0xff7ad6, 1.2, 18, 2);
+    pulseB.position.set(1.1, -0.3, -3.8);
+    this.scene.add(key, pulseA, pulseB);
   }
 
   update(ctx: SceneRuntime): void {
     const t = ctx.time;
     const progress = ctx.localProgress;
+    const impulse = clamp(
+      Math.abs(ctx.scrollVelocity) * 1.05 + ctx.pointerVelocity.length() * 0.8,
+      0,
+      1
+    );
     const cam = this.camera as THREE.PerspectiveCamera;
-    cam.position.z = damp(cam.position.z, 4.5 - progress * 2.2, 3, ctx.dt);
-    cam.position.x = damp(cam.position.x, ctx.pointer.x * 0.4, 3, ctx.dt);
-    cam.position.y = damp(cam.position.y, ctx.pointer.y * 0.25, 3, ctx.dt);
+    cam.position.z = damp(
+      cam.position.z,
+      4.5 - progress * 2.2 - impulse * 0.35,
+      3,
+      ctx.dt
+    );
+    cam.position.x = damp(
+      cam.position.x,
+      ctx.pointer.x * 0.45 + Math.sin(t * 0.35) * 0.08,
+      3,
+      ctx.dt
+    );
+    cam.position.y = damp(
+      cam.position.y,
+      ctx.pointer.y * 0.28 + Math.cos(t * 0.28) * 0.06,
+      3,
+      ctx.dt
+    );
     cam.lookAt(0, 0, -6);
 
     this.portal.scale.setScalar(1 + Math.sin(t * 1.4) * 0.05 + progress * 0.25);
@@ -915,7 +981,8 @@ class BlueprintScene extends SceneBase {
 
   constructor() {
     super('scene06');
-    this.scene.fog = new THREE.FogExp2(0x030912, 0.12);
+    this.scene.background = new THREE.Color(0x040a16);
+    this.scene.fog = new THREE.FogExp2(0x040a16, 0.1);
     const cam = this.camera as THREE.PerspectiveCamera;
     cam.position.set(0, 0, 6.5);
 
@@ -930,7 +997,7 @@ class BlueprintScene extends SceneBase {
       const mat = new THREE.LineBasicMaterial({
         color: new THREE.Color().setHSL(0.58, 0.8, 0.6),
         transparent: true,
-        opacity: 0.6,
+        opacity: 0.75,
       });
       const line = new THREE.LineSegments(edges, mat);
       line.position.set((i - 1) * 1.6, 0, -i * 1.2);
@@ -945,13 +1012,29 @@ class BlueprintScene extends SceneBase {
 
   update(ctx: SceneRuntime): void {
     const progress = ctx.localProgress;
-    this.hue = damp(this.hue, 200 + progress * 40, 2, ctx.dt);
+    const impulse = clamp(
+      Math.abs(ctx.scrollVelocity) * 1.05 + ctx.pointerVelocity.length() * 0.8,
+      0,
+      1
+    );
+    const t = ctx.time;
+    this.hue = damp(
+      this.hue,
+      200 + progress * 40 + Math.sin(t * 0.25) * 18 + impulse * 14,
+      2,
+      ctx.dt
+    );
     this.lines.forEach((line, i) => {
-      line.rotation.y += ctx.dt * (0.2 + i * 0.08);
-      line.rotation.x += ctx.dt * 0.1;
+      line.rotation.y +=
+        ctx.dt * (0.22 + i * 0.085) + Math.sin(t * 0.22 + i) * 0.002;
+      line.rotation.x += ctx.dt * 0.11 + Math.cos(t * 0.28 + i) * 0.0016;
       const mat = line.material as THREE.LineBasicMaterial;
       mat.color.setHSL(this.hue / 360, 0.85, 0.65);
-      mat.opacity = 0.2 + progress * 0.75;
+      mat.opacity =
+        0.28 +
+        progress * 0.62 +
+        Math.abs(Math.sin(t * 1.2 + i * 0.7)) * 0.14 +
+        impulse * 0.18;
     });
   }
 }
@@ -1019,22 +1102,32 @@ class InkScene extends SceneBase {
 
           // Curl-ish advection
           vec2 q = p;
-          q += vec2(sin(q.y * 2.3 + t), cos(q.x * 2.1 - t)) * 0.08;
-          q += uPointer * 0.18;
+          q += vec2(sin(q.y * 2.3 + t), cos(q.x * 2.1 - t)) * 0.085;
+          q += uPointer * 0.22;
+
+          // Secondary swirl that never stops (even at progress endpoints)
+          q += vec2(
+            sin(t * 0.9 + p.x * 5.5),
+            cos(t * 0.8 + p.y * 5.0)
+          ) * 0.03;
 
           float n = fbm(q * 2.8 + t);
           float m = fbm(q * 5.8 - t * 0.7);
-          float ink = smoothstep(0.18 + uProgress * 0.16, 0.88, n + m * 0.35);
+          float ink = smoothstep(0.18 + uProgress * 0.16, 0.9, n + m * 0.38);
 
           float reveal = smoothstep(0.12, 0.92, uProgress);
           float silhouette = smoothstep(0.42, 0.06, length(p + uPointer * 0.22));
           float body = mix(ink, silhouette, reveal);
 
-          vec3 bg = vec3(0.015, 0.017, 0.024);
+          vec3 bg = vec3(0.02, 0.022, 0.032);
           vec3 hi = vec3(0.65, 0.78, 1.15);
           vec3 mid = vec3(0.22, 0.28, 0.42);
           vec3 col = mix(bg, mid, body);
-          col = mix(col, hi, pow(body, 3.0) * 0.75);
+          col = mix(col, hi, pow(body, 3.0) * 0.78);
+
+          // Hot edge shimmer when the pointer stirs the ink
+          float edge = smoothstep(0.08, 0.0, abs(dFdx(body)) + abs(dFdy(body)));
+          col += edge * vec3(0.25, 0.35, 0.55);
 
           // Vignette
           float vig = smoothstep(1.0, 0.25, length(p));
@@ -1069,6 +1162,7 @@ class ClothScene extends SceneBase {
 
   constructor() {
     super('scene08');
+    this.scene.background = new THREE.Color(0x070a14);
     const geo = new THREE.PlaneGeometry(5, 3.2, 140, 90);
     const uniforms = {
       uTime: { value: 0 },
@@ -1080,6 +1174,8 @@ class ClothScene extends SceneBase {
       vertexShader: `
         varying vec2 vUv;
         varying float vWave;
+        varying vec3 vPos;
+        varying vec3 vN;
         uniform float uTime;
         uniform float uProgress;
         uniform float uWind;
@@ -1095,12 +1191,17 @@ class ClothScene extends SceneBase {
           vWave = waveSum;
           pos.z += waveSum;
           pos.x += sin(uTime + pos.y * 1.3) * 0.06 * uProgress;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+          vec4 mv = modelViewMatrix * vec4(pos, 1.0);
+          vPos = mv.xyz;
+          vN = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * mv;
         }
       `,
       fragmentShader: `
         varying vec2 vUv;
         varying float vWave;
+        varying vec3 vPos;
+        varying vec3 vN;
         void main() {
           vec3 a = vec3(0.04, 0.06, 0.09);
           vec3 b = vec3(0.42, 0.55, 0.78);
@@ -1111,6 +1212,23 @@ class ClothScene extends SceneBase {
           float sheen = smoothstep(-0.02, 0.08, vWave) * 0.65;
           base += weave * 0.03;
           base += sheen * vec3(0.25, 0.35, 0.55);
+
+          // Reconstructed normal from screen-space derivatives for real lighting
+          vec3 dpdx = dFdx(vPos);
+          vec3 dpdy = dFdy(vPos);
+          vec3 n = normalize(cross(dpdx, dpdy));
+          // Keep it stable-ish when derivatives are degenerate
+          n = normalize(mix(vN, n, 0.85));
+
+          vec3 lightDirA = normalize(vec3(0.4, 0.75, 0.55));
+          vec3 lightDirB = normalize(vec3(-0.7, 0.25, 0.6));
+          float diff = clamp(dot(n, lightDirA), 0.0, 1.0) * 0.8 +
+                       clamp(dot(n, lightDirB), 0.0, 1.0) * 0.45;
+          vec3 viewDir = normalize(-vPos);
+          vec3 h = normalize(lightDirA + viewDir);
+          float spec = pow(clamp(dot(n, h), 0.0, 1.0), 48.0);
+          base *= 0.55 + diff * 0.75;
+          base += spec * vec3(0.55, 0.75, 1.1) * (0.25 + sheen * 0.9);
 
           // Edge darkening for depth
           float edge = smoothstep(0.95, 0.6, abs(vUv.x - 0.5) * 2.0);
@@ -1187,18 +1305,51 @@ class PointCloudScene extends SceneBase {
 
   update(ctx: SceneRuntime): void {
     const progress = ctx.localProgress;
+    const t = ctx.time;
+    const impulse = clamp(
+      Math.abs(ctx.scrollVelocity) * 1.1 + ctx.pointerVelocity.length() * 0.85,
+      0,
+      1
+    );
     const geo = this.points.geometry as THREE.BufferGeometry;
     const attr = geo.getAttribute('position') as THREE.BufferAttribute;
     const arr = attr.array as Float32Array;
-    for (let i = 0; i < arr.length; i++) {
-      arr[i] = lerp(this.base[i], this.target[i], progress);
+
+    // Morph with a living "scan" jitter that never fully stops.
+    for (let i = 0; i < arr.length; i += 3) {
+      const bx = this.base[i];
+      const by = this.base[i + 1];
+      const bz = this.base[i + 2];
+
+      const tx = this.target[i];
+      const ty = this.target[i + 1];
+      const tz = this.target[i + 2];
+
+      const mx = lerp(bx, tx, progress);
+      const my = lerp(by, ty, progress);
+      const mz = lerp(bz, tz, progress);
+
+      const id = i * 0.003;
+      const w = t * 0.9 + id;
+      const jitter = 0.018 + impulse * 0.06;
+      const px = ctx.pointer.x - 0.5;
+      const py = ctx.pointer.y - 0.5;
+
+      arr[i] =
+        mx + Math.sin(w + mx * 1.4) * jitter + px * 0.22 * (0.2 + impulse);
+      arr[i + 1] =
+        my +
+        Math.cos(w * 1.1 + my * 1.2) * jitter +
+        py * 0.18 * (0.2 + impulse);
+      arr[i + 2] = mz + Math.sin(w * 0.8 + mz * 1.6) * jitter;
     }
     attr.needsUpdate = true;
 
     const mat = this.points.material as THREE.PointsMaterial;
     this.color.setHSL(0.55 + progress * 0.2, 0.85, 0.65);
     mat.color.copy(this.color);
-    mat.size = 0.016 + progress * 0.018;
+    mat.size = 0.016 + progress * 0.018 + impulse * 0.01;
+    mat.opacity = 0.52 + progress * 0.35 + impulse * 0.18;
 
     // Heavy camera drift for depth.
     const cam = this.camera as THREE.PerspectiveCamera;
@@ -1212,6 +1363,13 @@ class PointCloudScene extends SceneBase {
       this.points.rotation.x,
       ctx.pointer.y * 0.35,
       4,
+      ctx.dt
+    );
+
+    this.points.rotation.z = damp(
+      this.points.rotation.z,
+      Math.sin(t * 0.2) * 0.15 + ctx.pointer.x * 0.18,
+      3,
       ctx.dt
     );
   }

@@ -11,7 +11,7 @@ const enterHref = withBasePath('services/');
 <MarketingLayout
   title={title}
   description={description}
-  bodyClass="bg-[#040712] overflow-x-hidden"
+  bodyClass="bg-[#040712] overflow-x-hidden landing-3d"
   mainClass="p-0"
   showHeader={false}
   showFooter={false}
@@ -68,6 +68,12 @@ const enterHref = withBasePath('services/');
   </div>
 
   <style>
+    :global(body.landing-3d) {
+      background-color: #040712;
+      background-image: none;
+      mask-image: none;
+    }
+
     .landing-shell {
       position: relative;
       min-height: 100vh;
@@ -86,6 +92,7 @@ const enterHref = withBasePath('services/');
       width: 100vw;
       overflow: hidden;
       background: #040712;
+      z-index: 2;
     }
 
     .tower3d__canvas {
@@ -96,12 +103,14 @@ const enterHref = withBasePath('services/');
 
     .tower3d__chapters {
       position: relative;
-      z-index: 1;
+      z-index: 0;
+      pointer-events: none;
     }
 
     .tower3d__chapter {
-      height: 240vh;
+      height: 320vh;
       width: 100%;
+      background: transparent;
     }
 
     .landing-bottom {
