@@ -9,6 +9,10 @@ export type TowerCaps = {
   browser: 'chrome' | 'firefox' | 'safari' | 'edge' | 'other';
   os: 'android' | 'ios' | 'other';
   hasVisualViewport: boolean;
+  performanceTier: 'high' | 'medium' | 'low';
+  maxParticles: number;
+  enablePostProcessing: boolean;
+  enableGyroscope: boolean;
 };
 
 const detectBrowser = (): TowerCaps['browser'] => {
@@ -98,19 +102,91 @@ export const getTowerCaps = (): TowerCaps => {
 
   let webgl = false;
   let webgl2 = false;
+  let gpuTier: 'high' | 'medium' | 'low' = 'medium';
+
   try {
     const canvas = document.createElement('canvas');
-    webgl2 = Boolean(canvas.getContext('webgl2'));
+    const gl2 = canvas.getContext('webgl2');
+    webgl2 = Boolean(gl2);
     webgl = webgl2 || Boolean(canvas.getContext('webgl'));
+
+    // GPU tier detection using WebGL renderer info
+    if (gl2) {
+      const debugInfo = gl2.getExtension('WEBGL_debug_renderer_info');
+      if (debugInfo) {
+        const renderer =
+          gl2.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) || '';
+        const rendererLower = renderer.toLowerCase();
+
+        // High-end GPUs
+        if (
+          rendererLower.includes('rtx') ||
+          rendererLower.includes('radeon rx') ||
+          rendererLower.includes('geforce gtx 10') ||
+          rendererLower.includes('geforce gtx 16') ||
+          rendererLower.includes('apple m1') ||
+          rendererLower.includes('apple m2') ||
+          rendererLower.includes('apple m3') ||
+          rendererLower.includes('apple gpu') || // Apple Silicon
+          rendererLower.includes('adreno 6') || // High-end Qualcomm
+          rendererLower.includes('adreno 7') ||
+          rendererLower.includes('mali-g7') // High-end ARM
+        ) {
+          gpuTier = 'high';
+        }
+        // Low-end GPUs
+        else if (
+          rendererLower.includes('intel hd') ||
+          rendererLower.includes('intel uhd') ||
+          rendererLower.includes('adreno 5') || // Mid-range Qualcomm
+          rendererLower.includes('adreno 4') || // Older Qualcomm
+          rendererLower.includes('mali-g5') ||
+          rendererLower.includes('mali-t') ||
+          rendererLower.includes('powervr') ||
+          rendererLower.includes('swiftshader') // Software renderer
+        ) {
+          gpuTier = 'low';
+        }
+      }
+    }
   } catch {
     webgl = false;
     webgl2 = false;
+    gpuTier = 'low';
   }
 
   const maxPrecision = getMaxPrecision();
   const hasVisualViewport =
     typeof (window as unknown as { visualViewport?: unknown })
       .visualViewport !== 'undefined';
+
+  // Determine performance tier based on multiple factors
+  let performanceTier: 'high' | 'medium' | 'low' = gpuTier;
+
+  // Downgrade tier based on device constraints
+  if (reducedMotion) {
+    performanceTier = 'low';
+  } else if (coarsePointer && os === 'ios') {
+    // iOS devices are fill-rate limited
+    performanceTier = gpuTier === 'high' ? 'medium' : 'low';
+  } else if (coarsePointer && os === 'android') {
+    // Most Android devices, keep their detected tier but cap at medium
+    performanceTier = gpuTier === 'high' ? 'medium' : gpuTier;
+  } else if (maxPrecision === 'lowp') {
+    performanceTier = 'low';
+  }
+
+  // Set particle counts based on tier
+  const maxParticles =
+    performanceTier === 'high'
+      ? 15000
+      : performanceTier === 'medium'
+        ? 8000
+        : 3000;
+
+  // Feature flags based on tier
+  const enablePostProcessing = performanceTier !== 'low';
+  const enableGyroscope = coarsePointer && !reducedMotion;
 
   return {
     coarsePointer,
@@ -123,5 +199,9 @@ export const getTowerCaps = (): TowerCaps => {
     browser,
     os,
     hasVisualViewport,
+    performanceTier,
+    maxParticles,
+    enablePostProcessing,
+    enableGyroscope,
   };
 };

@@ -28,13 +28,19 @@ export class SceneDirector {
 
   private rtA: THREE.WebGLRenderTarget;
 
-  // Short dip-to-black style cut mask when the active chapter/scene changes.
+  // Short transition mask when the active chapter/scene changes.
   private cutFade = 0;
+  private transitionType = 0; // 0: portal iris, 1: liquid wipe, 2: particle dissolve, 3: glitch cut
 
   private pointer = new THREE.Vector2();
   private pointerTarget = new THREE.Vector2();
   private pointerVelocity = new THREE.Vector2();
   private lastPointer = new THREE.Vector2();
+
+  // Gyroscope support for mobile tilt parallax
+  private gyro = new THREE.Vector3();
+  private gyroTarget = new THREE.Vector3();
+  private gyroActive = false;
 
   private lastTime = performance.now() / 1000;
   private lastScrollTime = performance.now();
@@ -76,6 +82,7 @@ export class SceneDirector {
         tScene: { value: null },
         uTime: { value: 0 },
         uCut: { value: 0 },
+        uTransitionType: { value: 0 },
         uResolution: { value: new THREE.Vector2(1, 1) },
         uVignette: { value: 0.26 },
         uGrain: { value: 0.06 },
@@ -96,6 +103,7 @@ export class SceneDirector {
         uniform sampler2D tScene;
         uniform float uTime;
         uniform float uCut;
+        uniform float uTransitionType;
         uniform vec2 uResolution;
         uniform float uVignette;
         uniform float uGrain;
@@ -105,6 +113,17 @@ export class SceneDirector {
 
         float hash(vec2 p) {
           return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          float a = hash(i);
+          float b = hash(i + vec2(1.0, 0.0));
+          float c = hash(i + vec2(0.0, 1.0));
+          float d = hash(i + vec2(1.0, 1.0));
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
         }
 
         vec3 sampleChromatic(vec2 uv, float strength) {
@@ -118,6 +137,75 @@ export class SceneDirector {
           col.g = texture2D(tScene, uv).g;
           col.b = texture2D(tScene, uv - off).b;
           return col;
+        }
+
+        // Portal iris transition - circular wipe with energy ring
+        float portalIris(vec2 uv, float progress) {
+          vec2 center = uv - 0.5;
+          float dist = length(center);
+          float angle = atan(center.y, center.x);
+
+          // Radius shrinks to center as progress increases
+          float radius = 0.8 * (1.0 - progress);
+
+          // Add energy ripples to the edge
+          float ripple = sin(angle * 8.0 + uTime * 6.0) * 0.02 * progress;
+          float energyRing = smoothstep(radius + 0.05, radius, dist + ripple);
+          float innerCore = smoothstep(radius, radius - 0.1, dist);
+
+          return energyRing * (1.0 - innerCore * 0.5);
+        }
+
+        // Liquid wipe transition - organic flowing edge
+        float liquidWipe(vec2 uv, float progress) {
+          float n1 = noise(uv * 4.0 + uTime * 0.5);
+          float n2 = noise(uv * 8.0 - uTime * 0.3);
+          float distortion = (n1 + n2 * 0.5) * 0.15;
+
+          // Wave from left to right with organic edge
+          float edge = uv.x + distortion;
+          float threshold = progress * 1.3 - 0.15;
+
+          return smoothstep(threshold - 0.1, threshold + 0.1, edge);
+        }
+
+        // Particle dissolve - pixelated dissolve effect
+        float particleDissolve(vec2 uv, float progress) {
+          float blockSize = 0.02;
+          vec2 block = floor(uv / blockSize) * blockSize;
+          float randomVal = hash(block);
+
+          // Add wave pattern to the dissolve
+          float wave = sin(block.x * 20.0 + uTime * 3.0) * 0.1;
+          float threshold = progress + wave;
+
+          return step(randomVal, threshold);
+        }
+
+        // Glitch cut - digital glitch with color separation
+        vec3 glitchCut(vec2 uv, float progress, vec3 originalColor) {
+          float glitchStrength = progress * 2.0;
+
+          // Horizontal slice displacement
+          float sliceY = floor(uv.y * 20.0) / 20.0;
+          float sliceRandom = hash(vec2(sliceY, floor(uTime * 8.0)));
+          float displacement = (sliceRandom - 0.5) * glitchStrength * 0.1;
+
+          // Only apply to some slices
+          if (sliceRandom > 0.7 && progress > 0.1) {
+            vec2 displacedUv = uv + vec2(displacement, 0.0);
+
+            // RGB split
+            float r = texture2D(tScene, displacedUv + vec2(0.01 * glitchStrength, 0.0)).r;
+            float g = texture2D(tScene, displacedUv).g;
+            float b = texture2D(tScene, displacedUv - vec2(0.01 * glitchStrength, 0.0)).b;
+
+            return mix(originalColor, vec3(r, g, b), progress);
+          }
+
+          // Add scanlines during transition
+          float scanline = sin(uv.y * 400.0 + uTime * 20.0) * 0.5 + 0.5;
+          return originalColor * (1.0 - scanline * 0.15 * progress);
         }
 
         void main() {
@@ -156,11 +244,42 @@ export class SceneDirector {
           glow /= max(wsum, 1e-6);
           col += glow * uGlow;
 
-          // Robust chapter-cut mask (prevents jarring pops without complex RT blends)
+          // Advanced transition effects based on transition type
           float cut = clamp(uCut, 0.0, 1.0);
-          float cutSoft = smoothstep(0.0, 1.0, cut);
-          col *= 1.0 - cutSoft * 0.75;
-          col += vec3(0.01, 0.015, 0.03) * cutSoft;
+
+          if (cut > 0.01) {
+            int transType = int(uTransitionType);
+
+            if (transType == 0) {
+              // Portal iris transition
+              float iris = portalIris(vUv, cut);
+              col *= 1.0 - iris * 0.85;
+              // Add cyan energy glow at the edge
+              vec2 center = vUv - 0.5;
+              float dist = length(center);
+              float radius = 0.8 * (1.0 - cut);
+              float edgeGlow = smoothstep(radius + 0.15, radius, dist) * smoothstep(radius - 0.05, radius, dist);
+              col += vec3(0.2, 0.6, 1.0) * edgeGlow * cut * 2.0;
+            } else if (transType == 1) {
+              // Liquid wipe transition
+              float liquid = liquidWipe(vUv, cut);
+              col *= 1.0 - liquid * 0.9;
+              // Add highlight at the liquid edge
+              float edge = fwidth(liquid) * 15.0;
+              col += vec3(0.3, 0.5, 0.8) * edge * cut;
+            } else if (transType == 2) {
+              // Particle dissolve transition
+              float dissolve = particleDissolve(vUv, cut);
+              col *= 1.0 - dissolve * 0.95;
+              // Slight glow on dissolving pixels
+              col += vec3(0.1, 0.2, 0.4) * dissolve * (1.0 - cut);
+            } else {
+              // Glitch cut transition
+              col = glitchCut(vUv, cut, col);
+              col *= 1.0 - cut * 0.6;
+              col += vec3(0.01, 0.015, 0.03) * cut;
+            }
+          }
 
           // Vignette
           float vig = smoothstep(0.92, 0.25, r);
@@ -228,6 +347,8 @@ export class SceneDirector {
       scrollVelocity: this.scrollVelocity,
       sceneId: this.activeScene.id,
       sceneIndex: this.sceneIndex,
+      gyro: this.gyro,
+      gyroActive: this.gyroActive,
     };
   }
 
@@ -250,6 +371,76 @@ export class SceneDirector {
     this.cleanups.push(() =>
       window.removeEventListener('touchmove', onTouchMove)
     );
+
+    // Gyroscope support for mobile parallax
+    this.initGyroscope();
+  }
+
+  private initGyroscope(): void {
+    // Check if DeviceOrientationEvent is available
+    if (typeof DeviceOrientationEvent === 'undefined') return;
+
+    // For iOS 13+, we need to request permission
+    const requestPermission = (
+      DeviceOrientationEvent as unknown as {
+        requestPermission?: () => Promise<string>;
+      }
+    ).requestPermission;
+
+    const handleOrientation = (event: DeviceOrientationEvent) => {
+      if (event.alpha === null || event.beta === null || event.gamma === null)
+        return;
+
+      this.gyroActive = true;
+
+      // Normalize values to -1 to 1 range
+      // beta: front-back tilt (-180 to 180, typically -90 to 90 in portrait)
+      // gamma: left-right tilt (-90 to 90)
+      // alpha: compass direction (0 to 360)
+
+      const beta = clamp((event.beta - 45) / 45, -1, 1); // Center around 45 degrees (holding phone)
+      const gamma = clamp(event.gamma / 45, -1, 1);
+      const alpha = (event.alpha || 0) / 180 - 1; // Normalize to -1 to 1
+
+      this.gyroTarget.set(gamma, beta, alpha);
+    };
+
+    if (requestPermission) {
+      // iOS 13+ requires permission request
+      const enableGyro = async () => {
+        try {
+          const response = await requestPermission();
+          if (response === 'granted') {
+            window.addEventListener('deviceorientation', handleOrientation, {
+              passive: true,
+            });
+            this.cleanups.push(() =>
+              window.removeEventListener('deviceorientation', handleOrientation)
+            );
+          }
+        } catch (e) {
+          console.warn('Gyroscope permission denied:', e);
+        }
+      };
+
+      // Request on first touch interaction
+      const requestOnTouch = () => {
+        enableGyro();
+        window.removeEventListener('touchstart', requestOnTouch);
+      };
+      window.addEventListener('touchstart', requestOnTouch, {
+        passive: true,
+        once: true,
+      });
+    } else {
+      // Android and other platforms
+      window.addEventListener('deviceorientation', handleOrientation, {
+        passive: true,
+      });
+      this.cleanups.push(() =>
+        window.removeEventListener('deviceorientation', handleOrientation)
+      );
+    }
   }
 
   private setPointerTarget(x: number, y: number): void {
@@ -345,6 +536,9 @@ export class SceneDirector {
     if (targetScene.id !== this.activeScene.id) {
       this.activeScene = targetScene;
       this.cutFade = 1;
+      // Cycle through different transition types for variety
+      this.transitionType = (this.transitionType + 1) % 4;
+      this.postMaterial.uniforms.uTransitionType.value = this.transitionType;
     }
 
     this.pointer.x = damp(this.pointer.x, this.pointerTarget.x, 6, dt);
@@ -354,6 +548,11 @@ export class SceneDirector {
       (this.pointer.y - this.lastPointer.y) / Math.max(0.001, dt)
     );
     this.lastPointer.copy(this.pointer);
+
+    // Smooth gyroscope values
+    this.gyro.x = damp(this.gyro.x, this.gyroTarget.x, 5, dt);
+    this.gyro.y = damp(this.gyro.y, this.gyroTarget.y, 5, dt);
+    this.gyro.z = damp(this.gyro.z, this.gyroTarget.z, 5, dt);
 
     this.root.style.setProperty(
       '--tower-scroll',
