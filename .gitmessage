@@ -1,0 +1,14 @@
+Subject: <short imperative summary>
+
+Why:
+- <why is this change needed>
+
+What:
+- <what changed at a high level>
+
+Verify:
+- <commands or steps to verify>
+
+Context (optional):
+- Prompt/agent: <who/what initiated>
+- Related issue/PR: <link>
