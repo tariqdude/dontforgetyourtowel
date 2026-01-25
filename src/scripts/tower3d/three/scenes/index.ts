@@ -2121,8 +2121,8 @@ class RealityCollapseScene extends SceneBase {
 export const createScenes = (): TowerScene[] => [
   new FeedbackForgeScene(),
   new StrangeAttractorScene(),
+  new MillionFirefliesScene(),
   new RibbonFieldScene(),
-  new GyroidCavernScene(),
   new MagnetosphereScene(),
   new EventHorizonScene(),
   new KaleidoGlassScene(),
