@@ -20,7 +20,12 @@ import {
   Noise,
   Vignette,
 } from '@react-three/postprocessing';
-import { BlendFunction } from 'postprocessing';
+import {
+  BlendFunction,
+  type BloomEffect,
+  type ChromaticAberrationEffect,
+  type NoiseEffect,
+} from 'postprocessing';
 import '@/styles/hero-explorer.css';
 
 type QualityTier = 'desktop' | 'mobile' | 'low';
@@ -1058,9 +1063,9 @@ const GlyphOrbit = ({ quality }: { quality: QualityTier }) => {
 
 const Scene = ({ quality }: { quality: QualityTier }) => {
   const burstRef = useRef(0);
-  const bloomRef = useRef<any>(null);
-  const chromaRef = useRef<any>(null);
-  const noiseRef = useRef<any>(null);
+  const bloomRef = useRef<BloomEffect | null>(null);
+  const chromaRef = useRef<ChromaticAberrationEffect | null>(null);
+  const noiseRef = useRef<NoiseEffect | null>(null);
   const scroll = useScroll();
 
   const reducedMotion =

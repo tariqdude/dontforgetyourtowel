@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { TowerCaps } from '../../core/caps';
 
 export type SceneMeta = {
@@ -49,14 +48,41 @@ const damp = (current: number, target: number, lambda: number, dt: number) =>
 
 /**
  * Returns a multiplier to push the camera back on portrait screens so content
- * fits without cropping. On landscape/desktop (aspect >= 1) returns 1.
- * On portrait (aspect < 1) returns a value > 1 proportional to how narrow it is.
+ * fits without cropping. Uses aggressive scaling for mobile.
+ * Reference: landscape aspect ~1.78 (16:9), phone portrait ~0.46 (9:19.5)
+ *
+ * Test values:
+ * - aspect 1.0 (square): 1.0x
+ * - aspect 0.75 (4:3 portrait): ~1.4x
+ * - aspect 0.56 (9:16 portrait): ~1.9x
+ * - aspect 0.46 (9:19.5 phone): ~2.3x
+ * - aspect 0.4 (ultra-tall phone): ~2.6x
  */
 const getAspectFitMultiplier = (aspect: number): number => {
-  if (aspect >= 1) return 1;
-  // Portrait: need to pull the camera back so the scene fits the narrower width.
-  // At aspect 0.5 (very tall phone) we want roughly 1.6x distance.
-  return 1 + (1 - aspect) * 0.85;
+  // Use 1.0 as the "design" aspect ratio (square-ish scenes look good here)
+  const referenceAspect = 1.0;
+  if (aspect >= referenceAspect) return 1;
+
+  // For portrait: the narrower the screen, the more we need to pull back
+  // Use a cubic curve for aggressive scaling on extreme portrait ratios
+  const t = (referenceAspect - aspect) / referenceAspect;
+  // Cubic curve: stronger effect as aspect gets more extreme
+  return 1 + t * 1.6 + t * t * 1.2 + t * t * t * 0.6;
+};
+
+/**
+ * Calculate vertical FOV adjustment for portrait screens.
+ * Instead of just pulling camera back, we can also widen the FOV.
+ * This keeps scenes centered and fully visible.
+ */
+const getPortraitFovAdjust = (aspect: number, baseFov: number): number => {
+  if (aspect >= 1) return baseFov;
+
+  // On portrait, increase FOV to show more content vertically
+  // This works in tandem with camera distance adjustment
+  const t = 1 - aspect;
+  const fovMultiplier = 1 + t * 0.35; // Up to 35% increase for very narrow screens
+  return Math.min(baseFov * fovMultiplier, 80); // Cap at 80 degrees
 };
 
 const sceneMeta: SceneMeta[] = [
@@ -86,21 +112,21 @@ const sceneMeta: SceneMeta[] = [
   },
   {
     id: 'scene04',
-    title: 'Non‑Euclidean Corridor',
-    caption: 'Impossible geometry folding through portals.',
-    hint: 'Scroll to warp',
+    title: 'Aurora Borealis',
+    caption: 'Dancing cosmic lights across the sky.',
+    hint: 'Tilt to shift',
   },
   {
     id: 'scene05',
-    title: 'Crystal Refraction Garden',
-    caption: 'Dangerous light bending through prisms.',
-    hint: 'Tilt for caustics',
+    title: 'Event Horizon',
+    caption: 'Gravitational lensing bends reality itself.',
+    hint: 'Approach the void',
   },
   {
     id: 'scene06',
-    title: 'Blueprint → Object Assembly',
-    caption: 'Line truth inflates into solid reality.',
-    hint: 'Scroll to build',
+    title: 'Holographic Blueprint',
+    caption: 'Technical wireframes pulse with energy.',
+    hint: 'Scan to analyze',
   },
   {
     id: 'scene07',
@@ -188,15 +214,22 @@ abstract class SceneBase implements TowerScene {
   /** Base camera Z distance before aspect adjustment. Override in subclasses. */
   protected baseCameraZ = 7;
 
+  /** Base FOV for the camera. Override in subclasses. */
+  protected baseFov = 45;
+
   resize(ctx: SceneRuntime): void {
     if (this.camera instanceof THREE.PerspectiveCamera) {
       const aspect = ctx.size.width / Math.max(1, ctx.size.height);
       this.camera.aspect = aspect;
 
-      // On portrait screens, pull the camera back so content isn't cropped.
+      // On portrait screens, adjust both FOV and camera distance
+      // This ensures content is always fully visible and centered
       this.aspectMult = getAspectFitMultiplier(aspect);
       this.camera.position.z = this.baseCameraZ * this.aspectMult;
+      this.camera.fov = getPortraitFovAdjust(aspect, this.baseFov);
 
+      // Also ensure camera looks at center
+      this.camera.lookAt(0, 0, 0);
       this.camera.updateProjectionMatrix();
     }
   }
@@ -1064,7 +1097,7 @@ class RaymarchScene extends SceneBase {
 }
 
 class SwarmScene extends SceneBase {
-  protected baseCameraZ = 7.5;
+  protected baseCameraZ = 6.0;
   private points: THREE.Points;
   private velocities: Float32Array;
   private base: Float32Array;
@@ -1077,21 +1110,25 @@ class SwarmScene extends SceneBase {
 
   constructor() {
     super('scene02');
-    this.scene.background = new THREE.Color(0x030810);
-    this.scene.fog = new THREE.FogExp2(0x030810, 0.055);
+    // Darker background for better contrast with bright fireflies
+    this.scene.background = new THREE.Color(0x010408);
+    // Much less fog so particles don't fade out
+    this.scene.fog = new THREE.FogExp2(0x010408, 0.018);
     const cam = this.camera as THREE.PerspectiveCamera;
-    cam.position.set(0, 0, 7.5);
+    cam.position.set(0, 0, 6.0);
 
-    // Ambient and accent lighting
-    const ambient = new THREE.AmbientLight(0x112233, 0.3);
-    const key = new THREE.PointLight(0x88ddff, 1.5, 25);
+    // MUCH brighter ambient and accent lighting for firefly visibility
+    const ambient = new THREE.AmbientLight(0x223355, 0.8);
+    const key = new THREE.PointLight(0xaaeeff, 4.5, 40);
     key.position.set(3, 5, 8);
-    const rim = new THREE.PointLight(0xffaa44, 0.8, 20);
+    const rim = new THREE.PointLight(0xffcc66, 3.0, 35);
     rim.position.set(-5, -3, 5);
-    this.scene.add(ambient, key, rim);
+    const fill = new THREE.PointLight(0x66ffaa, 2.5, 30);
+    fill.position.set(0, 4, -2);
+    this.scene.add(ambient, key, rim, fill);
 
-    // Increase particle count for more dramatic effect
-    const count = 12000;
+    // More particles for denser swarm
+    const count = 18000;
     const positions = new Float32Array(count * 3);
     const velocities = new Float32Array(count * 3);
     const colors = new Float32Array(count * 3);
@@ -1193,20 +1230,21 @@ class SwarmScene extends SceneBase {
           // Organic displacement using noise
           float noise1 = snoise(position.xy * 0.5 + uTime * 0.3);
           float noise2 = snoise(position.yz * 0.5 + uTime * 0.2);
-          vec3 displaced = position + vec3(noise1, noise2, noise1 * noise2) * 0.1 * uEnergy;
+          vec3 displaced = position + vec3(noise1, noise2, noise1 * noise2) * 0.15 * uEnergy;
 
           vec4 mvPosition = modelViewMatrix * vec4(displaced, 1.0);
 
-          // Multi-frequency pulsing
-          float pulse1 = 1.0 + 0.2 * sin(uTime * 2.0 + dist * 2.0);
-          float pulse2 = 1.0 + 0.15 * sin(uTime * 3.5 + dist * 1.5 + 1.5);
-          float pulse3 = 1.0 + 0.1 * sin(uTime * 5.0 + dist * 3.0);
+          // Multi-frequency pulsing - more pronounced
+          float pulse1 = 1.0 + 0.35 * sin(uTime * 2.0 + dist * 2.0);
+          float pulse2 = 1.0 + 0.25 * sin(uTime * 3.5 + dist * 1.5 + 1.5);
+          float pulse3 = 1.0 + 0.15 * sin(uTime * 5.0 + dist * 3.0);
           float pulse = pulse1 * pulse2 * pulse3;
 
-          // Fade based on depth with energy influence
-          vAlpha = smoothstep(18.0, 3.0, -mvPosition.z) * (0.4 + 0.6 * uProgress) * (0.8 + uEnergy * 0.4);
+          // MUCH higher base alpha for visibility - fireflies should GLOW
+          vAlpha = smoothstep(35.0, 2.0, -mvPosition.z) * (0.7 + 0.3 * uProgress) * (0.9 + uEnergy * 0.3);
 
-          gl_PointSize = size * uScale * pulse * (220.0 / -mvPosition.z);
+          // Larger particles for visibility
+          gl_PointSize = size * uScale * pulse * (350.0 / -mvPosition.z);
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
@@ -1221,26 +1259,32 @@ class SwarmScene extends SceneBase {
           vec2 center = gl_PointCoord - 0.5;
           float dist = length(center);
 
-          // Soft circular particle with ring effect
-          float alpha = smoothstep(0.5, 0.15, dist) * vAlpha;
+          // Soft circular particle with MUCH brighter glow
+          float alpha = smoothstep(0.5, 0.08, dist) * vAlpha;
 
-          // Inner glow ring for high energy
-          float ring = smoothstep(0.35, 0.25, dist) * smoothstep(0.15, 0.25, dist);
-          ring *= vEnergy * 0.5;
+          // Stronger inner glow ring
+          float ring = smoothstep(0.35, 0.2, dist) * smoothstep(0.1, 0.2, dist);
+          ring *= (0.4 + vEnergy * 0.8);
 
-          // Core brightness
-          float core = smoothstep(0.2, 0.0, dist);
+          // Intense core brightness - the firefly "spark"
+          float core = smoothstep(0.18, 0.0, dist);
+          float innerCore = smoothstep(0.08, 0.0, dist);
 
-          // Color with energy-driven brightness
-          vec3 glow = vColor * (1.0 + core * 0.8 + ring);
+          // Color with MUCH higher base brightness
+          vec3 glow = vColor * (1.8 + core * 1.5 + ring * 1.2);
+
+          // Firefly flicker - time-based brightness variation
+          float flicker = 0.85 + 0.15 * sin(uTime * 8.0 + vDist * 15.0);
 
           // Add subtle color shift based on distance from center
-          float hueShift = sin(vDist * 2.0 + uTime * 0.5) * 0.1;
-          glow.r += hueShift * vEnergy;
-          glow.b -= hueShift * vEnergy * 0.5;
+          float hueShift = sin(vDist * 2.0 + uTime * 0.5) * 0.15;
+          glow.r += hueShift * (0.5 + vEnergy * 0.5);
+          glow.b -= hueShift * vEnergy * 0.3;
 
-          // Final color with additive core
-          vec3 finalColor = glow + vec3(1.0, 0.9, 0.7) * core * vEnergy * 0.3;
+          // Final color with BRIGHT additive core - fireflies GLOW
+          vec3 finalColor = glow * flicker;
+          finalColor += vec3(1.0, 0.95, 0.8) * core * 1.2;
+          finalColor += vec3(1.0, 1.0, 0.9) * innerCore * 0.8;
 
           gl_FragColor = vec4(finalColor, alpha);
         }
@@ -1760,52 +1804,32 @@ class KineticTypeScene extends SceneBase {
   }
 }
 
-class CorridorScene extends SceneBase {
-  protected baseCameraZ = 4.5;
-  private frames: THREE.InstancedMesh;
-  private portal: THREE.Mesh;
-  private portalMat: THREE.ShaderMaterial;
-  private color = new THREE.Color();
-  private frameCount = 70;
+/**
+ * AuroraNebulaScene - A spectacular cosmic aurora display
+ * Fullscreen shader with volumetric aurora bands, star field,
+ * and cosmic nebula clouds. Extremely visible and mesmerizing.
+ */
+class AuroraNebulaScene extends SceneBase {
+  private material: THREE.ShaderMaterial;
+  private mesh: THREE.Mesh;
 
   constructor() {
     super('scene04');
-    this.scene.background = new THREE.Color(0x040913);
-    this.scene.fog = new THREE.FogExp2(0x040913, 0.105);
-    const cam = this.camera as THREE.PerspectiveCamera;
-    cam.position.set(0, 0, 4.5);
+    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-    const frameGeo = new THREE.BoxGeometry(4, 2.4, 0.06);
-    const frameMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x6bd1ff),
-      metalness: 0.2,
-      roughness: 0.45,
-      emissive: new THREE.Color(0.15, 0.25, 0.5),
-    });
-    this.frames = new THREE.InstancedMesh(frameGeo, frameMat, this.frameCount);
-
-    for (let i = 0; i < this.frameCount; i++) {
-      const z = -i * 1.4;
-      const scale = 1 - i * 0.02;
-      const m = new THREE.Matrix4()
-        .makeTranslation(0, 0, z)
-        .multiply(new THREE.Matrix4().makeScale(scale, scale, scale));
-      this.frames.setMatrixAt(i, m);
-    }
-    this.frames.instanceMatrix.needsUpdate = true;
-    this.scene.add(this.frames);
-
-    const portalGeo = new THREE.CircleGeometry(0.8, 64);
-    this.portalMat = new THREE.ShaderMaterial({
+    this.material = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
         uProgress: { value: 0 },
+        uResolution: { value: new THREE.Vector2(1, 1) },
+        uPointer: { value: new THREE.Vector2(0.5, 0.5) },
+        uGyro: { value: new THREE.Vector2() },
       },
       vertexShader: `
         varying vec2 vUv;
         void main() {
           vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          gl_Position = vec4(position.xy, 0.0, 1.0);
         }
       `,
       fragmentShader: `
@@ -1813,471 +1837,588 @@ class CorridorScene extends SceneBase {
         varying vec2 vUv;
         uniform float uTime;
         uniform float uProgress;
+        uniform vec2 uResolution;
+        uniform vec2 uPointer;
+        uniform vec2 uGyro;
 
-        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        #define PI 3.14159265359
+
+        // High quality hash
+        float hash(vec2 p) {
+          vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+          p3 += dot(p3, p3.yzx + 33.33);
+          return fract((p3.x + p3.y) * p3.z);
+        }
+
+        // Smooth noise
         float noise(vec2 p) {
           vec2 i = floor(p);
           vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
           float a = hash(i);
           float b = hash(i + vec2(1.0, 0.0));
           float c = hash(i + vec2(0.0, 1.0));
           float d = hash(i + vec2(1.0, 1.0));
-          vec2 u = f * f * (3.0 - 2.0 * f);
-          return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+          return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
         }
 
-        // Simplex-like noise for organic swirls
+        // FBM with domain warping
+        float fbm(vec2 p) {
+          float v = 0.0, a = 0.5;
+          mat2 rot = mat2(cos(0.5), sin(0.5), -sin(0.5), cos(0.5));
+          for (int i = 0; i < 6; i++) {
+            v += a * noise(p);
+            p = rot * p * 2.0 + vec2(100.0);
+            a *= 0.5;
+          }
+          return v;
+        }
+
+        // Simplex-ish noise for aurora ribbons
         vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
         vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-        vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
+        vec3 permute(vec3 x) { return mod289(((x * 34.0) + 1.0) * x); }
+
         float snoise(vec2 v) {
-          const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
-          vec2 i = floor(v + dot(v, C.yy));
+          const vec4 C = vec4(0.211324865405187, 0.366025403784439,
+                             -0.577350269189626, 0.024390243902439);
+          vec2 i  = floor(v + dot(v, C.yy));
           vec2 x0 = v - i + dot(i, C.xx);
           vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
           vec4 x12 = x0.xyxy + C.xxzz;
           x12.xy -= i1;
           i = mod289(i);
           vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));
-          vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
-          m = m*m; m = m*m;
+          vec3 m = max(0.5 - vec3(dot(x0, x0), dot(x12.xy, x12.xy), dot(x12.zw, x12.zw)), 0.0);
+          m = m * m; m = m * m;
           vec3 x = 2.0 * fract(p * C.www) - 1.0;
           vec3 h = abs(x) - 0.5;
           vec3 ox = floor(x + 0.5);
           vec3 a0 = x - ox;
-          m *= 1.79284291400159 - 0.85373472095314 * (a0*a0 + h*h);
+          m *= 1.79284291400159 - 0.85373472095314 * (a0 * a0 + h * h);
           vec3 g;
           g.x = a0.x * x0.x + h.x * x0.y;
           g.yz = a0.yz * x12.xz + h.yz * x12.yw;
           return 130.0 * dot(m, g);
         }
 
+        // Aurora ribbon function
+        float aurora(vec2 uv, float t, float offset) {
+          float wave = sin(uv.x * 3.0 + t * 0.8 + offset) * 0.15;
+          wave += sin(uv.x * 7.0 - t * 1.2 + offset * 2.0) * 0.08;
+          wave += snoise(vec2(uv.x * 2.0 + t * 0.3, t * 0.1)) * 0.12;
+
+          float y = uv.y - 0.4 - wave;
+          float ribbon = smoothstep(0.15, 0.0, abs(y)) * smoothstep(-0.5, 0.0, y);
+          ribbon *= 0.6 + 0.4 * sin(uv.x * 15.0 + t * 2.0 + offset);
+          return ribbon;
+        }
+
+        // Star field
+        float stars(vec2 uv, float t) {
+          vec2 gv = fract(uv * 50.0) - 0.5;
+          vec2 id = floor(uv * 50.0);
+          float n = hash(id);
+          float star = smoothstep(0.1, 0.02, length(gv)) * step(0.98, n);
+          star *= 0.5 + 0.5 * sin(t * (3.0 + n * 5.0) + n * 100.0);
+          return star;
+        }
+
         void main() {
           vec2 uv = vUv;
-          vec2 p = uv - 0.5;
-          float r = length(p);
-          float a = atan(p.y, p.x);
+          float aspect = uResolution.x / uResolution.y;
+          vec2 p = (uv - 0.5) * vec2(aspect, 1.0);
+          float t = uTime * 0.5;
 
-          float t = uTime * 0.25;
+          // Interaction offset
+          vec2 interaction = (uPointer - 0.5) * 0.3 + uGyro * 0.2;
+          p += interaction * 0.15;
 
-          // Multi-layer swirling bands
-          float bands1 = sin(a * 6.0 + t * 6.0) * 0.5 + 0.5;
-          float bands2 = sin(a * 12.0 - t * 8.0 + r * 5.0) * 0.5 + 0.5;
-          float bands3 = sin(a * 3.0 + t * 4.0 - r * 3.0) * 0.5 + 0.5;
-          float bands = bands1 * 0.5 + bands2 * 0.3 + bands3 * 0.2;
+          // Deep space background gradient
+          vec3 bgTop = vec3(0.02, 0.01, 0.08);
+          vec3 bgBot = vec3(0.0, 0.02, 0.05);
+          vec3 col = mix(bgBot, bgTop, uv.y);
 
-          // Organic noise swirl
-          float n1 = snoise(p * 4.0 + vec2(t, -t * 0.7)) * 0.5 + 0.5;
-          float n2 = snoise(p * 8.0 - vec2(t * 0.5, t * 0.8)) * 0.5 + 0.5;
-          float n = n1 * 0.6 + n2 * 0.4;
+          // Nebula clouds - base layer
+          float nebula1 = fbm(p * 1.5 + vec2(t * 0.1, 0.0));
+          float nebula2 = fbm(p * 2.5 - vec2(0.0, t * 0.08));
+          float nebula3 = fbm(p * 0.8 + vec2(t * 0.05, t * 0.03));
 
-          // Ring structure with energy buildup
-          float ring = smoothstep(0.48 + 0.1 * uProgress, 0.08, r);
-          float innerRing = smoothstep(0.35, 0.25, r) * smoothstep(0.15, 0.25, r);
-          float core = smoothstep(0.18, 0.0, r);
+          vec3 nebCol1 = vec3(0.3, 0.1, 0.5) * nebula1 * 0.6;
+          vec3 nebCol2 = vec3(0.1, 0.2, 0.4) * nebula2 * 0.5;
+          vec3 nebCol3 = vec3(0.4, 0.2, 0.3) * nebula3 * 0.4;
+          col += nebCol1 + nebCol2 + nebCol3;
 
-          // Electric arc effect
-          float arc = pow(abs(snoise(vec2(a * 3.0 + t * 10.0, r * 5.0))), 3.0);
+          // Star field
+          float starField = stars(p + interaction, t);
+          starField += stars(p * 0.5 - interaction, t * 0.7) * 0.5;
+          col += vec3(1.0, 0.95, 0.8) * starField;
 
-          // Color palette: deep blue to electric cyan to white core
-          vec3 deepBlue = vec3(0.05, 0.09, 0.18);
-          vec3 electricCyan = vec3(0.3, 0.75, 1.2);
-          vec3 hotWhite = vec3(0.8, 0.9, 1.0);
-          vec3 purple = vec3(0.4, 0.2, 0.8);
+          // AURORA BANDS - the main visual spectacle
+          // Green aurora (primary)
+          float aur1 = aurora(p + vec2(0.0, interaction.y * 0.5), t, 0.0);
+          vec3 green = vec3(0.2, 1.0, 0.4);
+          col += green * aur1 * (1.2 + uProgress * 0.8);
 
-          vec3 col = mix(deepBlue, electricCyan, bands);
-          col = mix(col, purple, innerRing * 0.4);
-          col += n * 0.4;
-          col *= ring;
-          col += core * hotWhite * 1.5;
-          col += arc * electricCyan * 0.4 * uProgress;
+          // Cyan aurora
+          float aur2 = aurora(p + vec2(0.3, -0.1 + interaction.y * 0.3), t * 0.9, 2.0);
+          vec3 cyan = vec3(0.3, 0.8, 1.0);
+          col += cyan * aur2 * 0.9 * (0.8 + uProgress * 0.6);
 
-          float alpha = ring * (0.4 + 0.6 * uProgress);
-          gl_FragColor = vec4(col, alpha);
+          // Magenta aurora (edges)
+          float aur3 = aurora(p + vec2(-0.2, 0.05 + interaction.y * 0.4), t * 1.1, 4.5);
+          vec3 magenta = vec3(1.0, 0.3, 0.7);
+          col += magenta * aur3 * 0.7 * uProgress;
+
+          // Purple underlayer
+          float aur4 = aurora(p * 0.8 + vec2(0.1, -0.15), t * 0.7, 1.5);
+          vec3 purple = vec3(0.5, 0.2, 0.9);
+          col += purple * aur4 * 0.6;
+
+          // Vertical aurora curtains (the "dancing" effect)
+          float curtain = 0.0;
+          for (float i = 0.0; i < 5.0; i++) {
+            float cx = p.x + sin(t * 0.5 + i) * 0.3;
+            float cy = p.y - 0.2 + i * 0.05;
+            float wave = sin(cx * 8.0 + t * 2.0 + i * 1.5) * 0.1;
+            wave += snoise(vec2(cx * 3.0 + t, i)) * 0.15;
+            float c = smoothstep(0.2, 0.0, abs(cy - wave)) * smoothstep(-0.3, 0.1, cy);
+            c *= (0.7 + 0.3 * sin(cx * 20.0 + t * 3.0 + i));
+            curtain += c * (1.0 - i * 0.15);
+          }
+          vec3 curtainCol = mix(green, cyan, sin(t + p.x * 3.0) * 0.5 + 0.5);
+          col += curtainCol * curtain * 0.5 * (0.7 + uProgress * 0.5);
+
+          // Bright corona effect around aurora
+          float corona = (aur1 + aur2 + aur3) * 0.3;
+          corona = pow(corona, 0.5) * 0.4;
+          col += vec3(0.8, 1.0, 0.9) * corona;
+
+          // Shooting stars / meteors
+          float meteor = 0.0;
+          for (float i = 0.0; i < 3.0; i++) {
+            vec2 mp = p + vec2(mod(t * (0.5 + i * 0.2) + i * 2.0, 4.0) - 2.0, -mod(t * (0.3 + i * 0.15) + i * 1.5, 3.0) + 1.5);
+            float m = smoothstep(0.02, 0.0, length(mp));
+            // Trail
+            m += smoothstep(0.15, 0.0, mp.x) * smoothstep(-0.002, 0.002, mp.y) * step(0.0, mp.x) * 0.3;
+            meteor += m * step(0.7, fract(t * 0.1 + i * 0.3));
+          }
+          col += vec3(1.0, 0.9, 0.8) * meteor;
+
+          // Subtle lens glow in center
+          float glow = smoothstep(0.8, 0.0, length(p)) * 0.15;
+          col += vec3(0.3, 0.5, 0.4) * glow * (1.0 + sin(t) * 0.2);
+
+          // Color grading
+          col = pow(col, vec3(0.95)); // Slight lift
+          col *= 1.1; // Overall brightness boost
+
+          // Vignette
+          float vig = smoothstep(1.2, 0.3, length(p));
+          col *= 0.6 + 0.5 * vig;
+
+          gl_FragColor = vec4(col, 1.0);
         }
       `,
-      transparent: true,
+      depthTest: false,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
     });
-    this.portal = new THREE.Mesh(portalGeo, this.portalMat);
-    this.portal.position.z = -4.0;
-    this.scene.add(this.portal);
 
-    const key = new THREE.DirectionalLight(0xffffff, 1.2);
-    key.position.set(2, 4, 6);
-    const pulseA = new THREE.PointLight(0x7fd2ff, 1.6, 18, 2);
-    pulseA.position.set(-1.2, 0.4, -1.8);
-    const pulseB = new THREE.PointLight(0xff7ad6, 1.2, 18, 2);
-    pulseB.position.set(1.1, -0.3, -3.8);
-    this.scene.add(key, pulseA, pulseB);
+    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.material);
+    this.scene.add(this.mesh);
   }
 
   update(ctx: SceneRuntime): void {
-    const t = ctx.time;
-    const progress = ctx.localProgress;
-    const gyro = ctx.gyro;
     const gyroActive = ctx.gyroActive;
-    const gyroInfluence = gyroActive ? 0.4 : 0;
-
-    const impulse = clamp(
-      Math.abs(ctx.scrollVelocity) * 1.05 + ctx.pointerVelocity.length() * 0.8,
-      0,
-      1
+    const gyroInfluence = gyroActive ? 0.5 : 0;
+    this.material.uniforms.uTime.value = ctx.time;
+    this.material.uniforms.uProgress.value = ctx.localProgress;
+    this.material.uniforms.uPointer.value.set(ctx.pointer.x, ctx.pointer.y);
+    this.material.uniforms.uGyro.value.set(
+      ctx.gyro.x * gyroInfluence,
+      ctx.gyro.y * gyroInfluence
     );
+  }
 
-    // Camera with gyro-enhanced parallax (disorienting corridor effect)
-    const cam = this.camera as THREE.PerspectiveCamera;
-    const targetZ =
-      (this.baseCameraZ - progress * 2.2 - impulse * 0.35) * this.aspectMult;
-    const targetX =
-      ctx.pointer.x * 0.55 +
-      Math.sin(t * 0.35) * 0.08 +
-      gyro.x * gyroInfluence * 0.6;
-    const targetY =
-      ctx.pointer.y * 0.35 +
-      Math.cos(t * 0.28) * 0.06 +
-      gyro.y * gyroInfluence * 0.4;
-
-    cam.position.z = damp(cam.position.z, targetZ, 3, ctx.dt);
-    cam.position.x = damp(cam.position.x, targetX, 3, ctx.dt);
-    cam.position.y = damp(cam.position.y, targetY, 3, ctx.dt);
-
-    // Slight camera roll for disorientation
-    const roll = (ctx.pointer.x - 0.5) * 0.05 + gyro.x * gyroInfluence * 0.1;
-    cam.rotation.z = damp(cam.rotation.z, roll, 4, ctx.dt);
-    cam.lookAt(0, 0, -6);
-
-    // Portal animation
-    const portalPulse = 1 + Math.sin(t * 1.4) * 0.05 + progress * 0.25;
-    this.portal.scale.setScalar(portalPulse);
-    this.portal.rotation.z = t * 0.1;
-    this.portalMat.uniforms.uTime.value = t;
-    this.portalMat.uniforms.uProgress.value = progress;
-
-    // Frame color shift with gyro
-    const frameMat = this.frames.material as THREE.MeshStandardMaterial;
-    const hueShift = progress * 0.2 + gyro.x * gyroInfluence * 0.1;
-    this.color.setHSL(0.55 + hueShift, 0.85, 0.55);
-    frameMat.color.copy(this.color);
-    frameMat.emissive.setHSL(0.6 + progress * 0.1, 0.9, 0.35 + impulse * 0.15);
-    frameMat.emissiveIntensity = 0.8 + progress * 0.3 + impulse * 0.2;
-
-    // Fog density changes with depth
-    const fog = this.scene.fog as THREE.FogExp2 | null;
-    if (fog) fog.density = 0.08 + progress * 0.04;
+  resize(ctx: SceneRuntime): void {
+    super.resize(ctx);
+    this.material.uniforms.uResolution.value.set(
+      ctx.size.width,
+      ctx.size.height
+    );
   }
 }
 
-class CrystalScene extends SceneBase {
-  protected baseCameraZ = 6;
-  private crystals: THREE.Mesh[] = [];
-  private crystalData: {
-    basePos: THREE.Vector3;
-    rotSpeed: THREE.Vector3;
-    phase: number;
-  }[] = [];
-  private env: THREE.Texture | null = null;
-  private pmrem: THREE.PMREMGenerator | null = null;
-  private keyLight: THREE.DirectionalLight | null = null;
-  private causticPlane: THREE.Mesh | null = null;
-  private causticMaterial: THREE.ShaderMaterial | null = null;
+/**
+ * EventHorizonScene - A spectacular black hole with gravitational lensing
+ * Features: accretion disk, light bending, relativistic jets, and intense visual drama
+ */
+class EventHorizonScene extends SceneBase {
+  private material: THREE.ShaderMaterial;
+  private mesh: THREE.Mesh;
 
   constructor() {
     super('scene05');
-    this.scene.background = new THREE.Color(0x020508);
-    this.scene.fog = new THREE.FogExp2(0x020508, 0.06);
-    const cam = this.camera as THREE.PerspectiveCamera;
-    cam.position.set(0, 0.5, 6);
-  }
+    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-  init(ctx: SceneRuntime): void {
-    this.pmrem = new THREE.PMREMGenerator(ctx.renderer);
-    this.env = this.pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.scene.environment = this.env;
-
-    // Crystal color variations
-    const crystalColors = [
-      new THREE.Color(0.9, 0.95, 1.0), // White
-      new THREE.Color(0.7, 0.9, 1.0), // Ice blue
-      new THREE.Color(0.95, 0.85, 1.0), // Light purple
-      new THREE.Color(0.85, 1.0, 0.9), // Mint
-    ];
-
-    const shapes = [
-      new THREE.OctahedronGeometry(0.7, 2),
-      new THREE.IcosahedronGeometry(0.55, 1),
-      new THREE.DodecahedronGeometry(0.6, 0),
-      new THREE.TetrahedronGeometry(0.5, 1),
-    ];
-
-    // Create more crystals with varied sizes
-    for (let i = 0; i < 20; i++) {
-      const geo = shapes[i % shapes.length];
-      const colorIdx = i % crystalColors.length;
-      const mat = new THREE.MeshPhysicalMaterial({
-        color: crystalColors[colorIdx],
-        roughness: 0.02 + Math.random() * 0.05,
-        metalness: 0.0,
-        transmission: 0.95 + Math.random() * 0.05,
-        thickness: 0.6 + Math.random() * 0.6,
-        ior: 1.4 + Math.random() * 0.3,
-        transparent: true,
-        envMapIntensity: 1.0 + Math.random() * 0.5,
-        iridescence: 0.3 + Math.random() * 0.4,
-        iridescenceIOR: 1.3,
-      });
-
-      const scale = 0.5 + Math.random() * 0.8;
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.scale.setScalar(scale);
-
-      const basePos = new THREE.Vector3(
-        (Math.random() - 0.5) * 4.5,
-        (Math.random() - 0.5) * 3.0,
-        (Math.random() - 0.5) * 3.5
-      );
-      mesh.position.copy(basePos);
-      mesh.rotation.set(
-        Math.random() * Math.PI,
-        Math.random() * Math.PI,
-        Math.random() * Math.PI
-      );
-
-      this.scene.add(mesh);
-      this.crystals.push(mesh);
-      this.crystalData.push({
-        basePos: basePos.clone(),
-        rotSpeed: new THREE.Vector3(
-          (Math.random() - 0.5) * 0.4,
-          (Math.random() - 0.5) * 0.5,
-          (Math.random() - 0.5) * 0.3
-        ),
-        phase: Math.random() * Math.PI * 2,
-      });
-    }
-
-    // Enhanced lighting
-    this.keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
-    this.keyLight.position.set(3, 6, 5);
-    this.scene.add(this.keyLight);
-
-    const fillLight = new THREE.PointLight(0x88ccff, 0.8, 15);
-    fillLight.position.set(-4, 2, 3);
-    this.scene.add(fillLight);
-
-    const rimLight = new THREE.PointLight(0xff88cc, 0.6, 12);
-    rimLight.position.set(2, -3, -2);
-    this.scene.add(rimLight);
-
-    // Enhanced caustic light plane with rainbow dispersion
-    this.causticMaterial = new THREE.ShaderMaterial({
+    this.material = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
         uProgress: { value: 0 },
-        uGyro: { value: new THREE.Vector2(0, 0) },
+        uResolution: { value: new THREE.Vector2(1, 1) },
+        uPointer: { value: new THREE.Vector2(0.5, 0.5) },
+        uGyro: { value: new THREE.Vector2() },
       },
       vertexShader: `
         varying vec2 vUv;
         void main() {
           vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          gl_Position = vec4(position.xy, 0.0, 1.0);
         }
       `,
       fragmentShader: `
+        precision highp float;
+        varying vec2 vUv;
         uniform float uTime;
         uniform float uProgress;
+        uniform vec2 uResolution;
+        uniform vec2 uPointer;
         uniform vec2 uGyro;
-        varying vec2 vUv;
 
-        // HSV to RGB for rainbow caustics
-        vec3 hsv2rgb(vec3 c) {
-          vec4 K = vec4(1.0, 2.0/3.0, 1.0/3.0, 3.0);
-          vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-          return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+        #define PI 3.14159265359
+        #define TAU 6.28318530718
+
+        // High quality hash
+        float hash(vec2 p) {
+          vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+          p3 += dot(p3, p3.yzx + 33.33);
+          return fract((p3.x + p3.y) * p3.z);
         }
 
-        float caustic(vec2 uv, float t, float offset) {
-          vec2 p = uv * 8.0 + uGyro * 0.5;
-          float c = 0.0;
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(
+            mix(hash(i), hash(i + vec2(1, 0)), f.x),
+            mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x),
+            f.y
+          );
+        }
+
+        float fbm(vec2 p) {
+          float v = 0.0, a = 0.5;
+          mat2 rot = mat2(0.8, 0.6, -0.6, 0.8);
           for (int i = 0; i < 5; i++) {
-            float fi = float(i);
-            p += vec2(
-              sin(p.y * 0.9 + t * 0.4 + fi * 0.7 + offset),
-              cos(p.x * 0.8 + t * 0.3 + fi * 1.1 + offset)
-            ) * 0.4;
-            c += sin(p.x * 1.1 + p.y * 0.9 + t * 0.5 + fi + offset) * 0.22;
+            v += a * noise(p);
+            p = rot * p * 2.0;
+            a *= 0.5;
           }
-          return smoothstep(0.15, 0.85, c * 0.5 + 0.5);
+          return v;
+        }
+
+        // Gravitational lensing distortion
+        vec2 gravLens(vec2 p, vec2 center, float mass) {
+          vec2 d = p - center;
+          float dist = length(d);
+          float strength = mass / (dist * dist + 0.01);
+          return p - normalize(d) * strength * 0.15;
+        }
+
+        // Star field with gravitational effects
+        float starField(vec2 uv, float t, vec2 bhPos, float bhMass) {
+          float stars = 0.0;
+          for (float i = 0.0; i < 3.0; i++) {
+            vec2 gv = fract(uv * (40.0 + i * 15.0)) - 0.5;
+            vec2 id = floor(uv * (40.0 + i * 15.0));
+
+            // Distort by black hole
+            float n = hash(id + i);
+            vec2 starPos = uv + gv * 0.02;
+            float distToBH = length(starPos - bhPos);
+
+            // Stars get stretched near event horizon
+            float stretch = smoothstep(0.3, 0.1, distToBH);
+            gv.x *= 1.0 + stretch * 3.0;
+
+            float star = smoothstep(0.12 - stretch * 0.08, 0.02, length(gv));
+            star *= step(0.96, n);
+            star *= 0.5 + 0.5 * sin(t * (2.0 + n * 4.0) + n * 100.0);
+
+            // Redshift near black hole
+            float redshift = smoothstep(0.15, 0.05, distToBH);
+            stars += star * (1.0 - redshift * 0.7);
+          }
+          return stars;
         }
 
         void main() {
-          // Multiple caustic layers for chromatic dispersion (rainbow effect)
-          float cR = caustic(vUv, uTime, 0.0);
-          float cG = caustic(vUv, uTime * 1.1, 0.3);
-          float cB = caustic(vUv, uTime * 0.9, 0.6);
+          vec2 uv = vUv;
+          float aspect = uResolution.x / uResolution.y;
+          vec2 p = (uv - 0.5) * vec2(aspect, 1.0);
+          float t = uTime * 0.3;
 
-          // Rainbow dispersion based on caustic pattern
-          float hue = (cR + cG + cB) / 3.0 + uTime * 0.05;
-          vec3 rainbow = hsv2rgb(vec3(hue, 0.7, 0.9));
+          // Black hole center with interaction
+          vec2 bhPos = vec2(0.0) + (uPointer - 0.5) * 0.15 + uGyro * 0.1;
+          float bhMass = 0.8 + uProgress * 0.4;
 
-          // Combine individual channels with rainbow
-          vec3 causticColor = vec3(cR, cG, cB) * 0.4 + rainbow * 0.3;
+          // Apply gravitational lensing
+          vec2 lensed = gravLens(p, bhPos, bhMass);
+          float distToBH = length(p - bhPos);
 
-          // Add bright spots
-          float bright = pow(max(cR, max(cG, cB)), 2.0);
-          causticColor += bright * vec3(0.4, 0.5, 0.6);
+          // Deep space background
+          vec3 col = vec3(0.0);
 
-          float alpha = (cR + cG + cB) * 0.12 * uProgress;
-          gl_FragColor = vec4(causticColor, alpha);
+          // Distant nebula (heavily distorted by lensing)
+          float nebula = fbm(lensed * 2.0 + vec2(t * 0.05, 0.0));
+          nebula += fbm(lensed * 4.0 - vec2(0.0, t * 0.03)) * 0.5;
+          vec3 nebulaCol = mix(
+            vec3(0.1, 0.02, 0.15),
+            vec3(0.02, 0.05, 0.15),
+            nebula
+          ) * 0.4;
+          col += nebulaCol;
+
+          // Star field with lensing
+          float stars = starField(lensed, t, bhPos, bhMass);
+          col += vec3(1.0, 0.95, 0.9) * stars * 0.8;
+
+          // Einstein ring (light bent around the black hole)
+          float ringRadius = 0.22 + uProgress * 0.08;
+          float ringDist = abs(distToBH - ringRadius);
+          float einsteinRing = smoothstep(0.05, 0.01, ringDist);
+          einsteinRing *= smoothstep(0.0, 0.1, distToBH); // fade at center
+          vec3 ringCol = vec3(1.0, 0.8, 0.5) * einsteinRing * 1.5;
+          col += ringCol;
+
+          // Accretion disk
+          float diskAngle = atan(p.y - bhPos.y, p.x - bhPos.x);
+          float diskRadius = distToBH;
+
+          // Disk shape (toroidal, tilted)
+          float diskY = (p.y - bhPos.y) * 2.5; // Tilt
+          float diskPlane = exp(-diskY * diskY * 15.0);
+          float diskInner = smoothstep(0.08, 0.15, diskRadius);
+          float diskOuter = smoothstep(0.6, 0.25, diskRadius);
+          float disk = diskPlane * diskInner * diskOuter;
+
+          // Disk rotation and turbulence
+          float diskNoise = fbm(vec2(diskAngle * 3.0 + t * 2.0, diskRadius * 10.0));
+          float diskSpiral = sin(diskAngle * 8.0 - t * 5.0 - diskRadius * 20.0) * 0.5 + 0.5;
+          diskSpiral += sin(diskAngle * 3.0 + t * 3.0 + diskRadius * 15.0) * 0.3;
+          disk *= 0.5 + diskSpiral * 0.5 + diskNoise * 0.3;
+
+          // Doppler shift - approaching side brighter, receding dimmer
+          float doppler = sin(diskAngle + t * 0.5) * 0.5 + 0.5;
+
+          // Disk color gradient (hot inner to cooler outer)
+          vec3 diskHot = vec3(1.0, 0.9, 0.7); // White-hot inner
+          vec3 diskWarm = vec3(1.0, 0.5, 0.2); // Orange middle
+          vec3 diskCool = vec3(0.8, 0.2, 0.3); // Red outer
+          vec3 diskColor = mix(diskHot, diskWarm, smoothstep(0.1, 0.3, diskRadius));
+          diskColor = mix(diskColor, diskCool, smoothstep(0.3, 0.5, diskRadius));
+          diskColor *= 0.6 + doppler * 0.8; // Doppler beaming
+
+          col += diskColor * disk * (2.0 + uProgress);
+
+          // Relativistic jets
+          float jetAngle = abs(p.x - bhPos.x);
+          float jetDist = abs(p.y - bhPos.y);
+          float jet = smoothstep(0.06, 0.01, jetAngle) * smoothstep(0.0, 0.1, jetDist);
+          jet *= smoothstep(0.8, 0.15, jetDist); // Fade out
+          float jetPulse = fbm(vec2(jetDist * 15.0 - t * 8.0, p.x * 5.0));
+          jet *= 0.5 + jetPulse * 0.8;
+
+          // Jet glow
+          vec3 jetCol = vec3(0.4, 0.6, 1.0) * jet * 1.5 * uProgress;
+          col += jetCol;
+
+          // Event horizon (pure black center)
+          float eventHorizon = smoothstep(0.12, 0.08, distToBH);
+          col *= 1.0 - eventHorizon;
+
+          // Photon sphere glow (just outside event horizon)
+          float photonSphere = smoothstep(0.12, 0.14, distToBH) * smoothstep(0.18, 0.14, distToBH);
+          col += vec3(1.0, 0.6, 0.3) * photonSphere * 0.8;
+
+          // Hawking radiation particles
+          float hawking = 0.0;
+          for (float i = 0.0; i < 8.0; i++) {
+            float angle = i * TAU / 8.0 + t * 0.3 + sin(t + i) * 0.5;
+            float rad = 0.13 + sin(t * 2.0 + i * 1.5) * 0.02;
+            vec2 particlePos = bhPos + vec2(cos(angle), sin(angle)) * rad;
+            float particle = smoothstep(0.015, 0.005, length(p - particlePos));
+            hawking += particle * (0.5 + 0.5 * sin(t * 10.0 + i * 3.0));
+          }
+          col += vec3(0.8, 0.9, 1.0) * hawking * 0.6;
+
+          // Gravitational wave ripples (subtle)
+          float wave = sin(distToBH * 40.0 - t * 6.0) * 0.5 + 0.5;
+          wave *= smoothstep(0.5, 0.15, distToBH) * smoothstep(0.12, 0.2, distToBH);
+          col += vec3(0.2, 0.3, 0.5) * wave * 0.15 * uProgress;
+
+          // Overall glow
+          float glow = smoothstep(0.6, 0.1, distToBH) * 0.3;
+          col += vec3(0.5, 0.3, 0.2) * glow;
+
+          // Vignette
+          float vig = smoothstep(1.3, 0.4, length(p));
+          col *= 0.5 + 0.6 * vig;
+
+          // Boost overall brightness
+          col *= 1.3;
+
+          gl_FragColor = vec4(col, 1.0);
         }
       `,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
+      depthTest: false,
       depthWrite: false,
     });
 
-    const causticGeo = new THREE.PlaneGeometry(15, 15);
-    this.causticPlane = new THREE.Mesh(causticGeo, this.causticMaterial);
-    this.causticPlane.rotation.x = -Math.PI / 2;
-    this.causticPlane.position.y = -2.5;
-    this.scene.add(this.causticPlane);
+    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.material);
+    this.scene.add(this.mesh);
   }
 
   update(ctx: SceneRuntime): void {
-    const t = ctx.time;
-    const progress = ctx.localProgress;
-    const gyro = ctx.gyro;
     const gyroActive = ctx.gyroActive;
-    const gyroInfluence = gyroActive ? 0.35 : 0;
-
-    const impulse = clamp(
-      Math.abs(ctx.scrollVelocity) * 1.0 + ctx.pointerVelocity.length() * 0.7,
-      0,
-      1
+    const gyroInfluence = gyroActive ? 0.5 : 0;
+    this.material.uniforms.uTime.value = ctx.time;
+    this.material.uniforms.uProgress.value = ctx.localProgress;
+    this.material.uniforms.uPointer.value.set(ctx.pointer.x, ctx.pointer.y);
+    this.material.uniforms.uGyro.value.set(
+      ctx.gyro.x * gyroInfluence,
+      ctx.gyro.y * gyroInfluence
     );
-
-    // Animate crystals with floating and rotation
-    this.crystals.forEach((mesh, i) => {
-      const data = this.crystalData[i];
-
-      // Floating motion
-      const floatY = Math.sin(t * 0.5 + data.phase) * 0.15;
-      const floatX = Math.cos(t * 0.3 + data.phase * 1.3) * 0.08;
-      mesh.position.x = data.basePos.x + floatX;
-      mesh.position.y = data.basePos.y + floatY;
-      mesh.position.z =
-        data.basePos.z + Math.sin(t * 0.4 + data.phase * 0.7) * 0.05;
-
-      // Rotation
-      mesh.rotation.x += ctx.dt * data.rotSpeed.x * (0.8 + impulse * 0.5);
-      mesh.rotation.y += ctx.dt * data.rotSpeed.y * (0.8 + impulse * 0.5);
-      mesh.rotation.z += ctx.dt * data.rotSpeed.z * (0.8 + impulse * 0.5);
-
-      // Material properties animate with progress
-      const mat = mesh.material as THREE.MeshPhysicalMaterial;
-      mat.ior = 1.35 + progress * 0.4;
-      mat.transmission = 0.92 + progress * 0.08;
-      mat.iridescence = 0.3 + progress * 0.4;
-    });
-
-    // Key light follows pointer/gyro for dynamic caustics
-    if (this.keyLight) {
-      const lightX = 3 + (ctx.pointer.x - 0.5) * 4 + gyro.x * gyroInfluence * 3;
-      const lightY = 6 + (ctx.pointer.y - 0.5) * 2 + gyro.y * gyroInfluence * 2;
-      this.keyLight.position.x = damp(
-        this.keyLight.position.x,
-        lightX,
-        4,
-        ctx.dt
-      );
-      this.keyLight.position.y = damp(
-        this.keyLight.position.y,
-        lightY,
-        4,
-        ctx.dt
-      );
-      this.keyLight.intensity = 1.4 + progress * 0.4 + impulse * 0.3;
-    }
-
-    // Update caustic shader with gyro for reactive light patterns
-    if (this.causticMaterial) {
-      this.causticMaterial.uniforms.uTime.value = t;
-      this.causticMaterial.uniforms.uProgress.value = progress;
-      this.causticMaterial.uniforms.uGyro.value.set(
-        gyro.x * gyroInfluence,
-        gyro.y * gyroInfluence
-      );
-    }
-
-    // Camera with gyro parallax
-    const cam = this.camera as THREE.PerspectiveCamera;
-    const camX = (ctx.pointer.x - 0.5) * 0.8 + gyro.x * gyroInfluence * 0.6;
-    const camY =
-      0.4 + (ctx.pointer.y - 0.5) * 0.5 + gyro.y * gyroInfluence * 0.4;
-    cam.position.x = damp(cam.position.x, camX, 4, ctx.dt);
-    cam.position.y = damp(cam.position.y, camY, 4, ctx.dt);
-    cam.position.z = damp(
-      cam.position.z,
-      (this.baseCameraZ - progress * 1.5) * this.aspectMult,
-      3,
-      ctx.dt
-    );
-    cam.lookAt(0, 0, 0);
-
-    // Fog density
-    const fog = this.scene.fog as THREE.FogExp2 | null;
-    if (fog) fog.density = 0.05 + progress * 0.02;
   }
 
-  dispose(): void {
-    super.dispose();
-    this.env?.dispose();
-    this.pmrem?.dispose();
+  resize(ctx: SceneRuntime): void {
+    super.resize(ctx);
+    this.material.uniforms.uResolution.value.set(
+      ctx.size.width,
+      ctx.size.height
+    );
   }
 }
 
 class BlueprintScene extends SceneBase {
-  protected baseCameraZ = 6.5;
+  protected baseCameraZ = 5.0;
   private lines: THREE.LineSegments[] = [];
+  private glowMeshes: THREE.Mesh[] = [];
+  private scanLine: THREE.Mesh | null = null;
+  private gridMesh: THREE.LineSegments | null = null;
   private hue = 205;
 
   constructor() {
     super('scene06');
-    this.scene.background = new THREE.Color(0x040a16);
-    this.scene.fog = new THREE.FogExp2(0x040a16, 0.1);
+    // Darker background for high contrast
+    this.scene.background = new THREE.Color(0x020610);
+    this.scene.fog = new THREE.FogExp2(0x020610, 0.04);
     const cam = this.camera as THREE.PerspectiveCamera;
-    cam.position.set(0, 0, 6.5);
+    cam.position.set(0, 0, 5.0);
 
+    // Many more geometric objects for a complex blueprint
     const geometries = [
-      new THREE.BoxGeometry(1.6, 0.8, 1.0, 4, 2, 2),
-      new THREE.ConeGeometry(0.8, 1.6, 8, 2),
-      new THREE.CylinderGeometry(0.4, 0.6, 1.2, 10, 2),
+      new THREE.BoxGeometry(1.8, 1.0, 1.2, 6, 4, 4),
+      new THREE.ConeGeometry(0.9, 1.8, 12, 4),
+      new THREE.CylinderGeometry(0.5, 0.7, 1.4, 16, 4),
+      new THREE.TorusGeometry(0.6, 0.2, 8, 24),
+      new THREE.OctahedronGeometry(0.8, 1),
+      new THREE.TorusKnotGeometry(0.5, 0.15, 64, 8, 2, 3),
+      new THREE.IcosahedronGeometry(0.7, 1),
     ];
 
+    // Create both wireframe and glow versions for each shape
     geometries.forEach((geo, i) => {
       const edges = new THREE.EdgesGeometry(geo);
+
+      // Main wireframe - BRIGHT and visible
       const mat = new THREE.LineBasicMaterial({
-        color: new THREE.Color().setHSL(0.58, 0.8, 0.6),
+        color: new THREE.Color().setHSL(0.58, 1.0, 0.7),
         transparent: true,
-        opacity: 0.75,
+        opacity: 1.0,
+        linewidth: 2,
       });
       const line = new THREE.LineSegments(edges, mat);
-      line.position.set((i - 1) * 1.6, 0, -i * 1.2);
+
+      // Arrange in a grid pattern
+      const col = i % 3;
+      const row = Math.floor(i / 3);
+      line.position.set((col - 1) * 2.2, (row - 1) * 1.8, -row * 0.8);
+      line.scale.setScalar(0.9);
+
       this.scene.add(line);
       this.lines.push(line);
+
+      // Add glow mesh behind each wireframe
+      const glowMat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color().setHSL(0.58, 1.0, 0.5),
+        transparent: true,
+        opacity: 0.15,
+        wireframe: true,
+      });
+      const glowMesh = new THREE.Mesh(geo, glowMat);
+      glowMesh.position.copy(line.position);
+      glowMesh.rotation.copy(line.rotation);
+      glowMesh.scale.setScalar(0.92);
+      this.scene.add(glowMesh);
+      this.glowMeshes.push(glowMesh);
     });
 
-    const key = new THREE.DirectionalLight(0xffffff, 0.8);
+    // Add grid floor
+    const gridGeo = new THREE.BufferGeometry();
+    const gridVerts: number[] = [];
+    const gridSize = 8;
+    const gridStep = 0.5;
+    for (let i = -gridSize; i <= gridSize; i += gridStep) {
+      gridVerts.push(-gridSize, -2, i, gridSize, -2, i);
+      gridVerts.push(i, -2, -gridSize, i, -2, gridSize);
+    }
+    gridGeo.setAttribute(
+      'position',
+      new THREE.Float32BufferAttribute(gridVerts, 3)
+    );
+    const gridMat = new THREE.LineBasicMaterial({
+      color: new THREE.Color(0x1a4a7a),
+      transparent: true,
+      opacity: 0.4,
+    });
+    this.gridMesh = new THREE.LineSegments(gridGeo, gridMat);
+    this.scene.add(this.gridMesh);
+
+    // Add scanning line effect
+    const scanGeo = new THREE.PlaneGeometry(20, 0.08);
+    const scanMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(0x00ffff),
+      transparent: true,
+      opacity: 0.6,
+      side: THREE.DoubleSide,
+    });
+    this.scanLine = new THREE.Mesh(scanGeo, scanMat);
+    this.scanLine.rotation.x = Math.PI / 2;
+    this.scene.add(this.scanLine);
+
+    // Bright lighting
+    const key = new THREE.DirectionalLight(0xffffff, 2.0);
     key.position.set(2, 5, 4);
     this.scene.add(key);
+
+    const ambient = new THREE.AmbientLight(0x4488ff, 0.6);
+    this.scene.add(ambient);
+
+    const point1 = new THREE.PointLight(0x00ffff, 1.5, 15);
+    point1.position.set(-3, 2, 3);
+    this.scene.add(point1);
+
+    const point2 = new THREE.PointLight(0x8844ff, 1.2, 12);
+    point2.position.set(3, -1, 2);
+    this.scene.add(point2);
   }
 
   update(ctx: SceneRuntime): void {
     const progress = ctx.localProgress;
     const gyro = ctx.gyro;
     const gyroActive = ctx.gyroActive;
-    const gyroInfluence = gyroActive ? 0.3 : 0;
+    const gyroInfluence = gyroActive ? 0.4 : 0;
     const impulse = clamp(
       Math.abs(ctx.scrollVelocity) * 1.05 + ctx.pointerVelocity.length() * 0.8,
       0,
@@ -2286,40 +2427,68 @@ class BlueprintScene extends SceneBase {
     const t = ctx.time;
     this.hue = damp(
       this.hue,
-      200 + progress * 40 + Math.sin(t * 0.25) * 18 + impulse * 14,
+      180 + progress * 60 + Math.sin(t * 0.25) * 25 + impulse * 20,
       2,
       ctx.dt
     );
 
+    // Scanning line animation
+    if (this.scanLine) {
+      const scanY = Math.sin(t * 0.8) * 3;
+      this.scanLine.position.y = scanY;
+      (this.scanLine.material as THREE.MeshBasicMaterial).opacity =
+        0.4 + Math.abs(Math.sin(t * 2)) * 0.4;
+    }
+
     // Object rotation responds to gyro
-    const gyroRotX = gyro.x * gyroInfluence * 0.4;
-    const gyroRotY = gyro.y * gyroInfluence * 0.3;
+    const gyroRotX = gyro.x * gyroInfluence * 0.5;
+    const gyroRotY = gyro.y * gyroInfluence * 0.4;
 
     this.lines.forEach((line, i) => {
+      // Rotation
       line.rotation.y +=
-        ctx.dt * (0.22 + i * 0.085) +
-        Math.sin(t * 0.22 + i) * 0.002 +
-        gyroRotX * 0.02;
+        ctx.dt * (0.15 + i * 0.05) +
+        Math.sin(t * 0.22 + i) * 0.003 +
+        gyroRotX * 0.03;
       line.rotation.x +=
-        ctx.dt * 0.11 + Math.cos(t * 0.28 + i) * 0.0016 + gyroRotY * 0.015;
+        ctx.dt * 0.08 + Math.cos(t * 0.28 + i * 0.5) * 0.002 + gyroRotY * 0.02;
+
+      // Pulsing scale
+      const pulse = 1 + Math.sin(t * 2 + i * 0.7) * 0.05;
+      line.scale.setScalar(0.9 * pulse);
+
       const mat = line.material as THREE.LineBasicMaterial;
-      mat.color.setHSL(this.hue / 360, 0.85, 0.65);
+      // Cycle through cyan to blue to purple
+      mat.color.setHSL(this.hue / 360, 1.0, 0.65 + Math.sin(t + i) * 0.1);
+      // HIGH base opacity for visibility
       mat.opacity =
-        0.28 +
-        progress * 0.62 +
-        Math.abs(Math.sin(t * 1.2 + i * 0.7)) * 0.14 +
-        impulse * 0.18;
+        0.8 + progress * 0.2 + Math.abs(Math.sin(t * 1.5 + i * 0.7)) * 0.2;
+
+      // Sync glow mesh
+      if (this.glowMeshes[i]) {
+        this.glowMeshes[i].rotation.copy(line.rotation);
+        this.glowMeshes[i].scale.copy(line.scale).multiplyScalar(1.02);
+        const glowMat = this.glowMeshes[i].material as THREE.MeshBasicMaterial;
+        glowMat.color.setHSL(this.hue / 360, 1.0, 0.5);
+        glowMat.opacity = 0.1 + progress * 0.15;
+      }
     });
+
+    // Grid pulse
+    if (this.gridMesh) {
+      const gridMat = this.gridMesh.material as THREE.LineBasicMaterial;
+      gridMat.opacity = 0.25 + progress * 0.25 + Math.sin(t * 0.5) * 0.1;
+    }
 
     // Camera with gyro parallax
     const cam = this.camera as THREE.PerspectiveCamera;
-    const camX = (ctx.pointer.x - 0.5) * 0.6 + gyro.x * gyroInfluence * 0.5;
-    const camY = (ctx.pointer.y - 0.5) * 0.4 + gyro.y * gyroInfluence * 0.35;
+    const camX = (ctx.pointer.x - 0.5) * 0.8 + gyro.x * gyroInfluence * 0.6;
+    const camY = (ctx.pointer.y - 0.5) * 0.5 + gyro.y * gyroInfluence * 0.4;
     cam.position.x = damp(cam.position.x, camX, 4, ctx.dt);
     cam.position.y = damp(cam.position.y, camY, 4, ctx.dt);
     cam.position.z = damp(
       cam.position.z,
-      (this.baseCameraZ - progress * 1.5) * this.aspectMult,
+      (this.baseCameraZ - progress * 1.2) * this.aspectMult,
       3,
       ctx.dt
     );
@@ -2341,6 +2510,7 @@ class InkScene extends SceneBase {
         uResolution: { value: new THREE.Vector2(1, 1) },
         uPointer: { value: new THREE.Vector2() },
         uGyro: { value: new THREE.Vector2() },
+        uAspect: { value: 1.0 },
       },
       vertexShader: `
         varying vec2 vUv;
@@ -2357,6 +2527,7 @@ class InkScene extends SceneBase {
         uniform vec2 uResolution;
         uniform vec2 uPointer;
         uniform vec2 uGyro;
+        uniform float uAspect;
 
         float hash(vec2 p) {
           return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -2377,57 +2548,96 @@ class InkScene extends SceneBase {
           float v = 0.0;
           float a = 0.5;
           mat2 m = mat2(1.6, 1.2, -1.2, 1.6);
-          for (int i = 0; i < 5; i++) {
+          for (int i = 0; i < 6; i++) {
             v += a * noise(p);
             p = m * p;
-            a *= 0.55;
+            a *= 0.5;
           }
           return v;
         }
 
         void main() {
           vec2 uv = vUv;
-          vec2 p = (uv - 0.5) * vec2(uResolution.x / uResolution.y, 1.0);
-          float t = uTime * 0.18;
 
-          // Combined pointer and gyro influence
-          vec2 interaction = uPointer + uGyro * 0.5;
+          // FIXED aspect ratio handling for both portrait and landscape
+          // This ensures the ink effect fills the screen properly on mobile
+          vec2 p = uv - 0.5;
+          if (uAspect > 1.0) {
+            // Landscape: stretch X
+            p.x *= uAspect;
+          } else {
+            // Portrait: stretch Y (inverse aspect)
+            p.y /= uAspect;
+          }
 
-          // Curl-ish advection
+          float t = uTime * 0.2;
+
+          // Combined pointer and gyro influence (scaled for portrait)
+          vec2 interaction = (uPointer - 0.5) * 0.5 + uGyro * 0.4;
+
+          // Curl-ish advection - made more dramatic
           vec2 q = p;
-          q += vec2(sin(q.y * 2.3 + t), cos(q.x * 2.1 - t)) * 0.085;
-          q += interaction * 0.22;
+          q += vec2(sin(q.y * 2.5 + t), cos(q.x * 2.3 - t)) * 0.12;
+          q += interaction * 0.3;
 
-          // Secondary swirl that never stops (even at progress endpoints)
+          // Secondary swirl - continuous motion
           q += vec2(
-            sin(t * 0.9 + p.x * 5.5),
-            cos(t * 0.8 + p.y * 5.0)
-          ) * 0.03;
+            sin(t * 1.1 + p.x * 4.5),
+            cos(t * 0.9 + p.y * 4.0)
+          ) * 0.05;
 
-          // Gyro adds extra ink flow direction
-          q += uGyro * 0.15 * (1.0 + sin(t * 0.5));
+          // Gyro flow
+          q += uGyro * 0.2 * (1.0 + sin(t * 0.6));
 
-          float n = fbm(q * 2.8 + t);
-          float m = fbm(q * 5.8 - t * 0.7);
-          float ink = smoothstep(0.18 + uProgress * 0.16, 0.9, n + m * 0.38);
+          // Multi-layer FBM for richer ink texture
+          float n1 = fbm(q * 2.5 + t * 0.8);
+          float n2 = fbm(q * 4.5 - t * 0.5);
+          float n3 = fbm(q * 1.5 + vec2(t * 0.3, -t * 0.2));
 
-          float reveal = smoothstep(0.12, 0.92, uProgress);
-          float silhouette = smoothstep(0.42, 0.06, length(p + interaction * 0.22));
-          float body = mix(ink, silhouette, reveal);
+          float ink = n1 * 0.5 + n2 * 0.3 + n3 * 0.2;
+          ink = smoothstep(0.25, 0.75, ink);
 
-          vec3 bg = vec3(0.02, 0.022, 0.032);
-          vec3 hi = vec3(0.65, 0.78, 1.15);
-          vec3 mid = vec3(0.22, 0.28, 0.42);
-          vec3 col = mix(bg, mid, body);
-          col = mix(col, hi, pow(body, 3.0) * 0.78);
+          // Progress-based reveal with smoother transition
+          float reveal = smoothstep(0.0, 1.0, uProgress);
 
-          // Hot edge shimmer when the pointer stirs the ink
-          float edge = smoothstep(0.08, 0.0, abs(dFdx(body)) + abs(dFdy(body)));
-          col += edge * vec3(0.25, 0.35, 0.55);
+          // Central silhouette that emerges
+          float dist = length(p * vec2(0.8, 1.0) + interaction * 0.2);
+          float silhouette = smoothstep(0.6, 0.1, dist);
 
-          // Vignette
-          float vig = smoothstep(1.0, 0.25, length(p));
-          col *= 0.72 + 0.38 * vig;
+          // Blend ink and silhouette based on progress
+          float body = mix(ink * 0.6, ink * 0.4 + silhouette * 0.6, reveal);
+          body = clamp(body, 0.0, 1.0);
+
+          // Richer color palette
+          vec3 deepBg = vec3(0.01, 0.015, 0.025);
+          vec3 inkBlue = vec3(0.15, 0.25, 0.45);
+          vec3 inkCyan = vec3(0.3, 0.55, 0.75);
+          vec3 highlight = vec3(0.7, 0.85, 1.0);
+
+          vec3 col = deepBg;
+          col = mix(col, inkBlue, smoothstep(0.0, 0.4, body));
+          col = mix(col, inkCyan, smoothstep(0.3, 0.7, body));
+          col = mix(col, highlight, smoothstep(0.6, 1.0, body) * 0.6);
+
+          // Shimmering edges
+          float edgeX = abs(dFdx(body));
+          float edgeY = abs(dFdy(body));
+          float edge = smoothstep(0.1, 0.0, edgeX + edgeY);
+          col += edge * vec3(0.3, 0.45, 0.7) * 0.8;
+
+          // Subtle flow lines
+          float flowLine = sin(q.x * 20.0 + q.y * 15.0 + t * 2.0) * 0.5 + 0.5;
+          flowLine *= smoothstep(0.2, 0.5, body) * smoothstep(0.8, 0.5, body);
+          col += flowLine * vec3(0.1, 0.15, 0.25) * 0.3;
+
+          // Vignette (adjusted for aspect)
+          float vigDist = length(p * vec2(1.0 / max(uAspect, 1.0), min(uAspect, 1.0)));
+          float vig = smoothstep(1.2, 0.3, vigDist);
+          col *= 0.6 + 0.5 * vig;
+
+          // Boost overall brightness
+          col *= 1.2;
+
           gl_FragColor = vec4(col, 1.0);
         }
       `,
@@ -2440,10 +2650,10 @@ class InkScene extends SceneBase {
 
   update(ctx: SceneRuntime): void {
     const gyroActive = ctx.gyroActive;
-    const gyroInfluence = gyroActive ? 0.4 : 0;
+    const gyroInfluence = gyroActive ? 0.5 : 0;
     this.material.uniforms.uTime.value = ctx.time;
     this.material.uniforms.uProgress.value = ctx.localProgress;
-    this.material.uniforms.uPointer.value.copy(ctx.pointer);
+    this.material.uniforms.uPointer.value.set(ctx.pointer.x, ctx.pointer.y);
     this.material.uniforms.uGyro.value.set(
       ctx.gyro.x * gyroInfluence,
       ctx.gyro.y * gyroInfluence
@@ -2452,10 +2662,12 @@ class InkScene extends SceneBase {
 
   resize(ctx: SceneRuntime): void {
     super.resize(ctx);
+    const aspect = ctx.size.width / ctx.size.height;
     this.material.uniforms.uResolution.value.set(
       ctx.size.width,
       ctx.size.height
     );
+    this.material.uniforms.uAspect.value = aspect;
   }
 }
 
@@ -3327,7 +3539,7 @@ class LibraryScene extends SceneBase {
     this.candles.forEach((candle, i) => {
       const flicker =
         Math.sin(t * 8 + i * 2) * 0.15 + Math.sin(t * 13 + i) * 0.1;
-      candle.intensity = 0.6 + flicker + progress * 0.3;
+      candle.intensity = 0.6 + flicker + progress * 0.3 + impulse * 0.15;
     });
 
     // Subtle room rotation
@@ -4437,8 +4649,8 @@ export const createScenes = (): TowerScene[] => [
   new RaymarchScene('scene01', 0),
   new SwarmScene(),
   new KineticTypeScene(),
-  new CorridorScene(),
-  new CrystalScene(),
+  new AuroraNebulaScene(),
+  new EventHorizonScene(),
   new BlueprintScene(),
   new InkScene(),
   new ClothScene(),

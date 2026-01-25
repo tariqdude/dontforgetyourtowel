@@ -7,6 +7,28 @@ import { createAstroMount } from './tower3d/core/astro-mount';
 import { getTowerCaps } from './tower3d/core/caps';
 import { SceneDirector } from './tower3d/three/scene-director';
 
+type GalleryAutoPlayController = {
+  start: () => void;
+  stop: () => void;
+  toggle: () => void;
+};
+
+declare global {
+  interface Window {
+    __galleryAutoPlay?: GalleryAutoPlayController;
+    __goToSceneOriginal?: (index: number) => void;
+  }
+
+  interface HTMLElement {
+    webkitRequestFullscreen?: () => Promise<void> | void;
+  }
+
+  interface Document {
+    webkitExitFullscreen?: () => Promise<void> | void;
+    webkitFullscreenElement?: Element | null;
+  }
+}
+
 const ROOT_SELECTOR = '[data-tower3d-root]';
 
 const SCENE_IDS = [
@@ -47,11 +69,35 @@ const SCENE_NAMES = [
   'Reality Collapse',
 ];
 
+// Scene descriptions for info tooltips
+const SCENE_DESCRIPTIONS = [
+  'A pulsating energy core that responds to your touch',
+  'Liquid metal morphing through impossible shapes',
+  'A swarm of luminous particles dancing in harmony',
+  'Typography that shatters and reforms with your gaze',
+  'An infinite corridor bending through dimensions',
+  'Crystalline structures refracting light into rainbows',
+  'Wireframe blueprints materializing into reality',
+  'Flowing ink clouds revealing hidden forms',
+  'Silk fabric rippling in an ethereal breeze',
+  'Millions of points forming nebulous structures',
+  'Infinite fractal patterns spiraling inward',
+  'Neural pathways firing across digital synapses',
+  'An endless library of floating knowledge',
+  'Bioluminescent creatures in the deep abyss',
+  'A holographic cityscape of pure data',
+  'All dimensions collapsing into singularity',
+];
+
 interface GalleryState {
   currentScene: number;
   targetProgress: number;
   isTransitioning: boolean;
   director: SceneDirector | null;
+  isAutoPlaying: boolean;
+  isFullscreen: boolean;
+  idleTime: number;
+  showingInfo: boolean;
 }
 
 const state: GalleryState = {
@@ -59,7 +105,16 @@ const state: GalleryState = {
   targetProgress: 0,
   isTransitioning: false,
   director: null,
+  isAutoPlaying: false,
+  isFullscreen: false,
+  idleTime: 0,
+  showingInfo: false,
 };
+
+// Auto-play configuration
+const AUTO_PLAY_INTERVAL = 8000; // ms between scene changes
+const IDLE_TIMEOUT = 30000; // Start auto-play after 30s of inactivity
+let idleTimer: ReturnType<typeof setTimeout> | null = null;
 
 // Touch/swipe tracking with enhanced gesture support
 let touchStartX = 0;
@@ -117,6 +172,43 @@ createAstroMount(ROOT_SELECTOR, () => {
   const director = new SceneDirector(root, canvas, caps, { galleryMode: true });
   state.director = director;
 
+  // Setup loading progress
+  const loader = document.querySelector<HTMLElement>('[data-gallery-loader]');
+  const progressBar = document.querySelector<HTMLElement>(
+    '[data-loader-progress]'
+  );
+
+  const updateLoadProgress = (progress: number) => {
+    if (progressBar) {
+      progressBar.style.width = `${progress}%`;
+    }
+  };
+
+  const hideLoader = () => {
+    if (loader) {
+      loader.classList.add('hidden');
+      // Remove from DOM after animation
+      setTimeout(() => {
+        loader.remove();
+      }, 600);
+    }
+  };
+
+  // Simulate loading progress (real progress would come from asset loading)
+  let loadProgress = 0;
+  const loadInterval = setInterval(() => {
+    loadProgress += Math.random() * 15;
+    if (loadProgress >= 100) {
+      loadProgress = 100;
+      clearInterval(loadInterval);
+      updateLoadProgress(100);
+      // Give a moment to show 100% then hide
+      setTimeout(hideLoader, 200);
+    } else {
+      updateLoadProgress(loadProgress);
+    }
+  }, 100);
+
   // Setup all UI controls
   setupNavigation();
   setupDots();
@@ -124,6 +216,10 @@ createAstroMount(ROOT_SELECTOR, () => {
   setupKeyboard();
   setupTouch();
   setupHintsAutoHide();
+  setupAutoPlay();
+  setupFullscreen();
+  setupInfoPanel();
+  setupIdleDetection();
   updateUI();
 
   console.log('[Gallery] Initialized with', SCENE_IDS.length, 'scenes');
@@ -303,10 +399,33 @@ function setupKeyboard() {
         break;
       case 'Escape':
         document.querySelector('[data-gallery-menu]')?.classList.remove('open');
+        // Also close info panel on Escape
         break;
       case ' ':
         e.preventDefault();
         navigateScene(1);
+        break;
+      case 'p':
+      case 'P':
+        // Toggle auto-play
+        e.preventDefault();
+        window.__galleryAutoPlay?.toggle?.();
+        break;
+      case 'f':
+      case 'F':
+        // Toggle fullscreen
+        e.preventDefault();
+        document
+          .querySelector<HTMLButtonElement>('[data-gallery-fullscreen]')
+          ?.click();
+        break;
+      case 'i':
+      case 'I':
+        // Toggle info panel
+        e.preventDefault();
+        document
+          .querySelector<HTMLButtonElement>('[data-gallery-info]')
+          ?.click();
         break;
     }
   });
@@ -318,7 +437,6 @@ function setupTouch() {
   if (!gallery) return;
 
   // Track touch movement for visual feedback
-  let currentTouchX = 0;
   let swipePreviewActive = false;
 
   gallery.addEventListener(
@@ -333,7 +451,6 @@ function setupTouch() {
 
       touchStartX = e.changedTouches[0].screenX;
       touchStartY = e.changedTouches[0].screenY;
-      currentTouchX = touchStartX;
       touchStartTime = performance.now();
       isSwiping = false;
       swipePreviewActive = false;
@@ -369,7 +486,6 @@ function setupTouch() {
       }
 
       if (isSwiping) {
-        currentTouchX = touch.screenX;
         const swipeProgress = Math.min(1, Math.abs(diffX) / 150);
 
         // Visual preview of scene transition
@@ -552,6 +668,287 @@ function setupHintsAutoHide() {
   document.addEventListener('touchstart', hideHints, { once: true });
 }
 
+/** Auto-play timer reference */
+let autoPlayInterval: ReturnType<typeof setInterval> | null = null;
+
+/** Setup auto-play mode with idle detection */
+function setupAutoPlay() {
+  const toggleBtn = document.querySelector<HTMLButtonElement>(
+    '[data-gallery-autoplay]'
+  );
+
+  const startAutoPlay = () => {
+    if (state.isAutoPlaying || autoPlayInterval) return;
+    state.isAutoPlaying = true;
+
+    autoPlayInterval = setInterval(() => {
+      // Loop back to start at end
+      if (state.currentScene >= SCENE_IDS.length - 1) {
+        goToScene(0);
+      } else {
+        navigateScene(1);
+      }
+    }, AUTO_PLAY_INTERVAL);
+
+    toggleBtn?.classList.add('active');
+    toggleBtn?.setAttribute('aria-pressed', 'true');
+    document
+      .querySelector('[data-tower3d-root]')
+      ?.classList.add('auto-playing');
+  };
+
+  const stopAutoPlay = () => {
+    if (!state.isAutoPlaying) return;
+    state.isAutoPlaying = false;
+
+    if (autoPlayInterval) {
+      clearInterval(autoPlayInterval);
+      autoPlayInterval = null;
+    }
+
+    toggleBtn?.classList.remove('active');
+    toggleBtn?.setAttribute('aria-pressed', 'false');
+    document
+      .querySelector('[data-tower3d-root]')
+      ?.classList.remove('auto-playing');
+  };
+
+  const toggleAutoPlay = () => {
+    if (state.isAutoPlaying) {
+      stopAutoPlay();
+      triggerHaptic('light');
+    } else {
+      startAutoPlay();
+      triggerHaptic('medium');
+    }
+  };
+
+  // Button click handler
+  toggleBtn?.addEventListener('click', toggleAutoPlay);
+
+  // Stop auto-play on user interaction
+  const stopOnInteraction = () => {
+    if (state.isAutoPlaying) {
+      stopAutoPlay();
+    }
+    resetIdleTimer();
+  };
+
+  document.addEventListener('keydown', stopOnInteraction);
+  document.addEventListener('touchstart', stopOnInteraction, { passive: true });
+  document.addEventListener('click', e => {
+    // Don't stop if clicking the autoplay button itself
+    if ((e.target as Element)?.closest('[data-gallery-autoplay]')) return;
+    stopOnInteraction();
+  });
+
+  // Expose for external control
+  window.__galleryAutoPlay = {
+    start: startAutoPlay,
+    stop: stopAutoPlay,
+    toggle: toggleAutoPlay,
+  };
+}
+
+/** Setup fullscreen mode support */
+function setupFullscreen() {
+  const toggleBtn = document.querySelector<HTMLButtonElement>(
+    '[data-gallery-fullscreen]'
+  );
+  const root = document.querySelector<HTMLElement>('[data-tower3d-root]');
+
+  if (!toggleBtn || !root) return;
+
+  const enterFullscreen = async () => {
+    try {
+      if (root.requestFullscreen) {
+        await root.requestFullscreen();
+      } else if (root.webkitRequestFullscreen) {
+        await root.webkitRequestFullscreen();
+      }
+      state.isFullscreen = true;
+      toggleBtn.classList.add('active');
+      triggerHaptic('medium');
+    } catch (err) {
+      console.warn('[Gallery] Fullscreen not supported:', err);
+    }
+  };
+
+  const exitFullscreen = async () => {
+    try {
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        await document.webkitExitFullscreen();
+      }
+      state.isFullscreen = false;
+      toggleBtn.classList.remove('active');
+    } catch (err) {
+      console.warn('[Gallery] Exit fullscreen failed:', err);
+    }
+  };
+
+  const toggleFullscreen = () => {
+    const isCurrentlyFullscreen =
+      document.fullscreenElement || document.webkitFullscreenElement;
+    if (isCurrentlyFullscreen) {
+      exitFullscreen();
+    } else {
+      enterFullscreen();
+    }
+  };
+
+  toggleBtn.addEventListener('click', toggleFullscreen);
+
+  // Listen for fullscreen change events
+  const handleFullscreenChange = () => {
+    const isFS = !!(
+      document.fullscreenElement || document.webkitFullscreenElement
+    );
+    state.isFullscreen = isFS;
+    toggleBtn.classList.toggle('active', isFS);
+    root.classList.toggle('is-fullscreen', isFS);
+
+    // Sync size after fullscreen change
+    setTimeout(() => {
+      state.director?.syncSize();
+    }, 100);
+  };
+
+  document.addEventListener('fullscreenchange', handleFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+  // Double-tap to toggle fullscreen on mobile
+  let lastTap = 0;
+  root.addEventListener(
+    'touchend',
+    e => {
+      const now = Date.now();
+      if (now - lastTap < 300 && e.touches.length === 0) {
+        toggleFullscreen();
+      }
+      lastTap = now;
+    },
+    { passive: true }
+  );
+}
+
+/** Setup info panel for scene descriptions */
+function setupInfoPanel() {
+  const toggleBtn = document.querySelector<HTMLButtonElement>(
+    '[data-gallery-info]'
+  );
+  const panel = document.querySelector<HTMLElement>('.gallery3d__info-panel');
+  const descEl = panel?.querySelector('.info-panel__description');
+
+  if (!toggleBtn || !panel) return;
+
+  const showInfo = () => {
+    state.showingInfo = true;
+    panel.classList.add('visible');
+    toggleBtn.classList.add('active');
+    toggleBtn.setAttribute('aria-expanded', 'true');
+
+    // Update description content
+    if (descEl) {
+      const desc =
+        SCENE_DESCRIPTIONS[state.currentScene] ?? 'No description available.';
+      descEl.textContent = desc;
+    }
+
+    triggerHaptic('light');
+  };
+
+  const hideInfo = () => {
+    state.showingInfo = false;
+    panel.classList.remove('visible');
+    toggleBtn.classList.remove('active');
+    toggleBtn.setAttribute('aria-expanded', 'false');
+  };
+
+  const toggleInfo = () => {
+    if (state.showingInfo) {
+      hideInfo();
+    } else {
+      showInfo();
+    }
+  };
+
+  toggleBtn.addEventListener('click', toggleInfo);
+
+  // Close panel when clicking outside
+  document.addEventListener('click', e => {
+    if (
+      state.showingInfo &&
+      !panel.contains(e.target as Node) &&
+      !toggleBtn.contains(e.target as Node)
+    ) {
+      hideInfo();
+    }
+  });
+
+  // Update description when scene changes
+  const originalGoToScene = goToScene;
+  window.__goToSceneOriginal = originalGoToScene;
+
+  // Watch for scene changes and update info panel
+  setInterval(() => {
+    if (state.showingInfo && descEl) {
+      const desc =
+        SCENE_DESCRIPTIONS[state.currentScene] ?? 'No description available.';
+      if (descEl.textContent !== desc) {
+        descEl.textContent = desc;
+      }
+    }
+  }, 200);
+
+  // Close on Escape key
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && state.showingInfo) {
+      hideInfo();
+    }
+  });
+}
+
+/** Reset idle timer */
+function resetIdleTimer() {
+  state.idleTime = 0;
+
+  if (idleTimer) {
+    clearTimeout(idleTimer);
+  }
+
+  idleTimer = setTimeout(() => {
+    // Start auto-play after idle timeout (if not already playing)
+    if (!state.isAutoPlaying) {
+      const autoPlay = window.__galleryAutoPlay;
+      if (autoPlay?.start) {
+        console.log('[Gallery] Starting auto-play due to idle timeout');
+        autoPlay.start();
+      }
+    }
+  }, IDLE_TIMEOUT);
+}
+
+/** Setup idle detection to auto-start slideshow */
+function setupIdleDetection() {
+  // Reset timer on any user interaction
+  const resetEvents = [
+    'mousemove',
+    'mousedown',
+    'keydown',
+    'touchstart',
+    'scroll',
+  ];
+
+  resetEvents.forEach(event => {
+    document.addEventListener(event, () => resetIdleTimer(), { passive: true });
+  });
+
+  // Start initial idle timer
+  resetIdleTimer();
+}
+
 /** Navigate relative to current scene */
 function navigateScene(direction: -1 | 1) {
   const newIndex = state.currentScene + direction;
@@ -598,7 +995,7 @@ function updateUI() {
   // Add subtle animation to title on change
   if (titleOverlay) {
     titleOverlay.style.animation = 'none';
-    titleOverlay.offsetHeight; // Force reflow
+    void titleOverlay.offsetHeight; // Force reflow
     titleOverlay.style.animation = 'title-pulse 0.5s ease-out';
   }
 

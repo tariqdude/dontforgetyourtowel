@@ -39,6 +39,17 @@ const scenes = [
   showLiveChat={false}
 >
   <div class="gallery-shell" aria-label="3D Gallery">
+    <!-- Loading State -->
+    <div class="gallery3d__loader" data-gallery-loader>
+      <div class="loader__content">
+        <div class="loader__ring"></div>
+        <div class="loader__text">Loading 3D Experience</div>
+        <div class="loader__progress">
+          <div class="loader__progress-bar" data-loader-progress></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Main 3D Canvas Container -->
     <section
       class="gallery3d"
@@ -124,10 +135,20 @@ const scenes = [
 
       <!-- Scene Info Panel (mobile-optimized) -->
       <div class="gallery3d__info-panel" data-gallery-info>
+        <div class="info-panel__content">
+          <h3 class="info-panel__title">Scene Info</h3>
+          <p class="info-panel__description"></p>
+        </div>
+      </div>
+
+      <!-- Control Bar -->
+      <div class="gallery3d__controls">
         <button
-          class="gallery3d__info-toggle"
-          data-info-toggle
-          aria-label="Show scene info"
+          class="gallery3d__control-btn"
+          data-gallery-info
+          aria-label="Show scene information"
+          aria-expanded="false"
+          title="Scene Info (I)"
         >
           <svg
             viewBox="0 0 24 24"
@@ -137,6 +158,85 @@ const scenes = [
           >
             <circle cx="12" cy="12" r="10"></circle>
             <path d="M12 16v-4M12 8h.01"></path>
+          </svg>
+        </button>
+        <button
+          class="gallery3d__control-btn"
+          data-gallery-autoplay
+          aria-label="Toggle auto-play"
+          aria-pressed="false"
+          title="Auto-Play (P)"
+        >
+          <svg class="autoplay-progress" viewBox="0 0 44 44">
+            <circle
+              class="autoplay-progress__track"
+              cx="22"
+              cy="22"
+              r="20"
+              fill="none"
+              stroke="rgba(255,255,255,0.1)"
+              stroke-width="2"></circle>
+            <circle
+              class="autoplay-progress__bar"
+              cx="22"
+              cy="22"
+              r="20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-dasharray="125.6"
+              stroke-dashoffset="125.6"></circle>
+          </svg>
+          <svg
+            class="play-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <polygon points="5,3 19,12 5,21"></polygon>
+          </svg>
+          <svg
+            class="pause-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <rect x="6" y="4" width="4" height="16"></rect>
+            <rect x="14" y="4" width="4" height="16"></rect>
+          </svg>
+        </button>
+        <button
+          class="gallery3d__control-btn"
+          data-gallery-fullscreen
+          aria-label="Toggle fullscreen"
+          title="Fullscreen (F)"
+        >
+          <svg
+            class="expand-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <polyline points="15,3 21,3 21,9"></polyline>
+            <polyline points="9,21 3,21 3,15"></polyline>
+            <line x1="21" y1="3" x2="14" y2="10"></line>
+            <line x1="3" y1="21" x2="10" y2="14"></line>
+          </svg>
+          <svg
+            class="compress-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <polyline points="4,14 10,14 10,20"></polyline>
+            <polyline points="20,10 14,10 14,4"></polyline>
+            <line x1="14" y1="10" x2="21" y2="3"></line>
+            <line x1="3" y1="21" x2="10" y2="14"></line>
           </svg>
         </button>
       </div>
@@ -218,9 +318,92 @@ const scenes = [
       position: fixed;
       inset: 0;
       background: #040712;
-      /* Support safe areas for notched phones */
-      padding: env(safe-area-inset-top) env(safe-area-inset-right)
-        env(safe-area-inset-bottom) env(safe-area-inset-left);
+      /* Canvas fills entire viewport - safe areas handled by UI elements */
+    }
+
+    /* Main 3D Container - fills entire viewport */
+    .gallery3d {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      /* Canvas renders to full viewport, UI elements have their own safe area padding */
+    }
+
+    .gallery3d__canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100% !important;
+      height: 100% !important;
+      display: block;
+      /* Ensure canvas isn't offset by any parent transforms */
+      transform: none;
+    }
+
+    /* Loading Screen */
+    .gallery3d__loader {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: #040712;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition:
+        opacity 0.6s ease,
+        visibility 0.6s ease;
+    }
+
+    .gallery3d__loader.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .loader__content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .loader__ring {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      border-top-color: #22d3ee;
+      animation: loader-spin 1s linear infinite;
+    }
+
+    @keyframes loader-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .loader__text {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.7);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .loader__progress {
+      width: 200px;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .loader__progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #22d3ee, #6366f1);
+      border-radius: 3px;
+      transition: width 0.3s ease;
     }
 
     /* Main 3D Container */
@@ -487,7 +670,7 @@ const scenes = [
     /* Scene Title Overlay */
     .gallery3d__title-overlay {
       position: absolute;
-      top: 30px;
+      top: calc(30px + env(safe-area-inset-top));
       left: 50%;
       transform: translateX(-50%);
       z-index: 20;
@@ -647,44 +830,253 @@ const scenes = [
     /* Info Panel Toggle */
     .gallery3d__info-panel {
       position: absolute;
-      bottom: calc(100px + env(safe-area-inset-bottom));
-      right: 20px;
-      z-index: 20;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 22;
+      padding: 0 20px calc(100px + env(safe-area-inset-bottom));
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.9), transparent);
+      transform: translateY(100%);
+      transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      pointer-events: none;
     }
 
-    .gallery3d__info-toggle {
-      width: 40px;
-      height: 40px;
+    .gallery3d__info-panel.visible {
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    .info-panel__content {
+      max-width: 500px;
+      margin: 0 auto;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(16px);
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .info-panel__title {
+      margin: 0 0 8px 0;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #22d3ee;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .info-panel__description {
+      margin: 0;
+      font-size: 1rem;
+      line-height: 1.6;
+      color: rgba(255, 255, 255, 0.85);
+    }
+
+    /* Control Bar */
+    .gallery3d__controls {
+      position: absolute;
+      bottom: calc(100px + env(safe-area-inset-bottom));
+      right: 20px;
+      z-index: 25;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .gallery3d__control-btn {
+      width: 44px;
+      height: 44px;
       border: none;
       border-radius: 50%;
       background: rgba(255, 255, 255, 0.1);
-      backdrop-filter: blur(10px);
+      backdrop-filter: blur(12px);
       color: rgba(255, 255, 255, 0.7);
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all 0.3s ease;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border: 1px solid rgba(255, 255, 255, 0.08);
     }
 
-    .gallery3d__info-toggle:hover {
+    .gallery3d__control-btn:hover {
       background: rgba(255, 255, 255, 0.2);
       color: #fff;
+      transform: scale(1.1);
+      border-color: rgba(34, 211, 238, 0.3);
+      box-shadow: 0 0 20px rgba(34, 211, 238, 0.2);
     }
 
-    .gallery3d__info-toggle svg {
+    .gallery3d__control-btn:active {
+      transform: scale(0.95);
+    }
+
+    .gallery3d__control-btn.active {
+      background: linear-gradient(
+        135deg,
+        rgba(34, 211, 238, 0.3),
+        rgba(99, 102, 241, 0.3)
+      );
+      color: #fff;
+      border-color: rgba(34, 211, 238, 0.4);
+    }
+
+    .gallery3d__control-btn svg {
       width: 20px;
       height: 20px;
     }
 
-    @media (max-width: 768px) {
-      .gallery3d__info-panel {
-        bottom: calc(85px + env(safe-area-inset-bottom));
-        right: 15px;
+    /* Auto-play button icons */
+    .gallery3d__control-btn .pause-icon,
+    .gallery3d__control-btn.active .play-icon {
+      display: none;
+    }
+
+    .gallery3d__control-btn.active .pause-icon {
+      display: block;
+    }
+
+    /* Fullscreen button icons */
+    .gallery3d__control-btn .compress-icon,
+    .gallery3d__control-btn.active .expand-icon {
+      display: none;
+    }
+
+    .gallery3d__control-btn.active .compress-icon {
+      display: block;
+    }
+
+    /* Auto-play progress ring */
+    .autoplay-progress {
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      width: calc(100% + 4px);
+      height: calc(100% + 4px);
+      transform: rotate(-90deg);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
+    }
+
+    .gallery3d__control-btn.active .autoplay-progress {
+      opacity: 1;
+    }
+
+    .autoplay-progress__bar {
+      stroke: #22d3ee;
+      transition: stroke-dashoffset 0.1s linear;
+    }
+
+    [data-gallery-autoplay].active .autoplay-progress__bar {
+      animation: autoplay-progress 8s linear infinite;
+    }
+
+    @keyframes autoplay-progress {
+      0% {
+        stroke-dashoffset: 125.6;
       }
+      100% {
+        stroke-dashoffset: 0;
+      }
+    }
+
+    /* Auto-playing state styles */
+    .gallery3d.auto-playing .gallery3d__title-overlay {
+      border-color: rgba(34, 211, 238, 0.3);
+    }
+
+    .gallery3d.auto-playing .gallery3d__progress-fill {
+      box-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
+    }
+
+    @media (max-width: 768px) {
+      .gallery3d__controls {
+        bottom: calc(90px + env(safe-area-inset-bottom));
+        right: 12px;
+        gap: 8px;
+      }
+      .gallery3d__control-btn {
+        width: 40px;
+        height: 40px;
+      }
+      .gallery3d__control-btn svg {
+        width: 18px;
+        height: 18px;
+      }
+      .gallery3d__info-panel {
+        padding: 0 16px calc(90px + env(safe-area-inset-bottom));
+      }
+      .info-panel__content {
+        padding: 16px;
+      }
+      .info-panel__description {
+        font-size: 0.9rem;
+      }
+    }
+
+    @media (max-width: 768px) {
       .gallery3d__swipe-preview {
         font-size: 0.8rem;
         padding: 10px 16px;
+      }
+    }
+
+    /* Mobile Landscape Mode Optimizations */
+    @media (max-height: 500px) and (orientation: landscape) {
+      .gallery3d__title-overlay {
+        top: 10px;
+        padding: 8px 16px;
+        gap: 8px;
+      }
+      .gallery3d__scene-number {
+        font-size: 0.75rem;
+      }
+      .gallery3d__scene-name {
+        font-size: 0.85rem;
+      }
+      .gallery3d__dots {
+        bottom: 10px;
+        padding: 8px 14px;
+        gap: 6px;
+      }
+      .gallery3d__dot {
+        width: 8px;
+        height: 8px;
+      }
+      .gallery3d__nav {
+        width: 40px;
+        height: 40px;
+      }
+      .gallery3d__nav svg {
+        width: 20px;
+        height: 20px;
+      }
+      .gallery3d__controls {
+        bottom: 10px;
+        right: 10px;
+        flex-direction: row;
+        gap: 6px;
+      }
+      .gallery3d__control-btn {
+        width: 36px;
+        height: 36px;
+      }
+      .gallery-menu-toggle {
+        top: 10px;
+        width: 40px;
+        height: 40px;
+      }
+      .gallery3d__info-panel {
+        padding: 0 10px 60px;
+      }
+      .info-panel__content {
+        padding: 12px;
+        max-width: 60%;
+      }
+      .info-panel__description {
+        font-size: 0.8rem;
+        line-height: 1.4;
       }
     }
 
