@@ -458,15 +458,21 @@ export class SceneDirector {
   }
 
   private setPointerTarget(x: number, y: number): void {
-    const nx = (x / Math.max(1, this.size.width)) * 2 - 1;
-    const ny = (y / Math.max(1, this.size.height)) * 2 - 1;
+    // Account for canvas offset within the page
+    const rect = this.canvas.getBoundingClientRect();
+    const localX = x - rect.left;
+    const localY = y - rect.top;
+    const nx = (localX / Math.max(1, rect.width)) * 2 - 1;
+    const ny = (localY / Math.max(1, rect.height)) * 2 - 1;
     this.pointerTarget.set(clamp(nx, -1, 1), clamp(ny, -1, 1));
   }
 
   private syncSize(force: boolean): void {
-    const vv = window.visualViewport;
-    const w = Math.max(1, Math.round(vv?.width ?? window.innerWidth));
-    const h = Math.max(1, Math.round(vv?.height ?? window.innerHeight));
+    // Use actual canvas container dimensions, not window size
+    // This properly handles safe-area padding and any CSS constraints
+    const rect = this.canvas.getBoundingClientRect();
+    const w = Math.max(1, Math.round(rect.width));
+    const h = Math.max(1, Math.round(rect.height));
     if (!force && w === this.size.width && h === this.size.height) return;
 
     const baseDpr = Math.max(1, this.caps.devicePixelRatio);
