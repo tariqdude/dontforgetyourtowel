@@ -109,6 +109,7 @@ export class SceneDirector {
         uGlowThreshold: { value: 0.65 },
         uGyroInfluence: { value: new THREE.Vector2(0, 0) },
         uMobile: { value: this.caps.coarsePointer ? 1.0 : 0.0 },
+        uPointerVel: { value: 0 }, // NEW: Inject pointer speed
       },
       vertexShader: `
         varying vec2 vUv;
@@ -133,6 +134,7 @@ export class SceneDirector {
         uniform float uGlowThreshold;
         uniform vec2 uGyroInfluence;
         uniform float uMobile;
+        uniform float uPointerVel;
 
         float hash(vec2 p) {
           return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -153,7 +155,11 @@ export class SceneDirector {
           vec2 c = uv - 0.5;
           float r = length(c);
           vec2 dir = normalize(c + 1e-6);
-          float amt = strength * smoothstep(0.12, 0.9, r);
+
+          // DYNAMIC: Add pointer velocity to aberration
+          float interactStr = strength * (1.0 + uPointerVel * 2.0);
+
+          float amt = interactStr * smoothstep(0.12, 0.9, r);
           vec2 off = dir * amt;
           vec3 col;
           col.r = texture2D(tScene, uv + off).r;
@@ -703,6 +709,10 @@ export class SceneDirector {
     } else {
       this.postMaterial.uniforms.uGyroInfluence.value.set(0, 0);
     }
+
+    // NEW: Update pointer velocity uniform for dynamic chromatic aberration
+    const pVel = this.pointerVelocity.length();
+    this.postMaterial.uniforms.uPointerVel.value = clamp(pVel, 0, 10.0);
 
     // Decay the cut mask quickly; keep it super short under reduced motion.
     const cutLambda = this.caps.reducedMotion ? 18 : 10;
