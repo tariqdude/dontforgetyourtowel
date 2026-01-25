@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { TowerCaps } from '../core/caps';
+import type { TowerCaps } from '../../core/caps';
 
 // --- Types & Interfaces ---
 
@@ -1069,7 +1069,6 @@ class MagnetosphereScene extends SceneBase {
 class EventHorizonScene extends SceneBase {
   private disk: THREE.Mesh;
   private upperDisk: THREE.Mesh;
-  private lowerDisk: THREE.Mesh;
   private blackHole: THREE.Mesh;
 
   constructor() {
@@ -1210,7 +1209,7 @@ class KaleidoGlassScene extends SceneBase {
       thickness: 1.5,
       ior: 1.5,
       clearcoat: 1.0,
-      attenuationTint: new THREE.Color(0xcc00ff),
+      attenuationColor: new THREE.Color(0xcc00ff),
       attenuationDistance: 0.5,
     });
 

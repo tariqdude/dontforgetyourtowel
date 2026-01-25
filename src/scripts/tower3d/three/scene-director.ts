@@ -398,6 +398,7 @@ export class SceneDirector {
       sceneIndex: this.sceneIndex,
       gyro: this.gyro,
       gyroActive: this.gyroActive,
+      bgTheme: 'dark',
     };
   }
 
@@ -722,7 +723,7 @@ export class SceneDirector {
     this.activeScene.update(runtime);
     this.renderer.setRenderTarget(this.rtA);
     this.renderer.clear(true, true, true);
-    this.activeScene.render(runtime);
+    this.activeScene.render?.(runtime);
 
     this.renderer.setRenderTarget(null);
     this.resetViewport();
