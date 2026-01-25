@@ -523,7 +523,7 @@ export class SceneDirector {
     this.pointerTarget.set(clamp(nx, -1, 1), clamp(ny, -1, 1));
   }
 
-  private syncSize(force: boolean): void {
+  public syncSize(force: boolean = false): void {
     // Prefer layout sizes (clientWidth/Height) so CSS transforms (e.g. pinch preview)
     // don't corrupt the renderer sizing and cause off-center/clipped rendering.
     const w = Math.max(

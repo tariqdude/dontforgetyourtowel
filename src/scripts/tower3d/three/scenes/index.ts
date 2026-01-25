@@ -5,26 +5,34 @@ import type { TowerCaps } from '../core/caps';
 
 export interface SceneRuntime {
   renderer: THREE.WebGLRenderer;
+  root: HTMLElement; // Added
   size: { width: number; height: number; dpr: number };
   pointer: THREE.Vector2; // -1 to 1
   pointerVelocity: THREE.Vector2;
   scrollVelocity: number;
   dt: number;
   time: number;
+  progress: number; // Added
+  localProgress: number; // Added
   caps: TowerCaps;
   gyro: THREE.Vector3; // -1 to 1 based on beta/gamma
+  gyroActive: boolean; // Added
   bgTheme: string; // 'dark' | 'glass'
   press: number; // 0 to 1
   tap: number; // transient 0->1 signal
+  sceneId: string; // Added
+  sceneIndex: number; // Added
 }
 
 export interface TowerScene {
+  id: string; // Added
   group: THREE.Group;
   camera: THREE.Camera;
   bg?: THREE.Color; // optional override
   init(ctx: SceneRuntime): void;
   resize(ctx: SceneRuntime): void;
   update(ctx: SceneRuntime): void;
+  render?(ctx: SceneRuntime): void; // Added
   dispose(): void;
   cleanup?(): void;
 }
@@ -128,6 +136,7 @@ const damp = (current: number, target: number, lambda: number, dt: number) =>
 // --- Base Class (The "Centering" Fix) ---
 
 abstract class SceneBase implements TowerScene {
+  id: string = 'unknown'; // Added default
   group: THREE.Group;
   camera: THREE.PerspectiveCamera;
 
@@ -1346,6 +1355,7 @@ class TypographicSculptureScene extends SceneBase {
       let z = -Math.sin((q * u) / p);
 
       // Add chaos
+      const v = i * 0.1; // Re-add v definition
       const chaos = ctx.press * 2.0;
       x += Math.sin(v + t) * chaos;
       y += Math.cos(v + t) * chaos;
