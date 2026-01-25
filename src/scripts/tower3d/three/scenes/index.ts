@@ -5224,6 +5224,7 @@ class StrangeAttractorScene extends SceneBase {
   private positions: Float32Array;
   private velocities: Float32Array;
   private count: number;
+  private activeCount: number;
   private burst = 0;
 
   constructor() {
@@ -5232,7 +5233,9 @@ class StrangeAttractorScene extends SceneBase {
     this.scene.background = new THREE.Color(0x02040a);
     this.scene.fog = new THREE.FogExp2(0x040818, 0.06);
 
-    this.count = 9000;
+    // Allocate a high ceiling; pick an active subset per device tier.
+    this.count = 18000;
+    this.activeCount = 9000;
     this.positions = new Float32Array(this.count * 3);
     this.velocities = new Float32Array(this.count * 3);
 
@@ -5249,6 +5252,7 @@ class StrangeAttractorScene extends SceneBase {
       'position',
       new THREE.BufferAttribute(this.positions, 3)
     );
+    this.geometry.setDrawRange(0, this.activeCount);
 
     this.material = new THREE.ShaderMaterial({
       uniforms: {
@@ -5291,13 +5295,36 @@ class StrangeAttractorScene extends SceneBase {
     this.scene.add(ambient);
   }
 
+  init(ctx: SceneRuntime): void {
+    const tier = ctx.caps.performanceTier;
+    const coarse = ctx.caps.coarsePointer;
+    const preferred =
+      tier === 'high' ? 16000 : tier === 'medium' ? 11000 : 6500;
+    this.activeCount = Math.min(this.count, preferred, ctx.caps.maxParticles);
+    if (coarse) this.activeCount = Math.floor(this.activeCount * 0.85);
+    this.geometry.setDrawRange(0, this.activeCount);
+  }
+
   update(ctx: SceneRuntime): void {
     this.burst = Math.max(ctx.tap, damp(this.burst, 0, 3.2, ctx.dt));
 
+    const gyro = ctx.gyro;
+    const gyroInfluence = ctx.gyroActive ? 0.35 : 0;
+
     const cam = this.camera as THREE.PerspectiveCamera;
     cam.position.z = (this.baseCameraZ - ctx.press * 4) * this.aspectMult;
-    cam.position.x = damp(cam.position.x, ctx.pointer.x * 2.2, 2.0, ctx.dt);
-    cam.position.y = damp(cam.position.y, ctx.pointer.y * 1.6, 2.0, ctx.dt);
+    cam.position.x = damp(
+      cam.position.x,
+      ctx.pointer.x * 2.2 + gyro.x * gyroInfluence * 1.2,
+      2.0,
+      ctx.dt
+    );
+    cam.position.y = damp(
+      cam.position.y,
+      ctx.pointer.y * 1.6 + gyro.y * gyroInfluence * 0.9,
+      2.0,
+      ctx.dt
+    );
     cam.lookAt(0, 0, 0);
 
     // Thomas attractor (nice loops):
@@ -5313,7 +5340,7 @@ class StrangeAttractorScene extends SceneBase {
     const swirlX = ctx.pointer.x * 0.9;
     const swirlY = ctx.pointer.y * 0.9;
 
-    for (let i = 0; i < this.count; i++) {
+    for (let i = 0; i < this.activeCount; i++) {
       const idx = i * 3;
       let x = this.positions[idx];
       let y = this.positions[idx + 1];
@@ -5335,9 +5362,11 @@ class StrangeAttractorScene extends SceneBase {
       // Keep bounded
       const bound = 4.2;
       if (Math.abs(x) > bound || Math.abs(y) > bound || Math.abs(z) > bound) {
-        x = (Math.random() - 0.5) * 0.5;
-        y = (Math.random() - 0.5) * 0.5;
-        z = (Math.random() - 0.5) * 0.5;
+        // Stable re-seed (avoids visible clustering and removes per-frame RNG spikes)
+        const tt = ctx.time * 0.15;
+        x = (Math.sin(i * 12.9898 + tt) - 0.5) * 0.6;
+        y = (Math.sin(i * 78.233 + tt * 1.2) - 0.5) * 0.6;
+        z = (Math.sin(i * 39.3467 + tt * 0.9) - 0.5) * 0.6;
       }
 
       this.positions[idx] = x;
@@ -5611,7 +5640,8 @@ class MagnetosphereScene extends SceneBase {
   private linePositions: Float32Array;
   private particle: THREE.Points;
   private particlePositions: Float32Array;
-  private particleCount = 2400;
+  private particleCount = 6000;
+  private activeParticleCount = 2400;
   private burst = 0;
 
   constructor() {
@@ -5690,6 +5720,7 @@ class MagnetosphereScene extends SceneBase {
       'position',
       new THREE.BufferAttribute(this.particlePositions, 3)
     );
+    pGeo.setDrawRange(0, this.activeParticleCount);
     const pMat = new THREE.ShaderMaterial({
       uniforms: { uTime: { value: 0 }, uBurst: { value: 0 } },
       vertexShader: `
@@ -5727,6 +5758,16 @@ class MagnetosphereScene extends SceneBase {
     this.scene.add(this.particle);
   }
 
+  init(ctx: SceneRuntime): void {
+    const tier = ctx.caps.performanceTier;
+    const coarse = ctx.caps.coarsePointer;
+    const preferred = tier === 'high' ? 5200 : tier === 'medium' ? 3600 : 2200;
+    this.activeParticleCount = Math.min(this.particleCount, preferred);
+    if (coarse)
+      this.activeParticleCount = Math.floor(this.activeParticleCount * 0.85);
+    this.particle.geometry.setDrawRange(0, this.activeParticleCount);
+  }
+
   update(ctx: SceneRuntime): void {
     this.burst = Math.max(ctx.tap, damp(this.burst, 0, 3.2, ctx.dt));
     (this.lines.material as THREE.LineBasicMaterial).opacity =
@@ -5737,10 +5778,22 @@ class MagnetosphereScene extends SceneBase {
     pMat.uniforms.uBurst.value = this.burst;
 
     const cam = this.camera as THREE.PerspectiveCamera;
+    const gyro = ctx.gyro;
+    const gyroInfluence = ctx.gyroActive ? 0.35 : 0;
     const targetZ = (this.baseCameraZ - ctx.press * 3.0) * this.aspectMult;
     cam.position.z = damp(cam.position.z, targetZ, 2.8, ctx.dt);
-    cam.position.x = damp(cam.position.x, ctx.pointer.x * 2.8, 2.4, ctx.dt);
-    cam.position.y = damp(cam.position.y, ctx.pointer.y * 2.0, 2.4, ctx.dt);
+    cam.position.x = damp(
+      cam.position.x,
+      ctx.pointer.x * 2.8 + gyro.x * gyroInfluence * 1.2,
+      2.4,
+      ctx.dt
+    );
+    cam.position.y = damp(
+      cam.position.y,
+      ctx.pointer.y * 2.0 + gyro.y * gyroInfluence * 0.9,
+      2.4,
+      ctx.dt
+    );
     cam.lookAt(0, 0, 0);
 
     this.lines.rotation.y = ctx.time * 0.08 + ctx.pointer.x * 0.25;
@@ -5871,6 +5924,7 @@ class TypographicSculptureScene extends SceneBase {
   private dummy = new THREE.Object3D();
   private base: Array<{ x: number; y: number; z: number; i: number }> = [];
   private burst = 0;
+  private jitter: Float32Array;
 
   constructor() {
     super('scene07');
@@ -5925,6 +5979,16 @@ class TypographicSculptureScene extends SceneBase {
     }
 
     const max = this.base.length;
+    this.jitter = new Float32Array(max * 3);
+    for (let i = 0; i < max; i++) {
+      const idx = i * 3;
+      const s1 = Math.sin(i * 12.9898) * 43758.5453;
+      const s2 = Math.sin(i * 78.233 + 1.234) * 24634.6345;
+      const s3 = Math.sin(i * 39.425 + 4.567) * 56473.9123;
+      this.jitter[idx] = s1 - Math.floor(s1) - 0.5;
+      this.jitter[idx + 1] = s2 - Math.floor(s2) - 0.5;
+      this.jitter[idx + 2] = s3 - Math.floor(s3) - 0.5;
+    }
     this.voxels = new THREE.InstancedMesh(cube, mat, max);
     this.voxels.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.scene.add(this.voxels);
@@ -5956,9 +6020,10 @@ class TypographicSculptureScene extends SceneBase {
       const explode =
         shake * (0.25 + 0.75 * Math.abs(Math.sin(phase + t * 2.0)));
 
-      const nx = b.x + wave * 0.8 + (Math.random() - 0.5) * explode * 0.15;
-      const ny = b.y + wave * 0.6 + (Math.random() - 0.5) * explode * 0.12;
-      const nz = -8 + b.z + wave * 0.8 + (Math.random() - 0.5) * explode * 0.2;
+      const j = i * 3;
+      const nx = b.x + wave * 0.8 + this.jitter[j] * explode * 0.15;
+      const ny = b.y + wave * 0.6 + this.jitter[j + 1] * explode * 0.12;
+      const nz = -8 + b.z + wave * 0.8 + this.jitter[j + 2] * explode * 0.2;
 
       this.dummy.position.set(nx, ny, nz);
       this.dummy.rotation.set(0, twist + wave * 0.18, 0);
@@ -5970,9 +6035,21 @@ class TypographicSculptureScene extends SceneBase {
     this.voxels.instanceMatrix.needsUpdate = true;
 
     const cam = this.camera as THREE.PerspectiveCamera;
+    const gyro = ctx.gyro;
+    const gyroInfluence = ctx.gyroActive ? 0.35 : 0;
     cam.position.z = (this.baseCameraZ - ctx.press * 3.0) * this.aspectMult;
-    cam.position.x = damp(cam.position.x, ctx.pointer.x * 2.0, 2.4, ctx.dt);
-    cam.position.y = damp(cam.position.y, ctx.pointer.y * 1.4, 2.4, ctx.dt);
+    cam.position.x = damp(
+      cam.position.x,
+      ctx.pointer.x * 2.0 + gyro.x * gyroInfluence * 1.0,
+      2.4,
+      ctx.dt
+    );
+    cam.position.y = damp(
+      cam.position.y,
+      ctx.pointer.y * 1.4 + gyro.y * gyroInfluence * 0.8,
+      2.4,
+      ctx.dt
+    );
     cam.lookAt(0, 0, -8);
 
     const mat = this.voxels.material as THREE.MeshStandardMaterial;
