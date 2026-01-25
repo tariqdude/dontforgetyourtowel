@@ -102,11 +102,11 @@ export class SceneDirector {
         uTransitionType: { value: 0 },
         uResolution: { value: new THREE.Vector2(1, 1) },
         uInteract: { value: 0 },
-        uVignette: { value: 0.18 },
+        uVignette: { value: 0.12 }, // REDUCED
         uGrain: { value: 0.05 },
-        uChromatic: { value: 0.0028 },
-        uGlow: { value: this.caps.coarsePointer ? 0.3 : 0.42 },
-        uGlowThreshold: { value: 0.65 },
+        uChromatic: { value: 0.003 },
+        uGlow: { value: 0.6 }, // INCREASED
+        uGlowThreshold: { value: 0.55 }, // REDUCED
         uGyroInfluence: { value: new THREE.Vector2(0, 0) },
         uMobile: { value: this.caps.coarsePointer ? 1.0 : 0.0 },
         uPointerVel: { value: 0 }, // NEW: Inject pointer speed
@@ -175,66 +175,63 @@ export class SceneDirector {
           float angle = atan(center.y, center.x);
 
           // Radius shrinks to center as progress increases
-          float radius = 0.8 * (1.0 - progress);
+          float radius = 0.9 * (1.0 - progress);
 
           // Add energy ripples to the edge
-          float ripple = sin(angle * 8.0 + uTime * 6.0) * 0.02 * progress;
-          float energyRing = smoothstep(radius + 0.05, radius, dist + ripple);
-          float innerCore = smoothstep(radius, radius - 0.1, dist);
+          float ripple = sin(angle * 12.0 + uTime * 10.0 + dist * 20.0) * 0.04 * progress;
+          float energyRing = smoothstep(radius + 0.1, radius, dist + ripple);
+          float innerCore = smoothstep(radius, radius - 0.2, dist);
 
           return energyRing * (1.0 - innerCore * 0.5);
         }
 
         // Liquid wipe transition - organic flowing edge
         float liquidWipe(vec2 uv, float progress) {
-          float n1 = noise(uv * 4.0 + uTime * 0.5);
-          float n2 = noise(uv * 8.0 - uTime * 0.3);
-          float distortion = (n1 + n2 * 0.5) * 0.15;
+          float n1 = noise(uv * 5.0 + uTime * 0.8);
+          float n2 = noise(uv * 10.0 - uTime * 0.5);
+          float distortion = (n1 + n2 * 0.5) * 0.2;
 
           // Wave from left to right with organic edge
           float edge = uv.x + distortion;
-          float threshold = progress * 1.3 - 0.15;
+          float threshold = progress * 1.4 - 0.2;
 
-          return smoothstep(threshold - 0.1, threshold + 0.1, edge);
+          return smoothstep(threshold - 0.15, threshold + 0.15, edge);
         }
 
         // Particle dissolve - pixelated dissolve effect
         float particleDissolve(vec2 uv, float progress) {
-          float blockSize = 0.02;
+          float blockSize = 0.04;
           vec2 block = floor(uv / blockSize) * blockSize;
-          float randomVal = hash(block);
+          float randomVal = hash(block + floor(uTime * 2.0));
 
           // Add wave pattern to the dissolve
-          float wave = sin(block.x * 20.0 + uTime * 3.0) * 0.1;
-          float threshold = progress + wave;
+          float wave = sin(block.x * 10.0 + uTime * 5.0) * 0.15;
+          float threshold = progress * 1.2 + wave - 0.1;
 
           return step(randomVal, threshold);
         }
 
         // Glitch cut - digital glitch with color separation
         vec3 glitchCut(vec2 uv, float progress, vec3 originalColor) {
-          float glitchStrength = progress * 2.0;
+          float glitchStrength = smoothstep(0.0, 0.2, progress) * smoothstep(1.0, 0.8, progress) * 2.0;
 
           // Horizontal slice displacement
-          float sliceY = floor(uv.y * 20.0) / 20.0;
-          float sliceRandom = hash(vec2(sliceY, floor(uTime * 8.0)));
-          float displacement = (sliceRandom - 0.5) * glitchStrength * 0.1;
+          float sliceY = floor(uv.y * 40.0) / 40.0;
+          float sliceRandom = hash(vec2(sliceY, uTime));
+          float displacement = (sliceRandom - 0.5) * glitchStrength * 0.2;
 
-          // Only apply to some slices
-          if (sliceRandom > 0.7 && progress > 0.1) {
-            vec2 displacedUv = uv + vec2(displacement, 0.0);
+          vec2 displacedUv = uv + vec2(displacement, 0.0);
 
-            // RGB split
-            float r = texture2D(tScene, displacedUv + vec2(0.01 * glitchStrength, 0.0)).r;
-            float g = texture2D(tScene, displacedUv).g;
-            float b = texture2D(tScene, displacedUv - vec2(0.01 * glitchStrength, 0.0)).b;
+          // RGB split based on displacement
+          float r = texture2D(tScene, displacedUv + vec2(0.02 * glitchStrength, 0.0)).r;
+          float g = texture2D(tScene, displacedUv).g;
+          float b = texture2D(tScene, displacedUv - vec2(0.02 * glitchStrength, 0.0)).b;
 
-            return mix(originalColor, vec3(r, g, b), progress);
+          // Mix based on random triggers
+          if (hash(vec2(uTime, uv.y)) > 0.8) {
+             return vec3(r, g, b);
           }
-
-          // Add scanlines during transition
-          float scanline = sin(uv.y * 400.0 + uTime * 20.0) * 0.5 + 0.5;
-          return originalColor * (1.0 - scanline * 0.15 * progress);
+          return originalColor;
         }
 
         void main() {

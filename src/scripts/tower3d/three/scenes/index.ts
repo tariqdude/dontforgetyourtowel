@@ -65,14 +65,14 @@ const sceneMeta: SceneMeta[] = [
   },
   {
     id: 'scene03',
-    title: 'Kinetic Typography',
-    subtitle: 'Minimal Surfaces',
+    title: 'Quantum Ribbons',
+    subtitle: 'Data Flow',
     index: 3,
   },
   {
     id: 'scene04',
-    title: 'Aurora Borealis',
-    subtitle: 'Field Theory',
+    title: 'Aurora Field',
+    subtitle: 'Magnetic Force',
     index: 4,
   },
   {
@@ -83,31 +83,31 @@ const sceneMeta: SceneMeta[] = [
   },
   {
     id: 'scene06',
-    title: 'Holographic Blueprint',
+    title: 'Kaleido Glass',
     subtitle: 'Refraction',
     index: 6,
   },
   {
     id: 'scene07',
-    title: 'Volumetric Ink',
+    title: 'Data Sculpture',
     subtitle: 'Information',
     index: 7,
   },
   {
     id: 'scene08',
-    title: 'Cloth & Light',
+    title: 'Orbital Mechanics',
     subtitle: 'Gravity',
     index: 8,
   },
   {
     id: 'scene09',
-    title: 'Sculpted Point Cloud',
+    title: 'Crystal Fracture',
     subtitle: 'Tessellation',
     index: 9,
   },
   {
     id: 'scene10',
-    title: 'Fractal Finale',
+    title: 'Moiré Patterns',
     subtitle: 'Interference',
     index: 10,
   },
@@ -117,21 +117,16 @@ const sceneMeta: SceneMeta[] = [
     subtitle: 'Deep Learning',
     index: 11,
   },
-  {
-    id: 'scene12',
-    title: 'Library of Babel',
-    subtitle: 'Knowledge',
-    index: 12,
-  },
+  { id: 'scene12', title: 'The Library', subtitle: 'Knowledge', index: 12 },
   {
     id: 'scene13',
-    title: 'Bioluminescent Abyss',
+    title: 'Deep Abyss',
     subtitle: 'Organic Light',
     index: 13,
   },
   {
     id: 'scene14',
-    title: 'Holographic Data City',
+    title: 'Cyber City',
     subtitle: 'Future State',
     index: 14,
   },
@@ -614,20 +609,20 @@ class StrangeAttractorScene extends SceneBase {
   }
 }
 
-// --- Scene 02: Quantum Ribbons (Data Flow) ---
+// --- Scene 03: Quantum Ribbons (Data Flow) ---
 
 class RibbonFieldScene extends SceneBase {
   private mesh: THREE.InstancedMesh;
-  private count = 60;
+  private count = 1500; // INCREASED
   private dummy = new THREE.Object3D();
 
   constructor() {
     super();
-    this.id = 'scene02';
+    this.id = 'scene03';
     this.contentRadius = 6.0;
 
-    // A single strip geometry
-    const geo = new THREE.PlaneGeometry(0.3, 16, 1, 64);
+    // A single strip geometry - thinner and longer
+    const geo = new THREE.PlaneGeometry(0.1, 24, 1, 128);
 
     // Custom shader
     const mat = new THREE.ShaderMaterial({
@@ -679,23 +674,31 @@ class RibbonFieldScene extends SceneBase {
            vec3 pos = position;
 
            // Procedural placement
-           float angle = aIndex * 0.3 + uTime * 0.1;
-           float radius = 3.0 + sin(aIndex * 13.0) * 1.5;
+           float angle = aIndex * 0.1 + uTime * 0.05;
+           float radius = 2.0 + sin(aIndex * 43.0) * 3.5;
 
            // Base position
            vec3 offset = vec3(cos(angle)*radius, 0.0, sin(angle)*radius);
 
            vec3 worldPos = vec3(offset.x, pos.y, offset.z);
 
-           // Wave
-           float wave = snoise(vec2(worldPos.x * 0.1, worldPos.y * 0.1 + uTime * 0.3));
-           worldPos.x += wave * 2.0;
-           worldPos.z += snoise(vec2(worldPos.z * 0.1, worldPos.y * 0.1 - uTime * 0.2)) * 2.0;
+           // Complex wave motion
+           float t = uTime * 0.5 * aSpeed;
+           float wave = snoise(vec2(worldPos.x * 0.2, worldPos.y * 0.1 + t));
+           worldPos.x += wave * 3.0;
+           worldPos.z += snoise(vec2(worldPos.z * 0.2, worldPos.y * 0.1 - t)) * 3.0;
+
+           // Twist
+           float twist = worldPos.y * 0.2 + t;
+           float tx = worldPos.x * cos(twist) - worldPos.z * sin(twist);
+           float tz = worldPos.x * sin(twist) + worldPos.z * cos(twist);
+           worldPos.x = tx;
+           worldPos.z = tz;
 
            // Interaction
            float d = distance(worldPos.xy, uPointer * 10.0);
-           float repell = smoothstep(4.0, 0.0, d);
-           worldPos.x += (worldPos.x - uPointer.x * 10.0) * repell * 0.5;
+           float repell = smoothstep(5.0, 0.0, d);
+           worldPos.x += (worldPos.x - uPointer.x * 10.0) * repell * 1.5;
 
            vPos = worldPos;
            gl_Position = projectionMatrix * modelViewMatrix * vec4(worldPos, 1.0);
@@ -710,21 +713,26 @@ class RibbonFieldScene extends SceneBase {
 
         void main() {
           // Texture pattern
-          float lines = step(0.9, fract(vUv.y * 20.0 + vIndex + uTime));
+          float lines = step(0.9, fract(vUv.y * 40.0 + vIndex + uTime * 2.0));
 
-          vec3 c1 = vec3(0.1, 0.8, 1.0); // Cyan
-          vec3 c2 = vec3(1.0, 0.2, 0.5); // Pink
+          vec3 c1 = vec3(0.0, 1.0, 0.8); // Cyan
+          vec3 c2 = vec3(0.8, 0.0, 1.0); // Violet
+          vec3 c3 = vec3(1.0, 0.8, 0.2); // Gold
 
-          vec3 col = mix(c1, c2, sin(vIndex * 0.5 + vPos.y * 0.2) * 0.5 + 0.5);
+          float mixer = sin(vIndex * 0.1 + vPos.y * 0.1 + uTime);
+          vec3 col = mix(c1, c2, mixer * 0.5 + 0.5);
+          col = mix(col, c3, clamp(sin(vPos.z * 0.2), 0.0, 1.0));
 
           // Glow intensity
-          float alpha = 0.3 + lines * 0.7;
-          alpha *= smoothstep(8.0, 0.0, abs(vPos.y)); // Fade ends
+          float alpha = 0.6 + lines * 0.4;
+          alpha *= smoothstep(12.0, 0.0, abs(vPos.y)); // Fade ends
 
           // Press effect: Whiteout
-          col += vec3(1.0) * uPress;
+          col += vec3(1.0) * uPress * 0.8;
 
-          gl_FragColor = vec4(col, alpha);
+          if (alpha < 0.01) discard;
+
+          gl_FragColor = vec4(col * 2.0, alpha); // Boost brightness
         }
       `,
       blending: THREE.AdditiveBlending,
@@ -743,7 +751,7 @@ class RibbonFieldScene extends SceneBase {
       this.dummy.updateMatrix();
       this.mesh.setMatrixAt(i, this.dummy.matrix); // Required to initialize
       indices[i] = i;
-      speeds[i] = 0.5 + Math.random();
+      speeds[i] = 0.5 + Math.random() * 0.8;
     }
 
     this.mesh.geometry.setAttribute(
@@ -771,162 +779,120 @@ class RibbonFieldScene extends SceneBase {
     mat.uniforms.uPointer.value.set(px, py);
 
     // Rotate whole group
-    this.group.rotation.y = ctx.time * 0.05;
+    this.group.rotation.y = ctx.time * 0.1;
 
     // Camera
     const mx = ctx.pointer.x * 0.5;
     const my = ctx.pointer.y * 0.5;
     this.camera.position.x = damp(this.camera.position.x, mx * 5, 2, ctx.dt);
     this.camera.position.y = damp(this.camera.position.y, my * 5, 2, ctx.dt);
+
+    // Zoom in/out based on press
+    this.camera.position.z = damp(
+      this.camera.position.z,
+      this.baseDistance - ctx.press * 5,
+      3,
+      ctx.dt
+    );
     this.camera.lookAt(0, 0, 0);
   }
 }
 
-// --- Scene 03: Gyroid Cavern (Bio-Structure) ---
+// --- Scene 02: Million Fireflies (Vector Calculus) ---
 
-class GyroidCavernScene extends SceneBase {
-  private mesh: THREE.Mesh;
+class MillionFirefliesScene extends SceneBase {
+  private particles: THREE.Points;
+  private count = 50000;
 
   constructor() {
     super();
-    this.id = 'scene03';
-    this.contentRadius = 6;
+    this.id = 'scene02';
+    this.contentRadius = 6.0;
 
-    // A box that acts as the bounds for our raymarcher
-    const geo = new THREE.BoxGeometry(10, 10, 10);
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(this.count * 3);
+    const data = new Float32Array(this.count * 3); // phase, speed, size
+
+    for (let i = 0; i < this.count; i++) {
+      const r = Math.pow(Math.random(), 0.5) * 10.0;
+      const theta = Math.random() * Math.PI * 2;
+      const h = (Math.random() - 0.5) * 5.0 * (1.0 - r / 10.0);
+
+      pos[i * 3] = r * Math.cos(theta);
+      pos[i * 3 + 1] = h;
+      pos[i * 3 + 2] = r * Math.sin(theta);
+
+      data[i * 3] = Math.random() * Math.PI * 2;
+      data[i * 3 + 1] = 0.5 + Math.random();
+      data[i * 3 + 2] = Math.random();
+    }
+
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('aData', new THREE.BufferAttribute(data, 3));
+
     const mat = new THREE.ShaderMaterial({
-      side: THREE.FrontSide,
-      transparent: true,
       uniforms: {
         uTime: { value: 0 },
-        uCut: { value: 0 },
-        uMouse: { value: new THREE.Vector2() },
-        uCamPos: { value: new THREE.Vector3() },
+        uPress: { value: 0 },
+        uColor: { value: new THREE.Color(0xffcc00) },
       },
       vertexShader: `
-            varying vec3 vPos;
-            varying vec3 vWorldPos;
+            uniform float uTime;
+            uniform float uPress;
+            attribute vec3 aData;
+            varying float vAlpha;
+
             void main() {
-                vPos = position;
-                vec4 worldPos = modelMatrix * vec4(position, 1.0);
-                vWorldPos = worldPos.xyz;
-                gl_Position = projectionMatrix * viewMatrix * worldPos;
+                vec3 p = position;
+                float t = uTime * aData.y * 0.2;
+
+                float angle = t + length(p.xz) * 0.5;
+                float ca = cos(angle * 0.1);
+                float sa = sin(angle * 0.1);
+
+                float x = p.x * ca - p.z * sa;
+                float z = p.x * sa + p.z * ca;
+                p.x = x; p.z = z;
+
+                p.y += sin(t * 5.0 + aData.x) * 0.2;
+                p += normalize(p) * uPress * 5.0;
+
+                vec4 mv = modelViewMatrix * vec4(p, 1.0);
+                gl_Position = projectionMatrix * mv;
+
+                gl_PointSize = (2.0 + aData.z * 3.0) * (20.0 / -mv.z);
+
+                vAlpha = 0.5 + 0.5 * sin(uTime * 3.0 + aData.x);
             }
         `,
       fragmentShader: `
-            varying vec3 vPos;
-            varying vec3 vWorldPos;
-            uniform float uTime;
-            uniform float uCut;
-            uniform vec3 uCamPos;
-            uniform vec2 uMouse;
-
-            // SDF Logic
-            float smin(float a, float b, float k) {
-                float h = clamp(0.5 + 0.5*(b-a)/k, 0.0, 1.0);
-                return mix(b, a, h) - k*h*(1.0-h);
-            }
-
-            float gyroid(vec3 p, float scale) {
-                return dot(sin(p*scale), cos(p.zxy*scale));
-            }
-
-            float map(vec3 p) {
-                // Sphere bound
-                float d = length(p) - 4.5;
-
-                // Animated Gyroid
-                float scale = 1.8;
-                float shift = uTime * 0.5;
-                float g = gyroid(p + vec3(shift, shift * 0.5, 0), scale);
-
-                // Shell thickness varies with click
-                float thick = 0.15 + uCut * 0.5;
-                float structure = abs(g) - thick;
-
-                // Intersection: structure MUST be inside sphere
-                float dist = max(d, structure);
-
-                // Add inner pulsing nucleus
-                float core = length(p) - (1.2 + sin(uTime * 2.0)*0.2);
-                dist = smin(dist, core, 0.8);
-
-                return dist * 0.5; // Safe marching step
-            }
-
-            vec3 calcNormal(vec3 p) {
-                vec2 e = vec2(0.005, 0.0);
-                return normalize(vec3(
-                    map(p+e.xyy)-map(p-e.xyy),
-                    map(p+e.yxy)-map(p-e.yxy),
-                    map(p+e.yyx)-map(p-e.yyx)
-                ));
-            }
-
+            uniform vec3 uColor;
+            varying float vAlpha;
             void main() {
-                vec3 ro = uCamPos; // Camera is origin
-                vec3 rd = normalize(vWorldPos - ro); // Ray thru pixel
-
-                // Start marching from the surface of the box to save steps?
-                // Or easier: just start from vWorldPos (which is on box surface).
-                // Distance from camera to box surface
-                float t = distance(ro, vWorldPos);
-                vec3 p = vWorldPos;
-
-                float tMax = 20.0;
-                int hits = 0;
-                float d = 0.0;
-
-                for(int i=0; i<64; i++) {
-                    d = map(p);
-                    if(d < 0.01) {
-                        hits = 1;
-                        break;
-                    }
-                    if(t > tMax) break;
-
-                    p += rd * d;
-                    t += d;
-                }
-
-                if (hits == 0) discard;
-
-                // Lighting
-                vec3 normal = calcNormal(p);
-                vec3 lightPos = vec3(10.0, 10.0, 10.0);
-                vec3 lightDir = normalize(lightPos - p);
-
-                float diff = max(dot(normal, lightDir), 0.0);
-                float fresnel = pow(1.0 - max(dot(normal, -rd), 0.0), 3.0);
-
-                // Iridescent coloring
-                vec3 col = 0.5 + 0.5*cos(uTime * 0.2 + p.xyx * 0.5 + vec3(0,2,4));
-                col = col * (diff * 0.8 + 0.2) + vec3(0.8)*fresnel;
-
-                // Falloff for depth illusion
-                float fog = smoothstep(10.0, 0.0, t);
-
-                gl_FragColor = vec4(col, fog);
+                float d = length(gl_PointCoord - 0.5);
+                if (d > 0.5) discard;
+                gl_FragColor = vec4(uColor, vAlpha);
             }
         `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
     });
 
-    this.mesh = new THREE.Mesh(geo, mat);
-    this.group.add(this.mesh);
+    this.particles = new THREE.Points(geo, mat);
+    this.group.add(this.particles);
   }
 
   init(_ctx: SceneRuntime) {}
 
   update(ctx: SceneRuntime) {
-    const mat = this.mesh.material as THREE.ShaderMaterial;
+    const mat = this.particles.material as THREE.ShaderMaterial;
     mat.uniforms.uTime.value = ctx.time;
-    mat.uniforms.uCut.value = ctx.press;
-    mat.uniforms.uCamPos.value.copy(this.camera.position);
+    mat.uniforms.uPress.value = ctx.press;
 
     // Group rotate
-    this.group.rotation.y = ctx.pointer.x * 0.2;
-    this.group.rotation.x = ctx.pointer.y * 0.2;
-    this.group.rotation.z = ctx.time * 0.05;
+    this.group.rotation.y = ctx.time * 0.05;
+    this.group.rotation.x = Math.sin(ctx.time * 0.1) * 0.1;
 
     this.camera.position.z = damp(
       this.camera.position.z,
@@ -938,147 +904,140 @@ class GyroidCavernScene extends SceneBase {
   }
 }
 
-// --- Scene 04: Magnetosphere (Shield) ---
+// --- Scene 04: Aurora Field (Ethereal) ---
 
 class MagnetosphereScene extends SceneBase {
-  private field: THREE.LineSegments;
   private particles: THREE.Points;
+  private count = 40000;
 
   constructor() {
     super();
     this.id = 'scene04';
-    this.contentRadius = 5.0;
-
-    // 1. Magnetic Field Lines (Dipole)
-    // r = L * sin^2(theta)
-    const linesPoints = [];
-    const colors = [];
-    const L_shells = [2, 2.5, 3, 3.5, 4, 5, 6];
-
-    const colorInside = new THREE.Color(0x0088ff);
-    const colorOutside = new THREE.Color(0xff0088);
-
-    for (let L of L_shells) {
-      const segments = 64;
-      const longitudes = 16;
-      for (let lon = 0; lon < longitudes; lon++) {
-        const phi = (lon / longitudes) * Math.PI * 2;
-
-        let prev: THREE.Vector3 | null = null;
-
-        // Theta from 0 to PI (pole to pole)
-        for (let s = 0; s <= segments; s++) {
-          const t = s / segments;
-          const theta = t * Math.PI;
-          if (theta < 0.1 || theta > Math.PI - 0.1) continue; // Skip near poles (singularity)
-
-          const r = L * Math.pow(Math.sin(theta), 2);
-
-          const x = r * Math.sin(theta) * Math.cos(phi);
-          const z = r * Math.sin(theta) * Math.sin(phi);
-          const y = r * Math.cos(theta);
-
-          const v = new THREE.Vector3(x, y, z);
-
-          if (prev) {
-            linesPoints.push(prev.x, prev.y, prev.z);
-            linesPoints.push(v.x, v.y, v.z);
-
-            const c = colorInside.clone().lerp(colorOutside, (L - 2) / 4);
-            colors.push(c.r, c.g, c.b);
-            colors.push(c.r, c.g, c.b);
-          }
-          prev = v;
-        }
-      }
-    }
+    this.contentRadius = 8.0;
 
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute(
-      'position',
-      new THREE.Float32BufferAttribute(linesPoints, 3)
-    );
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    const pos = new Float32Array(this.count * 3);
+    const data = new Float32Array(this.count * 4); // x,y original, speed, phase
 
-    const mat = new THREE.LineBasicMaterial({
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.3,
-      blending: THREE.AdditiveBlending,
-    });
-    this.field = new THREE.LineSegments(geo, mat);
-    this.group.add(this.field);
+    for (let i = 0; i < this.count; i++) {
+      // Create curtains
+      const x = (Math.random() - 0.5) * 16;
+      const z = (Math.random() - 0.5) * 8;
+      const y = (Math.random() - 0.5) * 6;
 
-    // 2. Solar Wind Particles
-    const pCount = 1000;
-    const pPos = new Float32Array(pCount * 3);
-    const pGeo = new THREE.BufferGeometry();
-    const pMat = new THREE.PointsMaterial({
-      color: 0xffcc00,
-      size: 0.1,
-      transparent: true,
-    });
+      pos[i * 3] = x;
+      pos[i * 3 + 1] = y;
+      pos[i * 3 + 2] = z;
 
-    for (let i = 0; i < pCount; i++) {
-      pPos[i * 3] = (Math.random() - 0.5) * 15; // x
-      pPos[i * 3 + 1] = (Math.random() - 0.5) * 15; // y
-      pPos[i * 3 + 2] = (Math.random() - 0.5) * 15; // z
+      data[i * 4] = x;
+      data[i * 4 + 1] = z;
+      data[i * 4 + 2] = 0.2 + Math.random() * 0.8; // speed
+      data[i * 4 + 3] = Math.random() * Math.PI * 2; // phase
     }
-    pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
-    this.particles = new THREE.Points(pGeo, pMat);
+
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('aData', new THREE.BufferAttribute(data, 4));
+
+    const mat = new THREE.ShaderMaterial({
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      uniforms: {
+        uTime: { value: 0 },
+        uPress: { value: 0 },
+        uPointer: { value: new THREE.Vector2() },
+      },
+      vertexShader: `
+            uniform float uTime;
+            uniform float uPress;
+            uniform vec2 uPointer;
+            attribute vec4 aData;
+            varying float vAlpha;
+            varying vec3 vColor;
+
+            // Simplex noise 2D
+            vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
+            float snoise(vec2 v){
+                const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
+                vec2 i  = floor(v + dot(v, C.yy) );
+                vec2 x0 = v -   i + dot(i, C.xx);
+                vec2 i1; i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+                vec4 x12 = x0.xyxy + C.xxzz;
+                x12.xy -= i1;
+                i = mod(i, 289.0);
+                vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 )) + i.x + vec3(0.0, i1.x, 1.0 ));
+                vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
+                m = m*m; m = m*m;
+                vec3 x = 2.0 * fract(p * C.www) - 1.0;
+                vec3 h = abs(x) - 0.5;
+                vec3 ox = floor(x + 0.5);
+                vec3 a0 = x - ox;
+                m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
+                vec3 g; g.x  = a0.x  * x0.x  + h.x  * x0.y; g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+                return 130.0 * dot(m, g);
+            }
+
+            void main() {
+                vec3 pos = position;
+                float px = aData.x;
+                float pz = aData.y;
+                float spd = aData.z;
+
+                // Waving curtain motion
+                float noiseVal = snoise(vec2(px * 0.1 + uTime * 0.2, pos.y * 0.2));
+
+                pos.x += noiseVal * 1.5;
+                pos.z += snoise(vec2(pz * 0.1 - uTime * 0.1, pos.y * 0.3)) * 1.5;
+
+                // Vertical rise
+                pos.y += sin(uTime + aData.w) * 0.5;
+
+                // Mouse repel
+                vec3 interaction = vec3(uPointer.x * 10.0, 0.0, uPointer.y * 10.0);
+                float d = distance(pos.xz, interaction.xz);
+                float f = smoothstep(4.0, 0.0, d);
+                pos.y += f * 2.0 * uPress;
+
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+                gl_PointSize = (2.0 + f * 5.0) * (20.0 / -gl_Position.z);
+
+                // Color gradient based on height
+                vec3 c1 = vec3(0.0, 1.0, 0.5); // Green
+                vec3 c2 = vec3(0.5, 0.0, 1.0); // Purple
+                vColor = mix(c1, c2, pos.y * 0.2 + 0.5);
+
+                vAlpha = 0.6 * smoothstep(4.0, 0.0, abs(pos.y));
+            }
+        `,
+      fragmentShader: `
+            varying float vAlpha;
+            varying vec3 vColor;
+            void main() {
+                if (length(gl_PointCoord - 0.5) > 0.5) discard;
+                gl_FragColor = vec4(vColor * 2.0, vAlpha);
+            }
+        `,
+    });
+
+    this.particles = new THREE.Points(geo, mat);
     this.group.add(this.particles);
   }
 
   init(_ctx: SceneRuntime) {}
 
   update(ctx: SceneRuntime) {
-    this.group.rotation.y += 0.002;
+    this.group.rotation.y = ctx.time * 0.05;
 
-    // Animate field pulse
-    const pulse = 1 + Math.sin(ctx.time * 2) * 0.1 * ctx.press;
-    this.field.scale.setScalar(pulse);
-
-    // Simulate wind interaction
-    const positions = (
-      this.particles.geometry.attributes.position as THREE.BufferAttribute
-    ).array as Float32Array;
-    for (let i = 0; i < positions.length; i += 3) {
-      let x = positions[i];
-      let y = positions[i + 1];
-      let z = positions[i + 2];
-
-      // Move in Z direction (solar wind)
-      z += 5 * ctx.dt * (1 + ctx.press * 5);
-      if (z > 10) z = -10;
-
-      // Deflection logic (Magnetosphere)
-      const dist = Math.sqrt(x * x + y * y + z * z);
-      if (dist < 4.5 && z < 0) {
-        // Hitting bow shock
-        // Push outward
-        const angle = Math.atan2(y, x);
-        const force = (4.5 - dist) * 2.0;
-        x += Math.cos(angle) * force * ctx.dt;
-        y += Math.sin(angle) * force * ctx.dt;
-      }
-
-      positions[i] = x;
-      positions[i + 1] = y;
-      positions[i + 2] = z;
-    }
-    this.particles.geometry.attributes.position.needsUpdate = true;
+    const mat = this.particles.material as THREE.ShaderMaterial;
+    mat.uniforms.uTime.value = ctx.time;
+    mat.uniforms.uPress.value = ctx.press;
+    mat.uniforms.uPointer.value.set(ctx.pointer.x, ctx.pointer.y);
 
     // Camera
-    const mx = ctx.pointer.x * 0.5 + ctx.gyro.y * 0.5;
-    const my = ctx.pointer.y * 0.5 + ctx.gyro.x * 0.5;
+    const mx = ctx.pointer.x * 0.5;
+    const my = ctx.pointer.y * 0.5;
     this.camera.position.x = damp(this.camera.position.x, mx * 5, 2, ctx.dt);
-    this.camera.position.y = damp(this.camera.position.y, my * 5, 2, ctx.dt);
-    this.camera.position.z = damp(
-      this.camera.position.z,
-      this.baseDistance,
-      4,
-      ctx.dt
-    );
+    this.camera.position.y = damp(this.camera.position.y, my * 2, 2, ctx.dt);
     this.camera.lookAt(0, 0, 0);
   }
 }
@@ -1485,75 +1444,113 @@ class OrbitalMechanicsScene extends SceneBase {
   }
 }
 
-// --- Scene 09: Voronoi Shards (Tessellation) ---
+// --- Scene 09: Crystal Fracture (Refraction) ---
 
 class VoronoiShardsScene extends SceneBase {
-  private shards: THREE.Mesh[] = [];
+  private shards: THREE.InstancedMesh;
+  private dummy = new THREE.Object3D();
+  private count = 400;
 
   constructor() {
     super();
     this.id = 'scene09';
-    this.contentRadius = 4.0;
+    this.contentRadius = 5.0;
 
-    // Fake voronoi by scaling polyhedrons packed together
-    const colors = [0xffaa00, 0xff4400, 0x222222];
-    const geo = new THREE.DodecahedronGeometry(0.8, 0); // Low poly
+    // Sharp shard geometry
+    const geo = new THREE.TetrahedronGeometry(0.5, 0);
 
-    for (let i = 0; i < 40; i++) {
-      const mat = new THREE.MeshStandardMaterial({
-        color: colors[i % 3],
-        flatShading: true,
-        metalness: 0.5,
-        roughness: 0.2,
-      });
-      const mesh = new THREE.Mesh(geo, mat);
+    // Glass-like material
+    const mat = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      metalness: 0.1,
+      roughness: 0.05,
+      transmission: 0.9, // Glassy
+      thickness: 1.0,
+      ior: 1.5,
+      clearcoat: 1.0,
+      attenuationColor: new THREE.Color(0xccffff),
+      attenuationDistance: 2.0,
+    });
 
-      // Random sphere pack
-      const phi = Math.acos(2 * Math.random() - 1);
-      const theta = Math.random() * Math.PI * 2;
-      const r = 1.5; // sphere radius
+    this.shards = new THREE.InstancedMesh(geo, mat, this.count);
 
-      mesh.userData = {
-        home: new THREE.Vector3(
-          r * Math.sin(phi) * Math.cos(theta),
-          r * Math.sin(phi) * Math.sin(theta),
-          r * Math.cos(phi)
-        ),
-        rotSettings: new THREE.Vector3(
-          Math.random(),
-          Math.random(),
-          Math.random()
-        ),
-      };
-      mesh.position.copy(mesh.userData.home);
-      mesh.lookAt(0, 0, 0);
+    // Initialize positions in a solid block that will shatter
+    const data = new Float32Array(this.count * 4); // x,y,z dir, speed
 
-      this.shards.push(mesh);
-      this.group.add(mesh);
+    for (let i = 0; i < this.count; i++) {
+      const x = (Math.random() - 0.5) * 4;
+      const y = (Math.random() - 0.5) * 8;
+      const z = (Math.random() - 0.5) * 4;
+
+      this.dummy.position.set(x, y, z);
+      this.dummy.rotation.set(
+        Math.random() * Math.PI,
+        Math.random() * Math.PI,
+        0
+      );
+      const s = 0.2 + Math.random() * 0.8;
+      this.dummy.scale.set(s, s * 3, s); // Long shards
+      this.dummy.updateMatrix();
+      this.shards.setMatrixAt(i, this.dummy.matrix);
+
+      // Explosion velocity
+      data[i * 4] = x; // anchor x
+      data[i * 4 + 1] = y; // anchor y
+      data[i * 4 + 2] = z; // anchor z
+      data[i * 4 + 3] = Math.random(); // speed offset
     }
 
-    // Inner light
-    const light = new THREE.PointLight(0xffaa00, 5, 10);
-    this.group.add(light);
+    this.shards.geometry.setAttribute(
+      'aDat',
+      new THREE.InstancedBufferAttribute(data, 4)
+    );
+    this.group.add(this.shards);
+
+    // Central light to make glass shine
+    const pl = new THREE.PointLight(0x00ffff, 20, 10);
+    this.group.add(pl);
+
+    // Ambient
+    const al = new THREE.AmbientLight(0xffffff, 2);
+    this.group.add(al);
   }
 
   init(_ctx: SceneRuntime) {}
 
   update(ctx: SceneRuntime) {
-    // Explode
-    const explode = Math.sin(ctx.time) * 0.5 + 0.5 + ctx.press;
+    const time = ctx.time;
+    // Shatter expansion breathing
+    const expand = Math.sin(time * 0.5) * 0.5 + 0.5 + ctx.press * 2.0;
 
-    this.shards.forEach(s => {
-      const target = s.userData.home
-        .clone()
-        .multiplyScalar(1.0 + explode * 2.0);
-      s.position.lerp(target, 0.1);
-      s.rotation.x += ctx.dt * s.userData.rotSettings.x;
-      s.rotation.y += ctx.dt * s.userData.rotSettings.y;
-    });
+    const data = (
+      this.shards.geometry.getAttribute(
+        'aDat'
+      ) as THREE.InstancedBufferAttribute
+    ).array;
 
-    this.group.rotation.y = ctx.pointer.x;
-    this.group.rotation.x = ctx.pointer.y;
+    for (let i = 0; i < this.count; i++) {
+      const ix = i * 16; // matrix index
+      // Reconstruct from anchor
+      const ax = data[i * 4];
+      const ay = data[i * 4 + 1];
+      const az = data[i * 4 + 2];
+      const spd = data[i * 4 + 3];
+
+      const dist = expand * (1.0 + spd);
+
+      this.dummy.position.set(ax * dist, ay * dist, az * dist);
+
+      // Slow rotation
+      this.dummy.rotation.set(time * spd, time * spd * 0.5, time * 0.1);
+
+      this.dummy.scale.setScalar(1.0);
+      this.dummy.updateMatrix();
+      this.shards.setMatrixAt(i, this.dummy.matrix);
+    }
+    this.shards.instanceMatrix.needsUpdate = true;
+
+    this.group.rotation.y = ctx.pointer.x * 0.2;
+    this.group.rotation.x = ctx.pointer.y * 0.2;
 
     this.camera.position.z = damp(
       this.camera.position.z,
@@ -1785,80 +1782,131 @@ class LibraryScene extends SceneBase {
   }
 }
 
-// --- Scene 13: Bioluminescence (Organic) ---
+// --- Scene 13: Deep Abyss (Underworld) ---
 
 class BioluminescentScene extends SceneBase {
-  private spores: THREE.Points;
+  private particles: THREE.Points;
+  private count = 2000;
 
   constructor() {
     super();
     this.id = 'scene13';
-    this.contentRadius = 4.0;
+    this.contentRadius = 6.0;
 
+    // Organic debris / plankton
     const geo = new THREE.BufferGeometry();
-    const pos = new Float32Array(500 * 3);
-    const randoms = new Float32Array(500 * 3);
+    const pos = new Float32Array(this.count * 3);
+    const data = new Float32Array(this.count * 3); // phase, speed, size
 
-    for (let i = 0; i < 500; i++) {
-      pos[i * 3] = (Math.random() - 0.5) * 10;
-      pos[i * 3 + 1] = (Math.random() - 0.5) * 10;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 10;
+    for (let i = 0; i < this.count; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = 2.0 + Math.random() * 8.0;
 
-      randoms[i * 3] = Math.random();
-      randoms[i * 3 + 1] = Math.random();
-      randoms[i * 3 + 2] = Math.random();
+      pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+      pos[i * 3 + 2] = r * Math.cos(phi);
+
+      data[i * 3] = Math.random() * Math.PI * 2;
+      data[i * 3 + 1] = 0.2 + Math.random() * 0.5;
+      data[i * 3 + 2] = Math.random();
     }
+
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    geo.setAttribute('aRnd', new THREE.BufferAttribute(randoms, 3));
+    geo.setAttribute('aData', new THREE.BufferAttribute(data, 3));
 
     const mat = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
-        uColor: { value: new THREE.Color(0x00ffaa) },
+        uPress: { value: 0 },
+        uColor: { value: new THREE.Color(0x00ff88) },
       },
       vertexShader: `
-                uniform float uTime;
-                attribute vec3 aRnd;
-                varying float vAlpha;
-                void main() {
-                    vec3 p = position;
-                    // Float up
-                    p.y += sin(uTime + aRnd.x * 10.0) * 0.5;
-                    p.x += cos(uTime * 0.5 + aRnd.y * 10.0) * 0.5;
+            uniform float uTime;
+            uniform float uPress;
+            attribute vec3 aData;
+            varying float vAlpha;
 
-                    vec4 mv = modelViewMatrix * vec4(p, 1.0);
-                    gl_PointSize = (10.0 * aRnd.z + 5.0) / -mv.z;
-                    gl_Position = projectionMatrix * mv;
+            // Gradient noise
+            vec3 hash( vec3 p ) {
+                p = vec3( dot(p,vec3(127.1,311.7, 74.7)),
+                          dot(p,vec3(269.5,183.3,246.1)),
+                          dot(p,vec3(113.5,271.9,124.6)));
+                return -1.0 + 2.0*fract(sin(p)*43758.5453123);
+            }
+            float noise( in vec3 p ) {
+                vec3 i = floor( p );
+                vec3 f = fract( p );
+                vec3 u = f*f*(3.0-2.0*f);
+                return mix( mix( mix( dot( hash( i + vec3(0.0,0.0,0.0) ), f - vec3(0.0,0.0,0.0) ),
+                                      dot( hash( i + vec3(1.0,0.0,0.0) ), f - vec3(1.0,0.0,0.0) ), u.x),
+                                 mix( dot( hash( i + vec3(0.0,1.0,0.0) ), f - vec3(0.0,1.0,0.0) ),
+                                      dot( hash( i + vec3(1.0,1.0,0.0) ), f - vec3(1.0,1.0,0.0) ), u.x), u.y),
+                            mix( mix( dot( hash( i + vec3(0.0,0.0,1.0) ), f - vec3(0.0,0.0,1.0) ),
+                                      dot( hash( i + vec3(1.0,0.0,1.0) ), f - vec3(1.0,0.0,1.0) ), u.x),
+                                 mix( dot( hash( i + vec3(0.0,1.0,1.0) ), f - vec3(0.0,1.0,1.0) ),
+                                      dot( hash( i + vec3(1.0,1.0,1.0) ), f - vec3(1.0,1.0,1.0) ), u.x), u.y), u.z );
+            }
 
-                    vAlpha = 0.5 + 0.5 * sin(uTime * 2.0 + aRnd.z * 10.0);
-                }
-            `,
+            void main() {
+                vec3 p = position;
+                float t = uTime * aData.y * 0.5;
+
+                // Turbulent water flow
+                p.x += noise(vec3(p.xy * 0.5, t)) * 2.0;
+                p.y += noise(vec3(p.yz * 0.5, t + 10.0)) * 2.0;
+                p.z += noise(vec3(p.xz * 0.5, t + 20.0)) * 2.0;
+
+                // Press to disperse
+                vec3 dir = normalize(p);
+                p += dir * uPress * 10.0;
+
+                vec4 mv = modelViewMatrix * vec4(p, 1.0);
+                gl_Position = projectionMatrix * mv;
+                gl_PointSize = (4.0 + aData.z * 10.0) * (10.0 / -mv.z);
+
+                vAlpha = 0.5 + 0.5 * sin(uTime * 3.0 + aData.x);
+            }
+        `,
       fragmentShader: `
-                uniform vec3 uColor;
-                varying float vAlpha;
-                void main() {
-                    float d = length(gl_PointCoord - 0.5);
-                    if (d > 0.5) discard;
-                    float glow = 1.0 - d * 2.0;
-                    gl_FragColor = vec4(uColor, glow * vAlpha);
-                }
-            `,
+            uniform vec3 uColor;
+            varying float vAlpha;
+            void main() {
+                vec2 uv = gl_PointCoord - 0.5;
+                float d = length(uv);
+                if (d > 0.5) discard;
+
+                // Soft hoop
+                float glow = smoothstep(0.5, 0.3, d);
+                // Center dot
+                float core = smoothstep(0.1, 0.0, d);
+
+                vec3 c = mix(uColor, vec3(1.0), core);
+                gl_FragColor = vec4(c * 2.0, glow * vAlpha);
+            }
+        `,
       transparent: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
 
-    this.spores = new THREE.Points(geo, mat);
-    this.group.add(this.spores);
+    this.particles = new THREE.Points(geo, mat);
+    this.group.add(this.particles);
+
+    // Dark foggy background object (optional, but let's just use particles for now to keep it clean)
   }
 
   init(_ctx: SceneRuntime) {}
 
   update(ctx: SceneRuntime) {
-    (this.spores.material as THREE.ShaderMaterial).uniforms.uTime.value =
-      ctx.time;
-    this.group.rotation.x = ctx.pointer.y * 0.1;
-    this.group.rotation.y = ctx.pointer.x * 0.1;
+    const mat = this.particles.material as THREE.ShaderMaterial;
+    mat.uniforms.uTime.value = ctx.time;
+    mat.uniforms.uPress.value = ctx.press;
+
+    // Slow deep rotation
+    this.group.rotation.x = Math.sin(ctx.time * 0.1) * 0.2;
+    this.group.rotation.y = ctx.time * 0.05;
+
     this.camera.position.z = damp(
       this.camera.position.z,
       this.baseDistance,
@@ -1869,38 +1917,77 @@ class BioluminescentScene extends SceneBase {
   }
 }
 
-// --- Scene 14: Holographic City (Future) ---
+// --- Scene 14: Cyber City (Network) ---
 
 class HolographicCityScene extends SceneBase {
   private city: THREE.Group;
+  private traffic: THREE.InstancedMesh;
+  private dummy = new THREE.Object3D();
+  private trafficCount = 2000;
 
   constructor() {
     super();
     this.id = 'scene14';
-    this.contentRadius = 6.0;
+    this.contentRadius = 8.0;
     this.city = new THREE.Group();
 
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0x5500ff,
+    // 1. Buildings (Instanced for performance)
+    const bGeo = new THREE.BoxGeometry(0.8, 1, 0.8);
+    const bMat = new THREE.MeshBasicMaterial({
+      color: 0x001133,
       wireframe: true,
       transparent: true,
-      opacity: 0.3,
+      opacity: 0.5,
+      blending: THREE.AdditiveBlending,
     });
+    const buildings = new THREE.InstancedMesh(bGeo, bMat, 400);
 
-    const geo = new THREE.BoxGeometry(1, 1, 1);
+    let idx = 0;
+    for (let x = -10; x <= 10; x++) {
+      for (let z = -10; z <= 10; z++) {
+        if (Math.abs(x) < 2 && Math.abs(z) < 2) continue; // Clear center
+        if (Math.random() > 0.4) continue;
+        if (idx >= 400) break;
 
-    // Grid of buildings
-    for (let x = -3; x <= 3; x++) {
-      for (let z = -3; z <= 3; z++) {
-        if (Math.random() > 0.7) continue;
-        const h = 0.5 + Math.random() * 3.0;
-        const mesh = new THREE.Mesh(geo, mat);
-        mesh.position.set(x * 1.5, h / 2 - 2, z * 1.5);
-        mesh.scale.set(1, h, 1);
-        this.city.add(mesh);
+        const h = 1.0 + Math.random() * 8.0;
+        this.dummy.position.set(x * 2.0, h / 2 - 5, z * 2.0);
+        this.dummy.scale.set(1, h, 1);
+        this.dummy.updateMatrix();
+        buildings.setMatrixAt(idx++, this.dummy.matrix);
       }
     }
+    this.city.add(buildings);
+
+    // 2. Traffic (Flying cars)
+    const tGeo = new THREE.BoxGeometry(0.1, 0.05, 0.3);
+    const tMat = new THREE.MeshBasicMaterial({ color: 0xff00aa });
+    this.traffic = new THREE.InstancedMesh(tGeo, tMat, this.trafficCount);
+
+    const tData = new Float32Array(this.trafficCount * 4); // x, y, z, axis(0=x, 1=z)
+
+    for (let i = 0; i < this.trafficCount; i++) {
+      const axis = Math.random() > 0.5 ? 0 : 1;
+      const lane = Math.floor((Math.random() - 0.5) * 20) * 2.0;
+      const height = (Math.random() - 0.5) * 8.0;
+      const offset = (Math.random() - 0.5) * 40.0;
+
+      tData[i * 4] = lane; // fixed coordinate
+      tData[i * 4 + 1] = height;
+      tData[i * 4 + 2] = offset; // moving coordinate current
+      tData[i * 4 + 3] = axis; // direction
+    }
+    this.traffic.geometry.setAttribute(
+      'aDat',
+      new THREE.InstancedBufferAttribute(tData, 4)
+    );
+    this.city.add(this.traffic);
+
     this.group.add(this.city);
+
+    // Floor grid
+    const grid = new THREE.GridHelper(40, 40, 0x0044ff, 0x001133);
+    grid.position.y = -5;
+    this.group.add(grid);
   }
 
   init(_ctx: SceneRuntime) {}
@@ -1908,14 +1995,44 @@ class HolographicCityScene extends SceneBase {
   update(ctx: SceneRuntime) {
     this.group.rotation.y = ctx.time * 0.1;
 
-    // Scanline effect simulated by opacity pulse
-    this.city.children.forEach(c => {
-      const mesh = c as THREE.Mesh;
-      if (mesh.material) {
-        (mesh.material as THREE.Material).opacity =
-          0.1 + Math.abs(Math.sin(ctx.time + mesh.position.y));
+    // Pulse buildings
+    const buildings = this.city.children[0] as THREE.InstancedMesh;
+    (buildings.material as THREE.Material).opacity =
+      0.3 + Math.sin(ctx.time * 4) * 0.1;
+
+    // Move traffic
+    const tData = (
+      this.traffic.geometry.getAttribute(
+        'aDat'
+      ) as THREE.InstancedBufferAttribute
+    ).array;
+    for (let i = 0; i < this.trafficCount; i++) {
+      const lane = tData[i * 4];
+      const h = tData[i * 4 + 1];
+      let pos = tData[i * 4 + 2];
+      const axis = tData[i * 4 + 3];
+
+      // Move
+      const speed = 5.0 * ctx.dt * (1.0 + ctx.press * 2.0);
+      pos += speed * (i % 2 == 0 ? 1 : -1);
+
+      // Wrap
+      if (pos > 20) pos -= 40;
+      if (pos < -20) pos += 40;
+
+      tData[i * 4 + 2] = pos;
+
+      if (axis === 0) {
+        this.dummy.position.set(pos, h, lane);
+        this.dummy.rotation.set(0, Math.PI / 2, 0);
+      } else {
+        this.dummy.position.set(lane, h, pos);
+        this.dummy.rotation.set(0, 0, 0);
       }
-    });
+      this.dummy.updateMatrix();
+      this.traffic.setMatrixAt(i, this.dummy.matrix);
+    }
+    this.traffic.instanceMatrix.needsUpdate = true;
 
     this.camera.position.z = damp(
       this.camera.position.z,
@@ -1923,8 +2040,8 @@ class HolographicCityScene extends SceneBase {
       3,
       ctx.dt
     );
-    this.camera.lookAt(0, 0, 0);
-    this.camera.position.y = 2; // Look down slightly
+    this.camera.position.y = damp(this.camera.position.y, 4, 2, ctx.dt); // Look from above
+    this.camera.lookAt(0, -2, 0);
   }
 }
 
