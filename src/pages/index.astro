@@ -106,6 +106,40 @@ const scenes = [
       <div class="gallery3d__progress">
         <div class="gallery3d__progress-fill" data-gallery-progress></div>
       </div>
+
+      <!-- Mobile Swipe Indicator -->
+      <div class="gallery3d__swipe-indicator" aria-hidden="true">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M5 12h14M12 5l7 7-7 7"></path>
+        </svg>
+      </div>
+
+      <!-- Swipe Preview (shows upcoming scene name) -->
+      <div class="gallery3d__swipe-preview" aria-hidden="true"></div>
+
+      <!-- Scene Info Panel (mobile-optimized) -->
+      <div class="gallery3d__info-panel" data-gallery-info>
+        <button
+          class="gallery3d__info-toggle"
+          data-info-toggle
+          aria-label="Show scene info"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M12 16v-4M12 8h.01"></path>
+          </svg>
+        </button>
+      </div>
     </section>
 
     <!-- Lightweight Scene Menu (Toggle) -->
@@ -217,51 +251,117 @@ const scenes = [
       border: none;
       border-radius: 50%;
       background: rgba(255, 255, 255, 0.08);
-      backdrop-filter: blur(10px);
+      backdrop-filter: blur(12px);
       color: rgba(255, 255, 255, 0.9);
       cursor: pointer;
-      transition: all 0.3s ease;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
       display: flex;
       align-items: center;
       justify-content: center;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .gallery3d__nav::before {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border-radius: 50%;
+      background: linear-gradient(
+        135deg,
+        rgba(34, 211, 238, 0),
+        rgba(99, 102, 241, 0)
+      );
+      transition: all 0.4s ease;
+      z-index: -1;
     }
 
     .gallery3d__nav:hover {
       background: rgba(255, 255, 255, 0.15);
       transform: translateY(-50%) scale(1.1);
+      border-color: rgba(34, 211, 238, 0.4);
+      box-shadow: 0 0 30px rgba(34, 211, 238, 0.3);
+    }
+
+    .gallery3d__nav:hover::before {
+      background: linear-gradient(
+        135deg,
+        rgba(34, 211, 238, 0.2),
+        rgba(99, 102, 241, 0.2)
+      );
     }
 
     .gallery3d__nav:active {
       transform: translateY(-50%) scale(0.95);
     }
 
+    .gallery3d__nav:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
     .gallery3d__nav svg {
       width: 28px;
       height: 28px;
+      transition: transform 0.3s ease;
+    }
+
+    .gallery3d__nav:hover svg {
+      transform: scale(1.1);
     }
 
     .gallery3d__nav--prev {
-      left: 20px;
+      left: 24px;
+    }
+
+    .gallery3d__nav--prev:hover svg {
+      transform: translateX(-3px);
     }
 
     .gallery3d__nav--next {
-      right: 20px;
+      right: 24px;
+    }
+
+    .gallery3d__nav--next:hover svg {
+      transform: translateX(3px);
     }
 
     @media (max-width: 768px) {
       .gallery3d__nav {
-        width: 44px;
-        height: 44px;
+        width: 48px;
+        height: 48px;
+        /* Larger touch targets on mobile */
+        min-width: 48px;
+        min-height: 48px;
       }
       .gallery3d__nav svg {
-        width: 22px;
-        height: 22px;
+        width: 24px;
+        height: 24px;
       }
       .gallery3d__nav--prev {
-        left: 10px;
+        left: 8px;
       }
       .gallery3d__nav--next {
-        right: 10px;
+        right: 8px;
+      }
+      /* Hide nav arrows on very small screens - rely on swipe */
+      @media (max-width: 400px) {
+        .gallery3d__nav {
+          opacity: 0.5;
+          width: 40px;
+          height: 40px;
+        }
+      }
+    }
+
+    /* Touch-optimized active states */
+    @media (hover: none) and (pointer: coarse) {
+      .gallery3d__nav:active {
+        background: rgba(255, 255, 255, 0.25);
+        transform: translateY(-50%) scale(0.92);
+      }
+      .gallery3d__dot:active {
+        transform: scale(1.5);
       }
     }
 
@@ -273,24 +373,38 @@ const scenes = [
       transform: translateX(-50%);
       z-index: 20;
       display: flex;
-      gap: 8px;
-      padding: 10px 16px;
-      background: rgba(0, 0, 0, 0.4);
-      backdrop-filter: blur(10px);
+      gap: 10px;
+      padding: 12px 20px;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(12px);
       border-radius: 30px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
     }
 
     .gallery3d__dot {
-      width: 10px;
-      height: 10px;
+      width: 12px;
+      height: 12px;
       padding: 0;
       border: none;
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.25);
+      background: rgba(255, 255, 255, 0.2);
       cursor: pointer;
-      transition: all 0.3s ease;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
       position: relative;
-      overflow: hidden;
+      overflow: visible;
+    }
+
+    .gallery3d__dot::before {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      background: transparent;
+      transition: all 0.3s ease;
+    }
+
+    .gallery3d__dot:hover::before {
+      background: rgba(34, 211, 238, 0.15);
     }
 
     .gallery3d__dot-fill {
@@ -299,7 +413,7 @@ const scenes = [
       border-radius: 50%;
       background: linear-gradient(135deg, #22d3ee, #6366f1);
       transform: scale(0);
-      transition: transform 0.3s ease;
+      transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
 
     .gallery3d__dot.active .gallery3d__dot-fill,
@@ -308,25 +422,65 @@ const scenes = [
     }
 
     .gallery3d__dot.active {
-      transform: scale(1.3);
+      transform: scale(1.4);
+      box-shadow: 0 0 20px rgba(34, 211, 238, 0.5);
+    }
+
+    .gallery3d__dot.active::after {
+      content: '';
+      position: absolute;
+      inset: -6px;
+      border-radius: 50%;
+      border: 2px solid rgba(34, 211, 238, 0.4);
+      animation: dot-pulse 2s ease-out infinite;
+    }
+
+    @keyframes dot-pulse {
+      0% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(1.8);
+        opacity: 0;
+      }
+    }
+
+    @keyframes title-pulse {
+      0% {
+        transform: translateX(-50%) scale(1);
+        filter: brightness(1);
+      }
+      50% {
+        transform: translateX(-50%) scale(1.02);
+        filter: brightness(1.1);
+      }
+      100% {
+        transform: translateX(-50%) scale(1);
+        filter: brightness(1);
+      }
     }
 
     @media (max-width: 768px) {
       .gallery3d__dots {
-        bottom: calc(20px + env(safe-area-inset-bottom));
-        gap: 6px;
-        padding: 8px 12px;
-        max-width: calc(100vw - 40px);
+        bottom: calc(24px + env(safe-area-inset-bottom));
+        gap: 8px;
+        padding: 10px 16px;
+        max-width: calc(100vw - 32px);
         overflow-x: auto;
         scrollbar-width: none;
+        -ms-overflow-style: none;
       }
       .gallery3d__dots::-webkit-scrollbar {
         display: none;
       }
       .gallery3d__dot {
-        width: 8px;
-        height: 8px;
+        width: 10px;
+        height: 10px;
         flex-shrink: 0;
+      }
+      .gallery3d__dot.active {
+        transform: scale(1.3);
       }
     }
 
@@ -339,39 +493,54 @@ const scenes = [
       z-index: 20;
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 12px 24px;
-      background: rgba(0, 0, 0, 0.5);
-      backdrop-filter: blur(12px);
+      gap: 14px;
+      padding: 14px 28px;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(16px);
       border-radius: 40px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .gallery3d__title-overlay:hover {
+      background: rgba(0, 0, 0, 0.7);
+      border-color: rgba(34, 211, 238, 0.3);
+      box-shadow: 0 8px 40px rgba(34, 211, 238, 0.15);
     }
 
     .gallery3d__scene-number {
-      font-size: 0.85rem;
-      font-weight: 600;
+      font-size: 0.9rem;
+      font-weight: 700;
       color: #22d3ee;
       font-variant-numeric: tabular-nums;
+      text-shadow: 0 0 20px rgba(34, 211, 238, 0.5);
+      min-width: 24px;
+      text-align: center;
     }
 
     .gallery3d__scene-name {
-      font-size: 1rem;
-      font-weight: 500;
-      color: rgba(255, 255, 255, 0.9);
-      letter-spacing: 0.02em;
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.95);
+      letter-spacing: 0.03em;
+      white-space: nowrap;
     }
 
     @media (max-width: 768px) {
       .gallery3d__title-overlay {
-        top: 20px;
-        padding: 10px 18px;
-        gap: 8px;
+        top: calc(20px + env(safe-area-inset-top));
+        padding: 12px 22px;
+        gap: 10px;
       }
       .gallery3d__scene-number {
-        font-size: 0.75rem;
+        font-size: 0.8rem;
       }
       .gallery3d__scene-name {
-        font-size: 0.9rem;
+        font-size: 0.95rem;
+        max-width: 50vw;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
     }
 
@@ -393,34 +562,184 @@ const scenes = [
       transition: width 0.5s ease;
     }
 
-    /* Menu Toggle Button */
-    .gallery-menu-toggle {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      z-index: 30;
-      width: 48px;
-      height: 48px;
-      border: none;
-      border-radius: 12px;
+    /* Mobile Swipe Indicator */
+    .gallery3d__swipe-indicator {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
       background: rgba(255, 255, 255, 0.1);
       backdrop-filter: blur(10px);
-      color: rgba(255, 255, 255, 0.9);
-      cursor: pointer;
-      transition: all 0.3s ease;
       display: flex;
       align-items: center;
       justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition:
+        opacity 0.2s ease,
+        transform 0.2s ease;
+      z-index: 25;
+    }
+
+    .gallery3d__swipe-indicator svg {
+      width: 28px;
+      height: 28px;
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    .gallery3d__swipe-indicator.active {
+      animation: swipe-pulse 0.6s ease infinite;
+    }
+
+    @keyframes swipe-pulse {
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.4);
+      }
+      50% {
+        box-shadow: 0 0 0 15px rgba(34, 211, 238, 0);
+      }
+    }
+
+    /* Swipe Preview */
+    .gallery3d__swipe-preview {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      padding: 12px 20px;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(12px);
+      border-radius: 24px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.9);
+      opacity: 0;
+      pointer-events: none;
+      transition:
+        opacity 0.2s ease,
+        transform 0.2s ease;
+      z-index: 26;
+      white-space: nowrap;
+    }
+
+    .gallery3d__swipe-preview.visible {
+      opacity: 1;
+    }
+
+    .gallery3d__swipe-preview.left {
+      left: 20px;
+      transform: translateY(-50%) translateX(-10px);
+    }
+
+    .gallery3d__swipe-preview.right {
+      right: 20px;
+      transform: translateY(-50%) translateX(10px);
+    }
+
+    .gallery3d__swipe-preview.visible.left,
+    .gallery3d__swipe-preview.visible.right {
+      transform: translateY(-50%) translateX(0);
+    }
+
+    /* Info Panel Toggle */
+    .gallery3d__info-panel {
+      position: absolute;
+      bottom: calc(100px + env(safe-area-inset-bottom));
+      right: 20px;
+      z-index: 20;
+    }
+
+    .gallery3d__info-toggle {
+      width: 40px;
+      height: 40px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      color: rgba(255, 255, 255, 0.7);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+    }
+
+    .gallery3d__info-toggle:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+    }
+
+    .gallery3d__info-toggle svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    @media (max-width: 768px) {
+      .gallery3d__info-panel {
+        bottom: calc(85px + env(safe-area-inset-bottom));
+        right: 15px;
+      }
+      .gallery3d__swipe-preview {
+        font-size: 0.8rem;
+        padding: 10px 16px;
+      }
+    }
+
+    /* Menu Toggle Button */
+    .gallery-menu-toggle {
+      position: fixed;
+      top: calc(20px + env(safe-area-inset-top));
+      right: 20px;
+      z-index: 30;
+      width: 52px;
+      height: 52px;
+      border: none;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(12px);
+      color: rgba(255, 255, 255, 0.9);
+      cursor: pointer;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     .gallery-menu-toggle:hover {
       background: rgba(255, 255, 255, 0.2);
       transform: scale(1.05);
+      border-color: rgba(34, 211, 238, 0.3);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .gallery-menu-toggle:active {
+      transform: scale(0.95);
     }
 
     .gallery-menu-toggle svg {
-      width: 24px;
-      height: 24px;
+      width: 26px;
+      height: 26px;
+      transition: transform 0.3s ease;
+    }
+
+    .gallery-menu-toggle:hover svg {
+      transform: scale(1.1);
+    }
+
+    @media (max-width: 768px) {
+      .gallery-menu-toggle {
+        width: 48px;
+        height: 48px;
+        right: 16px;
+      }
+      .gallery-menu-toggle svg {
+        width: 24px;
+        height: 24px;
+      }
     }
 
     /* Scene Navigation Menu */

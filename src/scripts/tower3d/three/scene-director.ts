@@ -103,6 +103,8 @@ export class SceneDirector {
         uChromatic: { value: 0.0026 },
         uGlow: { value: this.caps.coarsePointer ? 0.26 : 0.34 },
         uGlowThreshold: { value: 0.72 },
+        uGyroInfluence: { value: new THREE.Vector2(0, 0) },
+        uMobile: { value: this.caps.coarsePointer ? 1.0 : 0.0 },
       },
       vertexShader: `
         varying vec2 vUv;
@@ -124,6 +126,8 @@ export class SceneDirector {
         uniform float uChromatic;
         uniform float uGlow;
         uniform float uGlowThreshold;
+        uniform vec2 uGyroInfluence;
+        uniform float uMobile;
 
         float hash(vec2 p) {
           return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -295,13 +299,26 @@ export class SceneDirector {
             }
           }
 
-          // Vignette
-          float vig = smoothstep(0.92, 0.25, r);
+          // Vignette with gyro influence for mobile parallax
+          float vigOffset = length(uGyroInfluence) * 0.05 * uMobile;
+          float vig = smoothstep(0.92 + vigOffset, 0.25, r);
           col *= mix(1.0 - uVignette, 1.0, vig);
 
-          // Film grain
+          // Dynamic vignette color on mobile
+          vec3 vigColor = mix(vec3(0.0), vec3(0.02, 0.04, 0.08), uMobile * (1.0 - vig) * 0.5);
+          col += vigColor;
+
+          // Film grain - reduced on mobile for better performance perception
+          float grainAmount = uGrain * (1.0 - uMobile * 0.3);
           float g = (hash(uv * vec2(1920.0, 1080.0) + uTime * 60.0) - 0.5);
-          col += g * uGrain;
+          col += g * grainAmount;
+
+          // Subtle color grading for cinematic look
+          col = pow(col, vec3(0.98, 1.0, 1.02)); // Slight warm shadows, cool highlights
+
+          // Boost saturation slightly
+          float luma = dot(col, vec3(0.299, 0.587, 0.114));
+          col = mix(vec3(luma), col, 1.08);
 
           gl_FragColor = vec4(col, 1.0);
         }
@@ -624,6 +641,14 @@ export class SceneDirector {
 
     const runtime = this.buildRuntime(dt, now);
     this.postMaterial.uniforms.uTime.value = now;
+
+    // Pass gyro influence to post-processing shader for mobile parallax effects
+    if (this.gyroActive) {
+      this.postMaterial.uniforms.uGyroInfluence.value.set(
+        this.gyro.x,
+        this.gyro.y
+      );
+    }
 
     // Decay the cut mask quickly; keep it super short under reduced motion.
     const cutLambda = this.caps.reducedMotion ? 18 : 10;

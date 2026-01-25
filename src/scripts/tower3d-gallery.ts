@@ -61,13 +61,44 @@ const state: GalleryState = {
   director: null,
 };
 
-// Touch/swipe tracking
+// Touch/swipe tracking with enhanced gesture support
 let touchStartX = 0;
+let touchStartY = 0;
 let touchEndX = 0;
-const SWIPE_THRESHOLD = 50;
+let touchEndY = 0;
+let touchStartTime = 0;
+let touchVelocityX = 0;
+let isSwiping = false;
+const SWIPE_THRESHOLD = 40;
+const SWIPE_VELOCITY_THRESHOLD = 0.3; // pixels per ms
+const MAX_SWIPE_TIME = 300; // ms
+
+// Pinch gesture tracking
+let initialPinchDistance = 0;
+let isPinching = false;
 
 // Auto-hide hints timeout
 let hintsTimeout: ReturnType<typeof setTimeout> | null = null;
+
+// Haptic feedback support
+const triggerHaptic = (style: 'light' | 'medium' | 'heavy' = 'light') => {
+  if ('vibrate' in navigator) {
+    const patterns = { light: 10, medium: 20, heavy: 40 };
+    navigator.vibrate(patterns[style]);
+  }
+};
+
+// Debounce for performance
+const debounce = <T extends (...args: unknown[]) => void>(
+  fn: T,
+  ms: number
+) => {
+  let timeout: ReturnType<typeof setTimeout>;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => fn(...args), ms);
+  };
+};
 
 // Mount the gallery using the Astro mount system
 createAstroMount(ROOT_SELECTOR, () => {
@@ -99,23 +130,74 @@ createAstroMount(ROOT_SELECTOR, () => {
 
   // Animation loop - always active in gallery mode (fullscreen)
   let raf = 0;
-  const tick = () => {
+  let lastTime = 0;
+  let frameCount = 0;
+  let fps = 60;
+  let targetEasing = 0.08; // Base easing factor
+
+  // Adaptive performance - reduce easing on lower FPS
+  const updatePerformance = () => {
+    if (fps < 30) {
+      targetEasing = 0.15; // Faster transitions on slow devices
+    } else if (fps < 45) {
+      targetEasing = 0.1;
+    } else {
+      targetEasing = 0.08;
+    }
+  };
+
+  const tick = (timestamp: number) => {
+    // Track FPS for adaptive performance
+    frameCount++;
+    if (timestamp - lastTime >= 1000) {
+      fps = frameCount;
+      frameCount = 0;
+      lastTime = timestamp;
+      updatePerformance();
+    }
+
     // Smoothly interpolate to target progress for gallery navigation
     const currentProgress = director.getProgress?.() ?? 0;
     const diff = state.targetProgress - currentProgress;
 
-    if (Math.abs(diff) > 0.001) {
-      // Smooth easing toward target
-      const newProgress = currentProgress + diff * 0.08;
+    if (Math.abs(diff) > 0.0005) {
+      // Smooth easing toward target with adaptive speed
+      // Use exponential easing for more natural feel
+      const easeAmount = 1 - Math.pow(1 - targetEasing, fps / 60);
+      const newProgress = currentProgress + diff * easeAmount;
       director.setProgress?.(newProgress);
+
+      // Update transition state for UI feedback
+      state.isTransitioning = Math.abs(diff) > 0.01;
+    } else if (state.isTransitioning) {
+      state.isTransitioning = false;
+      // Haptic feedback when transition completes
+      triggerHaptic('light');
     }
 
     director.tick();
     raf = window.requestAnimationFrame(tick);
   };
 
-  const onResize = () => director.resize();
+  const onResize = debounce(() => {
+    director.resize();
+    // Re-sync UI after orientation change
+    updateUI();
+  }, 100);
+
+  // Also handle orientation change specifically for mobile
+  const onOrientationChange = () => {
+    // Slight delay to let browser settle
+    setTimeout(() => {
+      director.resize();
+      updateUI();
+    }, 150);
+  };
+
   window.addEventListener('resize', onResize, { passive: true });
+  window.addEventListener('orientationchange', onOrientationChange, {
+    passive: true,
+  });
 
   raf = window.requestAnimationFrame(tick);
 
@@ -123,6 +205,7 @@ createAstroMount(ROOT_SELECTOR, () => {
     destroy: () => {
       window.cancelAnimationFrame(raf);
       window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onOrientationChange);
       director.destroy();
       state.director = null;
     },
@@ -229,15 +312,75 @@ function setupKeyboard() {
   });
 }
 
-/** Setup touch/swipe navigation */
+/** Setup touch/swipe navigation with advanced gestures */
 function setupTouch() {
   const gallery = document.querySelector<HTMLElement>('[data-tower3d-root]');
   if (!gallery) return;
 
+  // Track touch movement for visual feedback
+  let currentTouchX = 0;
+  let swipePreviewActive = false;
+
   gallery.addEventListener(
     'touchstart',
     e => {
+      if (e.touches.length === 2) {
+        // Pinch gesture start
+        isPinching = true;
+        initialPinchDistance = getPinchDistance(e.touches);
+        return;
+      }
+
       touchStartX = e.changedTouches[0].screenX;
+      touchStartY = e.changedTouches[0].screenY;
+      currentTouchX = touchStartX;
+      touchStartTime = performance.now();
+      isSwiping = false;
+      swipePreviewActive = false;
+    },
+    { passive: true }
+  );
+
+  gallery.addEventListener(
+    'touchmove',
+    e => {
+      if (isPinching && e.touches.length === 2) {
+        // Handle pinch zoom preview
+        const currentDistance = getPinchDistance(e.touches);
+        const scale = currentDistance / initialPinchDistance;
+        handlePinchPreview(scale);
+        return;
+      }
+
+      if (e.touches.length !== 1) return;
+
+      const touch = e.changedTouches[0];
+      const diffX = touch.screenX - touchStartX;
+      const diffY = touch.screenY - touchStartY;
+
+      // Only start horizontal swipe if moving more horizontally than vertically
+      if (
+        !isSwiping &&
+        Math.abs(diffX) > 15 &&
+        Math.abs(diffX) > Math.abs(diffY)
+      ) {
+        isSwiping = true;
+        triggerHaptic('light');
+      }
+
+      if (isSwiping) {
+        currentTouchX = touch.screenX;
+        const swipeProgress = Math.min(1, Math.abs(diffX) / 150);
+
+        // Visual preview of scene transition
+        if (!swipePreviewActive && Math.abs(diffX) > SWIPE_THRESHOLD) {
+          swipePreviewActive = true;
+          showSwipePreview(diffX > 0 ? 'prev' : 'next');
+        }
+
+        // Update swipe indicator
+        updateSwipeIndicator(swipeProgress, diffX > 0 ? 'left' : 'right');
+      }
     },
     { passive: true }
   );
@@ -245,20 +388,144 @@ function setupTouch() {
   gallery.addEventListener(
     'touchend',
     e => {
+      if (isPinching) {
+        isPinching = false;
+        hidePinchPreview();
+        return;
+      }
+
       touchEndX = e.changedTouches[0].screenX;
-      handleSwipe();
+      touchEndY = e.changedTouches[0].screenY;
+      const touchEndTime = performance.now();
+      const touchDuration = touchEndTime - touchStartTime;
+
+      // Calculate velocity for momentum-based swiping
+      touchVelocityX = (touchEndX - touchStartX) / touchDuration;
+
+      hideSwipePreview();
+      hideSwipeIndicator();
+
+      if (isSwiping) {
+        handleSwipe(touchDuration);
+      }
+
+      isSwiping = false;
     },
     { passive: true }
   );
+
+  // Prevent accidental navigation during 3D interaction
+  gallery.addEventListener('touchcancel', () => {
+    isSwiping = false;
+    isPinching = false;
+    hideSwipePreview();
+    hideSwipeIndicator();
+    hidePinchPreview();
+  });
 }
 
-/** Process swipe gesture */
-function handleSwipe() {
-  const diff = touchStartX - touchEndX;
+/** Calculate distance between two touch points */
+function getPinchDistance(touches: TouchList): number {
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
 
-  if (Math.abs(diff) < SWIPE_THRESHOLD) return;
+/** Handle pinch zoom preview */
+function handlePinchPreview(scale: number) {
+  const canvas = document.querySelector<HTMLCanvasElement>(
+    '[data-tower3d-canvas]'
+  );
+  if (!canvas) return;
 
-  if (diff > 0) {
+  // Limit scale range
+  const clampedScale = Math.max(0.8, Math.min(1.5, scale));
+  canvas.style.transform = `scale(${clampedScale})`;
+  canvas.style.transition = 'none';
+}
+
+/** Hide pinch preview */
+function hidePinchPreview() {
+  const canvas = document.querySelector<HTMLCanvasElement>(
+    '[data-tower3d-canvas]'
+  );
+  if (!canvas) return;
+  canvas.style.transition = 'transform 0.3s ease-out';
+  canvas.style.transform = 'scale(1)';
+}
+
+/** Show preview indicator for next/prev scene */
+function showSwipePreview(direction: 'prev' | 'next') {
+  const previewIndex =
+    direction === 'next'
+      ? Math.min(state.currentScene + 1, SCENE_IDS.length - 1)
+      : Math.max(state.currentScene - 1, 0);
+
+  if (previewIndex === state.currentScene) return;
+
+  // Show scene name preview
+  const previewEl = document.querySelector('.gallery3d__swipe-preview');
+  if (previewEl) {
+    previewEl.textContent = SCENE_NAMES[previewIndex];
+    previewEl.classList.add('visible');
+    previewEl.classList.toggle('left', direction === 'prev');
+    previewEl.classList.toggle('right', direction === 'next');
+  }
+}
+
+/** Hide swipe preview */
+function hideSwipePreview() {
+  const previewEl = document.querySelector('.gallery3d__swipe-preview');
+  if (previewEl) {
+    previewEl.classList.remove('visible', 'left', 'right');
+  }
+}
+
+/** Update swipe progress indicator */
+function updateSwipeIndicator(progress: number, direction: 'left' | 'right') {
+  const indicator = document.querySelector<HTMLElement>(
+    '.gallery3d__swipe-indicator'
+  );
+  if (!indicator) return;
+
+  indicator.style.opacity = String(progress * 0.8);
+  indicator.style.transform =
+    direction === 'left'
+      ? `translateX(${-progress * 30}px)`
+      : `translateX(${progress * 30}px)`;
+  indicator.classList.add('active');
+}
+
+/** Hide swipe indicator */
+function hideSwipeIndicator() {
+  const indicator = document.querySelector<HTMLElement>(
+    '.gallery3d__swipe-indicator'
+  );
+  if (!indicator) return;
+  indicator.style.opacity = '0';
+  indicator.classList.remove('active');
+}
+
+/** Process swipe gesture with velocity consideration */
+function handleSwipe(duration: number) {
+  const diffX = touchStartX - touchEndX;
+  const diffY = touchStartY - touchEndY;
+
+  // Ignore if vertical movement is dominant (scrolling intent)
+  if (Math.abs(diffY) > Math.abs(diffX) * 1.5) return;
+
+  // Check for quick flick gesture (velocity-based)
+  const isQuickFlick =
+    duration < MAX_SWIPE_TIME &&
+    Math.abs(touchVelocityX) > SWIPE_VELOCITY_THRESHOLD;
+
+  // Accept swipe if threshold met OR quick flick detected
+  if (Math.abs(diffX) < SWIPE_THRESHOLD && !isQuickFlick) return;
+
+  // Trigger haptic feedback on successful swipe
+  triggerHaptic('medium');
+
+  if (diffX > 0 || (isQuickFlick && touchVelocityX < 0)) {
     // Swipe left -> next scene
     navigateScene(1);
   } else {
@@ -306,6 +573,9 @@ function goToScene(index: number) {
   // Calculate the progress value (0-1) for this scene
   state.targetProgress = targetIndex / (SCENE_IDS.length - 1);
 
+  // Trigger haptic on scene change
+  triggerHaptic('medium');
+
   // Update all UI elements
   updateUI();
 }
@@ -315,21 +585,55 @@ function updateUI() {
   const index = state.currentScene;
   const sceneName = SCENE_NAMES[index] ?? 'Unknown';
 
-  // Update title overlay
+  // Update title overlay with animation
   const numberEl = document.querySelector('.gallery3d__scene-number');
   const nameEl = document.querySelector('.gallery3d__scene-name');
+  const titleOverlay = document.querySelector<HTMLElement>(
+    '.gallery3d__title-overlay'
+  );
+
   if (numberEl) numberEl.textContent = String(index + 1).padStart(2, '0');
   if (nameEl) nameEl.textContent = sceneName;
 
-  // Update dots
+  // Add subtle animation to title on change
+  if (titleOverlay) {
+    titleOverlay.style.animation = 'none';
+    titleOverlay.offsetHeight; // Force reflow
+    titleOverlay.style.animation = 'title-pulse 0.5s ease-out';
+  }
+
+  // Update dots and scroll active dot into view on mobile
+  const dotsContainer = document.querySelector<HTMLElement>(
+    '[data-gallery-dots]'
+  );
   const dots =
     document.querySelectorAll<HTMLButtonElement>('[data-scene-index]');
+
   dots.forEach(dot => {
     const dotIndex = parseInt(dot.dataset.sceneIndex ?? '0', 10);
-    dot.classList.toggle('active', dotIndex === index);
+    const isActive = dotIndex === index;
+    dot.classList.toggle('active', isActive);
+
+    // Scroll active dot into view on mobile (horizontal scrolling dots)
+    if (isActive && dotsContainer) {
+      const dotRect = dot.getBoundingClientRect();
+      const containerRect = dotsContainer.getBoundingClientRect();
+
+      // Check if dot is outside visible area
+      if (
+        dotRect.left < containerRect.left ||
+        dotRect.right > containerRect.right
+      ) {
+        dot.scrollIntoView({
+          behavior: 'smooth',
+          inline: 'center',
+          block: 'nearest',
+        });
+      }
+    }
   });
 
-  // Update progress bar
+  // Update progress bar with smooth animation
   const progressBar = document.querySelector<HTMLElement>(
     '[data-gallery-progress]'
   );
@@ -338,15 +642,23 @@ function updateUI() {
     progressBar.style.width = `${percent}%`;
   }
 
-  // Update menu items
+  // Update menu items and scroll active into view
+  const menuList = document.querySelector<HTMLElement>('.gallery-menu__list');
   const menuItems =
     document.querySelectorAll<HTMLButtonElement>('[data-menu-scene]');
+
   menuItems.forEach(item => {
     const itemIndex = parseInt(item.dataset.menuScene ?? '0', 10);
-    item.classList.toggle('active', itemIndex === index);
+    const isActive = itemIndex === index;
+    item.classList.toggle('active', isActive);
+
+    // Scroll active menu item into view when menu is open
+    if (isActive && menuList && document.querySelector('.gallery-menu.open')) {
+      item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   });
 
-  // Update nav button states
+  // Update nav button states with accessibility
   const prevBtn = document.querySelector<HTMLButtonElement>(
     '[data-gallery-prev]'
   );
@@ -355,19 +667,27 @@ function updateUI() {
   );
 
   if (prevBtn) {
-    prevBtn.disabled = index === 0;
-    prevBtn.style.opacity = index === 0 ? '0.3' : '1';
+    const isDisabled = index === 0;
+    prevBtn.disabled = isDisabled;
+    prevBtn.style.opacity = isDisabled ? '0.3' : '1';
+    prevBtn.setAttribute('aria-disabled', String(isDisabled));
   }
   if (nextBtn) {
-    nextBtn.disabled = index === SCENE_IDS.length - 1;
-    nextBtn.style.opacity = index === SCENE_IDS.length - 1 ? '0.3' : '1';
+    const isDisabled = index === SCENE_IDS.length - 1;
+    nextBtn.disabled = isDisabled;
+    nextBtn.style.opacity = isDisabled ? '0.3' : '1';
+    nextBtn.setAttribute('aria-disabled', String(isDisabled));
   }
 
   // Update data attribute on root
   const root = document.querySelector<HTMLElement>('[data-tower3d-root]');
   if (root) {
     root.dataset.towerScene = SCENE_IDS[index];
+    root.dataset.sceneIndex = String(index);
   }
+
+  // Update document title for better context
+  document.title = `${sceneName} | 3D Gallery`;
 }
 
 export { goToScene, navigateScene, state };
