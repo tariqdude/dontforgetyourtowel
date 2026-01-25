@@ -5,6 +5,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
+import { UIControls } from './ui-controls';
 import type { TowerCaps } from '../core/caps';
 import { createScenes } from './scenes';
 import type { SceneRuntime, TowerScene } from './scenes';
@@ -25,17 +26,22 @@ export class SceneDirector {
   private root: HTMLElement;
   private canvas: HTMLCanvasElement;
   private caps: TowerCaps;
-  private renderer: THREE.WebGLRenderer;
+  public renderer: THREE.WebGLRenderer;
   private scenes: TowerScene[];
   private sceneById: Map<string, TowerScene>;
   private activeScene: TowerScene;
+
+  // UI Control Properties
+  private ui: UIControls;
+  public timeScale = 1.0;
+  public autoRotate = false;
 
   // Short transition mask when the active chapter/scene changes.
   private cutFade = 0;
   // Render pipeline
   private composer: EffectComposer;
   private renderPass: RenderPass;
-  private bloomPass: UnrealBloomPass;
+  public bloomPass: UnrealBloomPass;
   private finalPass: ShaderPass;
   private outputPass: OutputPass;
   private fxaaPass: ShaderPass;
@@ -63,7 +69,7 @@ export class SceneDirector {
   private lastTime = performance.now() / 1000;
   private lastScrollTime = performance.now();
   private lastScrollProgress = 0;
-  private scrollProgressTarget = 0;
+  public scrollProgressTarget = 0;
   private scrollVelocity = 0;
 
   private size = { width: 1, height: 1, dpr: 1 };
@@ -100,8 +106,8 @@ export class SceneDirector {
     });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.45;
-    this.renderer.setClearColor(new THREE.Color(0x05070f));
+    this.renderer.toneMappingExposure = 0.9; // Reduced from 1.45 to prevent blown-out whites
+    this.renderer.setClearColor(new THREE.Color(0x020205)); // Deep void
 
     // --- Post Processing Stack (EffectComposer) ---
     this.composer = new EffectComposer(this.renderer);
@@ -114,9 +120,9 @@ export class SceneDirector {
     // 2. Unreal Bloom Pass: High-quality glow for neon cities
     const vecRes = new THREE.Vector2(window.innerWidth, window.innerHeight);
     this.bloomPass = new UnrealBloomPass(vecRes, 1.2, 0.4, 0.85);
-    this.bloomPass.threshold = 0.2;
-    this.bloomPass.strength = 1.2;
-    this.bloomPass.radius = 0.5;
+    this.bloomPass.threshold = 0.85; // High threshold: Only very bright things glow
+    this.bloomPass.strength = 0.6; // Moderate strength
+    this.bloomPass.radius = 0.4;
     this.composer.addPass(this.bloomPass);
     // 3. Final Composite Pass: Transitions, Glitch, Grain, Vignette, CA
     const finalParams = {
@@ -312,6 +318,9 @@ export class SceneDirector {
     // ResizeObserver for modern resizing
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.root);
+
+    // UI
+    this.ui = new UIControls(this, this.root);
 
     this.scenes = createScenes();
     this.sceneById = new Map(this.scenes.map(scene => [scene.id, scene]));
@@ -615,17 +624,24 @@ export class SceneDirector {
     this.scenes.forEach(scene => scene.resize(runtime));
   }
 
+  private _simTime = 0;
+
   public tick(): void {
     if (this.destroyed) return;
     if (!this.isVisible) return; // Pause rendering loop when hidden
 
     const now = performance.now() / 1000;
-    const dt = Math.min(1 / 30, Math.max(1 / 240, now - this.lastTime));
+    const realDt = Math.min(1 / 30, Math.max(1 / 240, now - this.lastTime));
+    const dt = realDt * this.timeScale; // Apply time scaling
+
+    if (this._simTime === 0 && this.lastTime > 0) this._simTime = now;
+    this._simTime += dt;
+
     this.lastTime = now;
 
     // Use ResizeObserver instead of polling clientWidth in syncSize
     // this.syncSize(false);
-    this.computeScroll(dt);
+    this.computeScroll(realDt);
 
     const targetSceneId = this.resolveSceneId();
     const targetScene = this.sceneById.get(targetSceneId) ?? this.activeScene;
@@ -640,24 +656,24 @@ export class SceneDirector {
       this.finalPass.uniforms.uTransitionType.value = this.transitionType;
     }
 
-    this.pointer.x = damp(this.pointer.x, this.pointerTarget.x, 6, dt);
-    this.pointer.y = damp(this.pointer.y, this.pointerTarget.y, 6, dt);
+    this.pointer.x = damp(this.pointer.x, this.pointerTarget.x, 6, realDt);
+    this.pointer.y = damp(this.pointer.y, this.pointerTarget.y, 6, realDt);
     this.pointerVelocity.set(
-      (this.pointer.x - this.lastPointer.x) / Math.max(0.001, dt),
-      (this.pointer.y - this.lastPointer.y) / Math.max(0.001, dt)
+      (this.pointer.x - this.lastPointer.x) / Math.max(0.001, realDt),
+      (this.pointer.y - this.lastPointer.y) / Math.max(0.001, realDt)
     );
     this.lastPointer.copy(this.pointer);
 
     // Tap/press interaction signals (works for mouse + touch)
-    this.tap = damp(this.tap, 0, 18, dt);
+    this.tap = damp(this.tap, 0, 18, realDt);
     this.pressTime = this.pointerDown
-      ? Math.min(1, this.pressTime + dt)
-      : Math.max(0, this.pressTime - dt * 4);
+      ? Math.min(1, this.pressTime + realDt)
+      : Math.max(0, this.pressTime - realDt * 4);
 
     // Smooth gyroscope values
-    this.gyro.x = damp(this.gyro.x, this.gyroTarget.x, 5, dt);
-    this.gyro.y = damp(this.gyro.y, this.gyroTarget.y, 5, dt);
-    this.gyro.z = damp(this.gyro.z, this.gyroTarget.z, 5, dt);
+    this.gyro.x = damp(this.gyro.x, this.gyroTarget.x, 5, realDt);
+    this.gyro.y = damp(this.gyro.y, this.gyroTarget.y, 5, realDt);
+    this.gyro.z = damp(this.gyro.z, this.gyroTarget.z, 5, realDt);
 
     this.root.style.setProperty(
       '--tower-scroll',
@@ -669,8 +685,8 @@ export class SceneDirector {
     this.root.style.setProperty('--tower-pointer-y', this.pointer.y.toFixed(4));
     this.root.dataset.towerSceneIndex = String(this.sceneIndex);
 
-    const runtime = this.buildRuntime(dt, now);
-    this.finalPass.uniforms.uTime.value = now;
+    const runtime = this.buildRuntime(dt, this._simTime);
+    this.finalPass.uniforms.uTime.value = this._simTime;
 
     // Post FX interaction pulse
     this.finalPass.uniforms.uInteract.value = clamp(
@@ -695,8 +711,13 @@ export class SceneDirector {
 
     // Decay the cut mask quickly; keep it super short under reduced motion.
     const cutLambda = this.caps.reducedMotion ? 18 : 10;
-    this.cutFade = damp(this.cutFade, 0, cutLambda, dt);
+    this.cutFade = damp(this.cutFade, 0, cutLambda, realDt);
     this.finalPass.uniforms.uCut.value = this.cutFade;
+
+    // Auto Rotate
+    if (this.autoRotate) {
+      this.activeScene.group.rotation.y += dt * 0.2;
+    }
 
     this.activeScene.update(runtime);
 
