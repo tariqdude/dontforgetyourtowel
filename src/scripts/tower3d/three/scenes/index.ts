@@ -1167,6 +1167,8 @@ class KaleidoGlassScene extends SceneBase {
   private shapes: THREE.InstancedMesh;
   private count = 300;
   private dummy = new THREE.Object3D();
+  private physics: SimplePhysics;
+  private pointerPos = new THREE.Vector3();
 
   constructor() {
     super();
@@ -1185,13 +1187,19 @@ class KaleidoGlassScene extends SceneBase {
       transmission: 1.0,
       thickness: 2.0,
       ior: 1.6,
-      dispersion: 1.0, // Enable if recent Three.js supports it, else ignored
       clearcoat: 1.0,
       attenuationColor: new THREE.Color(0xff00aa),
       attenuationDistance: 1.0,
     });
+    // @ts-expect-error Dispersion
+    mat.dispersion = 0.08;
 
     this.shapes = new THREE.InstancedMesh(geo, mat, this.count);
+
+    // Physics
+    this.physics = new SimplePhysics(this.count);
+    this.physics.bounds.set(6, 6, 6);
+    this.physics.friction = 0.98;
 
     // Arrange in a Fractal Sphere pattern
     for (let i = 0; i < this.count; i++) {
@@ -1200,7 +1208,13 @@ class KaleidoGlassScene extends SceneBase {
       const theta = Math.sqrt(this.count * Math.PI) * phi;
 
       const r = 3.5;
-      this.dummy.position.setFromSphericalCoords(r, phi, theta);
+      const x = r * Math.sin(phi) * Math.cos(theta);
+      const y = r * Math.sin(phi) * Math.sin(theta);
+      const z = r * Math.cos(phi);
+
+      this.physics.initParticle(i, new THREE.Vector3(x, y, z), 0.5);
+
+      this.dummy.position.set(x, y, z);
       this.dummy.lookAt(0, 0, 0); // Point inward
 
       // Random scale variation
@@ -1211,16 +1225,24 @@ class KaleidoGlassScene extends SceneBase {
       this.shapes.setMatrixAt(i, this.dummy.matrix);
     }
 
+    // Store scale in userData
+    const scales = new Float32Array(this.count);
+    for (let i = 0; i < this.count; i++) scales[i] = 0.5 + Math.random();
+    this.shapes.userData.scales = scales;
+
     this.group.add(this.shapes);
 
     // Inner Light to refract
     const light = new THREE.PointLight(0xffffff, 5, 10);
     this.group.add(light);
 
-    const wireGeo = new THREE.IcosahedronGeometry(2.0, 1);
+    // Add some ambient light/bg for refraction checks
+    const wireGeo = new THREE.IcosahedronGeometry(6.0, 1);
     const wireMat = new THREE.MeshBasicMaterial({
       color: 0x00ffff,
       wireframe: true,
+      transparent: true,
+      opacity: 0.1,
     });
     this.group.add(new THREE.Mesh(wireGeo, wireMat));
   }
@@ -1229,16 +1251,33 @@ class KaleidoGlassScene extends SceneBase {
 
   update(ctx: SceneRuntime) {
     const t = ctx.time;
-    this.shapes.rotation.y = t * 0.1;
-    this.shapes.rotation.z = t * 0.05;
+    const dt = Math.min(ctx.dt, 1 / 30);
+    const scales = this.shapes.userData.scales;
+
+    this.pointerPos.set(ctx.pointer.x * 10, ctx.pointer.y * 10, 0);
+    this.physics.update(dt, this.pointerPos, 3.0);
+
+    for (let i = 0; i < this.count; i++) {
+      const idx = i * 3;
+      const x = this.physics.positions[idx];
+      const y = this.physics.positions[idx + 1];
+      const z = this.physics.positions[idx + 2];
+
+      this.dummy.position.set(x, y, z);
+      this.dummy.lookAt(0, 0, 0);
+      this.dummy.rotateZ(t * 0.5 + i); // Spin
+
+      const s = scales[i] * (1.0 + Math.sin(t * 2 + i) * 0.1);
+      this.dummy.scale.set(s, s * 2, s);
+
+      this.dummy.updateMatrix();
+      this.shapes.setMatrixAt(i, this.dummy.matrix);
+    }
+    this.shapes.instanceMatrix.needsUpdate = true;
 
     // Interactive
-    this.group.rotation.x = ctx.pointer.y + ctx.gyro.x;
-    this.group.rotation.y = ctx.pointer.x + ctx.gyro.y;
-
-    // Pulse scale of the whole group?
-    const s = 1.0 + Math.sin(t) * 0.05;
-    this.shapes.scale.setScalar(s);
+    this.group.rotation.x = ctx.pointer.y * 0.1;
+    this.group.rotation.y = ctx.pointer.x * 0.1;
 
     this.camera.position.z = damp(
       this.camera.position.z,
@@ -1774,6 +1813,9 @@ class NeuralNetworkScene extends SceneBase {
 class LibraryScene extends SceneBase {
   private books: THREE.InstancedMesh;
   private count = 400;
+  private dummy = new THREE.Object3D();
+  private physics: SimplePhysics;
+  private pointerPos = new THREE.Vector3();
 
   constructor() {
     super();
@@ -1787,17 +1829,25 @@ class LibraryScene extends SceneBase {
     });
     this.books = new THREE.InstancedMesh(geo, mat, this.count);
 
-    const dummy = new THREE.Object3D();
+    this.physics = new SimplePhysics(this.count);
+    this.physics.bounds.set(8, 6, 8);
+    this.physics.friction = 0.95; // Floaty
+
     for (let i = 0; i < this.count; i++) {
       // Spiral
       const angle = i * 0.1;
       const r = 2 + i * 0.01;
       const h = (i - this.count / 2) * 0.05;
 
-      dummy.position.set(Math.cos(angle) * r, h, Math.sin(angle) * r);
-      dummy.lookAt(0, h, 0);
-      dummy.updateMatrix();
-      this.books.setMatrixAt(i, dummy.matrix);
+      const x = Math.cos(angle) * r;
+      const z = Math.sin(angle) * r;
+
+      this.physics.initParticle(i, new THREE.Vector3(x, h, z), 0.5);
+
+      this.dummy.position.set(x, h, z);
+      this.dummy.lookAt(0, h, 0);
+      this.dummy.updateMatrix();
+      this.books.setMatrixAt(i, this.dummy.matrix);
 
       // Random color per book
       this.books.setColorAt(
@@ -1811,6 +1861,25 @@ class LibraryScene extends SceneBase {
   init(_ctx: SceneRuntime) {}
 
   update(ctx: SceneRuntime) {
+    const dt = Math.min(ctx.dt, 1 / 30);
+    this.pointerPos.set(ctx.pointer.x * 10, ctx.pointer.y * 10, 0);
+    this.physics.update(dt, this.pointerPos, 3.0);
+
+    for (let i = 0; i < this.count; i++) {
+      const idx = i * 3;
+      const x = this.physics.positions[idx];
+      const y = this.physics.positions[idx + 1];
+      const z = this.physics.positions[idx + 2];
+
+      this.dummy.position.set(x, y, z);
+      // Slowly rotate
+      this.dummy.rotation.set(0, (x + z) * 0.2, 0);
+
+      this.dummy.updateMatrix();
+      this.books.setMatrixAt(i, this.dummy.matrix);
+    }
+    this.books.instanceMatrix.needsUpdate = true;
+
     this.group.rotation.y = ctx.time * 0.05 + ctx.pointer.x; // Slow scroll
     this.camera.position.z = damp(
       this.camera.position.z,
