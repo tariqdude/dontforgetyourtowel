@@ -92,99 +92,99 @@ const getPortraitFovAdjust = (aspect: number, baseFov: number): number => {
 const sceneMeta: SceneMeta[] = [
   {
     id: 'scene00',
-    title: 'Origin Core',
-    caption: 'Cinematic resonance chamber tuned to scroll.',
-    hint: 'Scroll to descend',
+    title: 'Feedback Forge',
+    caption: 'A living feedback field you can sculpt in real time.',
+    hint: 'Tap to inject energy',
   },
   {
     id: 'scene01',
-    title: 'Liquid‑Metal SDF Relic',
-    caption: 'A living artifact morphing across materials.',
-    hint: 'Drag to dent',
+    title: 'Strange Attractor',
+    caption: 'Chaos made visible: trajectories carving space.',
+    hint: 'Hold to accelerate time',
   },
   {
     id: 'scene02',
-    title: 'Million Fireflies',
-    caption: 'Swarm intelligence in a luminous flow-field.',
-    hint: 'Move to steer',
+    title: 'Ribbon Field',
+    caption: 'Flow-line ribbons weaving a vector-field tapestry.',
+    hint: 'Move to bend the field',
   },
   {
     id: 'scene03',
-    title: 'Kinetic Typography Monolith',
-    caption: 'Editorial letters assembling then shattering.',
-    hint: 'Hover to reveal',
+    title: 'Gyroid Cavern',
+    caption: 'A procedural SDF cave with impossible geometry.',
+    hint: 'Tap to pulse the cavern',
   },
   {
     id: 'scene04',
-    title: 'Aurora Borealis',
-    caption: 'Dancing cosmic lights across the sky.',
-    hint: 'Tilt to shift',
+    title: 'Magnetosphere',
+    caption: 'Field lines, arcs, and storms driven by input.',
+    hint: 'Move to steer flux',
   },
   {
     id: 'scene05',
     title: 'Event Horizon',
     caption: 'Gravitational lensing bends reality itself.',
-    hint: 'Approach the void',
+    hint: 'Tap to surge the ring',
   },
   {
     id: 'scene06',
-    title: 'Holographic Blueprint',
-    caption: 'Technical wireframes pulse with energy.',
-    hint: 'Scan to analyze',
+    title: 'Kaleido Glass',
+    caption: 'Prismatic shards with fresnel and spectral drift.',
+    hint: 'Hold to overdrive',
   },
   {
     id: 'scene07',
-    title: 'Volumetric Ink Chamber',
-    caption: 'Ink clouds carve a hidden silhouette.',
-    hint: 'Stir the fog',
+    title: 'Typographic Sculpture',
+    caption: 'A voxel glyph that assembles, fractures, and reforms.',
+    hint: 'Tap to shatter',
   },
   {
     id: 'scene08',
-    title: 'Cloth & Light',
-    caption: 'A colossal banner wrapping past the lens.',
-    hint: 'Wind follows you',
+    title: 'Orbital Mechanics',
+    caption: 'Celestial dynamics with interactive impulses.',
+    hint: 'Hold to speed up',
   },
   {
     id: 'scene09',
-    title: 'Sculpted Point Cloud',
-    caption: 'Scan-grade points re‑lit in real time.',
-    hint: 'Scroll to relight',
+    title: 'Voronoi Shards',
+    caption: 'Crystalline partitions that fracture light.',
+    hint: 'Move to refract',
   },
   {
     id: 'scene10',
-    title: 'Fractal Finale',
-    caption: 'Infinite descent collapsing into a mark.',
-    hint: 'Hold for the drop',
+    title: 'Moiré Interference',
+    caption: 'Mathematical beats and optical illusions in motion.',
+    hint: 'Tap to phase-shift',
   },
   {
     id: 'scene11',
-    title: 'Neural Network Constellation',
-    caption: 'Journey into an AI mind—neurons firing in space.',
-    hint: 'Click to activate',
+    title: 'Neural Constellation',
+    caption: 'A living network—pulses propagate through links.',
+    hint: 'Tap to trigger bursts',
   },
   {
     id: 'scene12',
-    title: 'Library of Babel',
-    caption: 'Infinite hexagonal rooms of impossible knowledge.',
-    hint: 'Explore the stacks',
+    title: 'Infinite Archive',
+    caption: 'Endless stacks of encoded knowledge and light.',
+    hint: 'Move to explore',
   },
   {
     id: 'scene13',
     title: 'Bioluminescent Abyss',
     caption: 'Deep sea organisms painting darkness with light.',
-    hint: 'Move to attract',
+    hint: 'Tap to bloom',
   },
   {
     id: 'scene14',
     title: 'Holographic Data City',
     caption: 'Cyberpunk architecture built from pure information.',
-    hint: 'Navigate the grid',
+    hint: 'Tap to overclock',
   },
   {
     id: 'scene15',
     title: 'Reality Collapse',
     caption: 'All dimensions converge into a singular truth.',
-    hint: 'Witness the end',
+    hint: 'Hold to intensify',
   },
 ];
 
@@ -4970,6 +4970,1337 @@ class RealityCollapseScene extends SceneBase {
 }
 
 // =============================================================================
+// NEW SHOWCASE SCENES (distinct concepts; math/engineering driven)
+// =============================================================================
+
+class FeedbackForgeScene extends SceneBase {
+  protected baseCameraZ = 7;
+
+  private simScene = new THREE.Scene();
+  private simCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  private simMat: THREE.ShaderMaterial;
+  private simMesh: THREE.Mesh;
+  private rtA: THREE.WebGLRenderTarget;
+  private rtB: THREE.WebGLRenderTarget;
+
+  private viewMat: THREE.ShaderMaterial;
+  private viewMesh: THREE.Mesh;
+
+  private burst = 0;
+
+  constructor() {
+    super('scene00');
+
+    this.scene.background = new THREE.Color(0x03040a);
+
+    this.simMat = new THREE.ShaderMaterial({
+      uniforms: {
+        tPrev: { value: null },
+        uTime: { value: 0 },
+        uDt: { value: 1 / 60 },
+        uPointer: { value: new THREE.Vector2(0.5, 0.5) },
+        uBurst: { value: 0 },
+        uRes: { value: new THREE.Vector2(512, 512) },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = vec4(position.xy, 0.0, 1.0);
+        }
+      `,
+      fragmentShader: `
+        precision highp float;
+        varying vec2 vUv;
+        uniform sampler2D tPrev;
+        uniform float uTime;
+        uniform float uDt;
+        uniform vec2 uPointer;
+        uniform float uBurst;
+        uniform vec2 uRes;
+
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+
+        vec4 samplePrev(vec2 uv) {
+          return texture2D(tPrev, uv);
+        }
+
+        void main() {
+          vec2 uv = vUv;
+          vec2 px = 1.0 / max(uRes, vec2(1.0));
+
+          // Previous state: rgb = dye, a = "velocity-ish" scalar
+          vec4 prev = samplePrev(uv);
+
+          // Simple feedback advection field (procedural curl-ish)
+          float t = uTime * 0.25;
+          vec2 p = (uv - 0.5) * 2.0;
+          float n1 = sin(p.x * 3.2 + t) * cos(p.y * 3.6 - t);
+          float n2 = sin(p.y * 3.0 + t * 1.3) * cos(p.x * 2.8 - t * 0.9);
+          vec2 v = vec2(n1, -n2);
+          v += (uPointer - 0.5) * 0.7;
+          v *= 0.006 + 0.012 * prev.a;
+
+          vec2 adv = uv - v;
+          vec4 col = samplePrev(adv);
+
+          // Diffuse a little (keeps it smooth)
+          vec4 blur = (
+            samplePrev(adv + vec2(px.x, 0.0)) +
+            samplePrev(adv + vec2(-px.x, 0.0)) +
+            samplePrev(adv + vec2(0.0, px.y)) +
+            samplePrev(adv + vec2(0.0, -px.y))
+          ) * 0.25;
+          col = mix(col, blur, 0.38);
+
+          // Fade
+          col.rgb *= 0.992;
+          col.a = clamp(col.a * 0.985, 0.0, 1.0);
+
+          // Inject energy at pointer
+          float d = length(uv - uPointer);
+          float ink = exp(-d * 65.0) * (0.18 + 0.85 * uBurst);
+          vec3 inject = vec3(
+            0.15 + 0.85 * sin(uTime * 0.9),
+            0.35 + 0.65 * sin(uTime * 1.1 + 1.2),
+            0.55 + 0.45 * sin(uTime * 1.3 + 2.0)
+          );
+          col.rgb += inject * ink;
+          col.a = max(col.a, ink);
+
+          // Seed subtle noise so it never dies
+          col.rgb += (hash(uv * uRes + uTime) - 0.5) * 0.004;
+
+          gl_FragColor = col;
+        }
+      `,
+      depthTest: false,
+      depthWrite: false,
+    });
+    this.simMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.simMat);
+    this.simScene.add(this.simMesh);
+
+    this.rtA = new THREE.WebGLRenderTarget(512, 512, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+      depthBuffer: false,
+      stencilBuffer: false,
+    });
+    this.rtB = this.rtA.clone();
+
+    // Initialize with a tiny random seed
+    const initData = new Uint8Array(512 * 512 * 4);
+    for (let i = 0; i < initData.length; i += 4) {
+      initData[i] = 3;
+      initData[i + 1] = 5;
+      initData[i + 2] = 8;
+      initData[i + 3] = 1;
+    }
+    const initTex = new THREE.DataTexture(initData, 512, 512, THREE.RGBAFormat);
+    initTex.needsUpdate = true;
+    this.simMat.uniforms.tPrev.value = initTex;
+
+    this.viewMat = new THREE.ShaderMaterial({
+      uniforms: {
+        tSim: { value: this.rtA.texture },
+        uTime: { value: 0 },
+        uBurst: { value: 0 },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        precision highp float;
+        varying vec2 vUv;
+        uniform sampler2D tSim;
+        uniform float uTime;
+        uniform float uBurst;
+
+        void main() {
+          vec4 s = texture2D(tSim, vUv);
+          float a = s.a;
+          vec3 col = s.rgb;
+
+          // Cinematic grade
+          float vig = smoothstep(0.95, 0.25, length(vUv - 0.5));
+          col *= 0.65 + 0.55 * vig;
+          col += vec3(0.02, 0.04, 0.08) * (1.0 - vig);
+
+          // Energy bloom-ish
+          float glow = smoothstep(0.08, 0.8, max(col.r, max(col.g, col.b)));
+          col += vec3(0.25, 0.55, 1.0) * glow * (0.12 + 0.25 * uBurst);
+
+          // Gentle scanline texture
+          float scan = sin((vUv.y + uTime * 0.04) * 900.0) * 0.5 + 0.5;
+          col *= 0.95 + scan * 0.06;
+
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
+      depthTest: false,
+      depthWrite: false,
+    });
+
+    this.viewMesh = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), this.viewMat);
+    this.scene.add(this.viewMesh);
+  }
+
+  update(ctx: SceneRuntime): void {
+    this.burst = Math.max(ctx.tap, damp(this.burst, 0, 3.8, ctx.dt));
+
+    // Step sim
+    const pointer01 = new THREE.Vector2(
+      (ctx.pointer.x * 0.5 + 0.5) * 0.98 + 0.01,
+      (ctx.pointer.y * 0.5 + 0.5) * 0.98 + 0.01
+    );
+
+    this.simMat.uniforms.uTime.value = ctx.time;
+    this.simMat.uniforms.uDt.value = ctx.dt;
+    this.simMat.uniforms.uPointer.value.copy(pointer01);
+    this.simMat.uniforms.uBurst.value = this.burst;
+
+    // Render ping-pong
+    const renderer = ctx.renderer;
+    renderer.setRenderTarget(this.rtB);
+    renderer.clear(true, true, true);
+    renderer.render(this.simScene, this.simCamera);
+    renderer.setRenderTarget(null);
+
+    // Swap
+    const tmp = this.rtA;
+    this.rtA = this.rtB;
+    this.rtB = tmp;
+    this.simMat.uniforms.tPrev.value = this.rtA.texture;
+    this.viewMat.uniforms.tSim.value = this.rtA.texture;
+    this.viewMat.uniforms.uTime.value = ctx.time;
+    this.viewMat.uniforms.uBurst.value = this.burst;
+
+    // Camera stays fixed; mesh fills view
+    const cam = this.camera as THREE.PerspectiveCamera;
+    cam.position.z = this.baseCameraZ * this.aspectMult;
+    cam.lookAt(0, 0, 0);
+  }
+
+  resize(ctx: SceneRuntime): void {
+    super.resize(ctx);
+    // Scale the view quad to cover the frustum.
+    const cam = this.camera as THREE.PerspectiveCamera;
+    const dist = cam.position.z;
+    const h = 2 * Math.tan((cam.fov * Math.PI) / 360) * dist;
+    const w = h * cam.aspect;
+    this.viewMesh.scale.set(w, h, 1);
+
+    const low = ctx.caps.coarsePointer;
+    const size = low ? 384 : 512;
+    if (this.rtA.width !== size || this.rtA.height !== size) {
+      this.rtA.setSize(size, size);
+      this.rtB.setSize(size, size);
+      this.simMat.uniforms.uRes.value.set(size, size);
+    }
+  }
+
+  dispose(): void {
+    super.dispose();
+    this.rtA.dispose();
+    this.rtB.dispose();
+    this.simMat.dispose();
+    this.viewMat.dispose();
+    (this.simMesh.geometry as THREE.BufferGeometry).dispose();
+    (this.viewMesh.geometry as THREE.BufferGeometry).dispose();
+  }
+}
+
+class StrangeAttractorScene extends SceneBase {
+  protected baseCameraZ = 14;
+  private points: THREE.Points;
+  private geometry: THREE.BufferGeometry;
+  private material: THREE.ShaderMaterial;
+  private positions: Float32Array;
+  private velocities: Float32Array;
+  private count: number;
+  private burst = 0;
+
+  constructor() {
+    super('scene01');
+
+    this.scene.background = new THREE.Color(0x02040a);
+    this.scene.fog = new THREE.FogExp2(0x040818, 0.06);
+
+    this.count = 9000;
+    this.positions = new Float32Array(this.count * 3);
+    this.velocities = new Float32Array(this.count * 3);
+
+    // Seed points near origin
+    for (let i = 0; i < this.count; i++) {
+      const idx = i * 3;
+      this.positions[idx] = (Math.random() - 0.5) * 0.2;
+      this.positions[idx + 1] = (Math.random() - 0.5) * 0.2;
+      this.positions[idx + 2] = (Math.random() - 0.5) * 0.2;
+    }
+
+    this.geometry = new THREE.BufferGeometry();
+    this.geometry.setAttribute(
+      'position',
+      new THREE.BufferAttribute(this.positions, 3)
+    );
+
+    this.material = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uBurst: { value: 0 },
+      },
+      vertexShader: `
+        uniform float uTime;
+        uniform float uBurst;
+        varying float vGlow;
+        void main() {
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          float z = max(0.0001, -mv.z);
+          float a = 0.6 + 0.4 * sin(uTime * 0.6 + position.x * 0.7 + position.y * 0.5);
+          vGlow = a * (1.0 + uBurst);
+          gl_PointSize = (1.0 + vGlow * 1.8) * (260.0 / z);
+          gl_Position = projectionMatrix * mv;
+        }
+      `,
+      fragmentShader: `
+        precision highp float;
+        varying float vGlow;
+        void main() {
+          vec2 c = gl_PointCoord - 0.5;
+          float d = length(c);
+          float core = smoothstep(0.5, 0.0, d);
+          vec3 col = mix(vec3(0.15, 0.8, 1.0), vec3(1.0, 0.3, 0.8), vGlow * 0.35);
+          gl_FragColor = vec4(col, core * 0.65 * vGlow);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    this.points = new THREE.Points(this.geometry, this.material);
+    this.scene.add(this.points);
+
+    const ambient = new THREE.AmbientLight(0x0b1530, 0.6);
+    this.scene.add(ambient);
+  }
+
+  update(ctx: SceneRuntime): void {
+    this.burst = Math.max(ctx.tap, damp(this.burst, 0, 3.2, ctx.dt));
+
+    const cam = this.camera as THREE.PerspectiveCamera;
+    cam.position.z = (this.baseCameraZ - ctx.press * 4) * this.aspectMult;
+    cam.position.x = damp(cam.position.x, ctx.pointer.x * 2.2, 2.0, ctx.dt);
+    cam.position.y = damp(cam.position.y, ctx.pointer.y * 1.6, 2.0, ctx.dt);
+    cam.lookAt(0, 0, 0);
+
+    // Thomas attractor (nice loops):
+    // dx = sin(y) - b*x
+    // dy = sin(z) - b*y
+    // dz = sin(x) - b*z
+    const b = 0.19;
+    const speed =
+      (0.55 + ctx.press * 2.2) * (ctx.caps.coarsePointer ? 0.85 : 1.0);
+    const dt = Math.min(0.02, ctx.dt) * speed;
+
+    const burstKick = this.burst * 0.7;
+    const swirlX = ctx.pointer.x * 0.9;
+    const swirlY = ctx.pointer.y * 0.9;
+
+    for (let i = 0; i < this.count; i++) {
+      const idx = i * 3;
+      let x = this.positions[idx];
+      let y = this.positions[idx + 1];
+      let z = this.positions[idx + 2];
+
+      const dx = Math.sin(y + swirlY) - b * x;
+      const dy = Math.sin(z + swirlX) - b * y;
+      const dz = Math.sin(x) - b * z;
+
+      x += dx * dt;
+      y += dy * dt;
+      z += dz * dt;
+
+      // Subtle burst expansion
+      x *= 1 + burstKick * 0.003;
+      y *= 1 + burstKick * 0.003;
+      z *= 1 + burstKick * 0.003;
+
+      // Keep bounded
+      const bound = 4.2;
+      if (Math.abs(x) > bound || Math.abs(y) > bound || Math.abs(z) > bound) {
+        x = (Math.random() - 0.5) * 0.5;
+        y = (Math.random() - 0.5) * 0.5;
+        z = (Math.random() - 0.5) * 0.5;
+      }
+
+      this.positions[idx] = x;
+      this.positions[idx + 1] = y;
+      this.positions[idx + 2] = z;
+    }
+
+    (
+      this.geometry.getAttribute('position') as THREE.BufferAttribute
+    ).needsUpdate = true;
+    this.material.uniforms.uTime.value = ctx.time;
+    this.material.uniforms.uBurst.value = this.burst;
+  }
+}
+
+class RibbonFieldScene extends SceneBase {
+  protected baseCameraZ = 16;
+
+  private lines: THREE.Line[] = [];
+  private lineGeos: THREE.BufferGeometry[] = [];
+  private linePositions: Float32Array[] = [];
+  private segments = 120;
+  private ribbonCount = 28;
+  private burst = 0;
+
+  constructor() {
+    super('scene02');
+
+    this.scene.background = new THREE.Color(0x02040b);
+    this.scene.fog = new THREE.FogExp2(0x050a18, 0.055);
+
+    const ambient = new THREE.AmbientLight(0x0a1224, 0.7);
+    const key = new THREE.DirectionalLight(0xffffff, 1.2);
+    key.position.set(6, 10, 6);
+    this.scene.add(ambient, key);
+
+    for (let i = 0; i < this.ribbonCount; i++) {
+      const pts = new Float32Array(this.segments * 3);
+      for (let s = 0; s < this.segments; s++) {
+        const idx = s * 3;
+        pts[idx] = (Math.random() - 0.5) * 10;
+        pts[idx + 1] = (Math.random() - 0.5) * 6;
+        pts[idx + 2] = -18 + (s / (this.segments - 1)) * 26;
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pts, 3));
+      const mat = new THREE.LineBasicMaterial({
+        color: new THREE.Color().setHSL(
+          0.55 + (i / this.ribbonCount) * 0.35,
+          0.9,
+          0.6
+        ),
+        transparent: true,
+        opacity: 0.55,
+        blending: THREE.AdditiveBlending,
+      });
+      const line = new THREE.Line(geo, mat);
+      this.lines.push(line);
+      this.lineGeos.push(geo);
+      this.linePositions.push(pts);
+      this.scene.add(line);
+    }
+  }
+
+  update(ctx: SceneRuntime): void {
+    this.burst = Math.max(ctx.tap, damp(this.burst, 0, 3.0, ctx.dt));
+
+    const cam = this.camera as THREE.PerspectiveCamera;
+    const z = (this.baseCameraZ - ctx.press * 4.5) * this.aspectMult;
+    cam.position.z = damp(cam.position.z, z, 2.6, ctx.dt);
+    cam.position.x = damp(cam.position.x, ctx.pointer.x * 3.2, 2.0, ctx.dt);
+    cam.position.y = damp(cam.position.y, ctx.pointer.y * 2.0, 2.0, ctx.dt);
+    cam.lookAt(0, 0, -6);
+
+    const t = ctx.time;
+    const bend = 0.9 + ctx.pointerVelocity.length() * 0.08 + this.burst * 0.35;
+    const adv =
+      (0.35 + ctx.press * 1.0) * (ctx.caps.coarsePointer ? 0.85 : 1.0);
+
+    for (let i = 0; i < this.ribbonCount; i++) {
+      const pts = this.linePositions[i];
+      for (let s = 0; s < this.segments; s++) {
+        const idx = s * 3;
+        const x = pts[idx];
+        const y = pts[idx + 1];
+        const z0 = pts[idx + 2];
+
+        // Flow field: curl-ish motion in x/y, along z
+        const fx =
+          Math.sin(z0 * 0.18 + t * 0.8 + i * 0.7) * 0.9 +
+          Math.cos((x + y) * 0.22 - t * 0.6) * 0.6;
+        const fy =
+          Math.cos(z0 * 0.17 - t * 0.75 + i * 0.6) * 0.9 +
+          Math.sin((x - y) * 0.2 + t * 0.55) * 0.6;
+
+        const influenceX = ctx.pointer.x * 1.6;
+        const influenceY = ctx.pointer.y * 1.2;
+
+        pts[idx] = x + (fx + influenceX) * 0.006 * bend * adv;
+        pts[idx + 1] = y + (fy + influenceY) * 0.006 * bend * adv;
+        pts[idx + 2] = z0 + 0.012 * adv;
+
+        // Wrap z and re-seed far end
+        if (pts[idx + 2] > 10) {
+          pts[idx + 2] = -18;
+          pts[idx] = (Math.random() - 0.5) * 10;
+          pts[idx + 1] = (Math.random() - 0.5) * 6;
+        }
+
+        // Keep bounded
+        pts[idx] = clamp(pts[idx], -12, 12);
+        pts[idx + 1] = clamp(pts[idx + 1], -8, 8);
+      }
+      (
+        this.lineGeos[i].getAttribute('position') as THREE.BufferAttribute
+      ).needsUpdate = true;
+
+      const mat = this.lines[i].material as THREE.LineBasicMaterial;
+      mat.opacity = 0.35 + 0.25 * Math.sin(t * 0.7 + i) + this.burst * 0.25;
+    }
+  }
+}
+
+class GyroidCavernScene extends SceneBase {
+  private material: THREE.ShaderMaterial;
+  private mesh: THREE.Mesh;
+
+  constructor() {
+    super('scene03');
+
+    this.material = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uTap: { value: 0 },
+        uResolution: { value: new THREE.Vector2(1, 1) },
+        uPointer: { value: new THREE.Vector2(0.5, 0.5) },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        precision highp float;
+        varying vec2 vUv;
+        uniform float uTime;
+        uniform float uTap;
+        uniform vec2 uResolution;
+        uniform vec2 uPointer;
+
+        float sdGyroid(vec3 p, float s) {
+          p *= s;
+          float g = sin(p.x) * cos(p.y) + sin(p.y) * cos(p.z) + sin(p.z) * cos(p.x);
+          return g / s;
+        }
+
+        float map(vec3 p) {
+          float k = 1.6 + 0.25 * sin(uTime * 0.35);
+          float gy = abs(sdGyroid(p, 2.35 + 0.6 * sin(uTime * 0.15))) - 0.08;
+          float tunnel = length(p.xz) - (1.35 + 0.2 * sin(p.y * 0.8 + uTime * 0.6));
+          float carve = tunnel + gy * k;
+          return carve;
+        }
+
+        vec3 normal(vec3 p) {
+          vec2 e = vec2(0.0015, 0.0);
+          return normalize(vec3(
+            map(p + e.xyy) - map(p - e.xyy),
+            map(p + e.yxy) - map(p - e.yxy),
+            map(p + e.yyx) - map(p - e.yyx)
+          ));
+        }
+
+        void main() {
+          vec2 uv = (vUv - 0.5);
+          float aspect = uResolution.x / max(1.0, uResolution.y);
+          uv.x *= aspect;
+
+          float tap = clamp(uTap, 0.0, 1.0);
+          float t = uTime * (0.55 + tap * 0.4);
+
+          // Camera
+          vec3 ro = vec3(0.0, 0.0, 4.2);
+          vec3 rd = normalize(vec3(uv, -1.4));
+
+          // Pointer rotates camera
+          float yaw = (uPointer.x - 0.5) * 1.1;
+          float pitch = (uPointer.y - 0.5) * 0.9;
+          float cy = cos(yaw), sy = sin(yaw);
+          float cp = cos(pitch), sp = sin(pitch);
+          rd.xz = mat2(cy, -sy, sy, cy) * rd.xz;
+          rd.yz = mat2(cp, -sp, sp, cp) * rd.yz;
+
+          // Travel forward
+          ro.z -= t * 2.2;
+
+          float d = 0.0;
+          float glow = 0.0;
+          vec3 p;
+          bool hit = false;
+          for (int i = 0; i < 96; i++) {
+            p = ro + rd * d;
+            float m = map(p);
+            glow += exp(-abs(m) * 18.0) * 0.02;
+            if (m < 0.001) {
+              hit = true;
+              break;
+            }
+            d += m * 0.75;
+            if (d > 22.0) break;
+          }
+
+          vec3 col = vec3(0.02, 0.03, 0.06);
+          if (hit) {
+            vec3 n = normal(p);
+            vec3 l = normalize(vec3(0.6, 0.9, 0.4));
+            float diff = max(dot(n, l), 0.0);
+            float fres = pow(1.0 - max(dot(n, -rd), 0.0), 3.0);
+
+            vec3 a = vec3(0.12, 0.9, 1.0);
+            vec3 b = vec3(0.95, 0.25, 0.8);
+            float bands = sin(p.y * 3.2 + uTime * 1.2) * 0.5 + 0.5;
+            vec3 base = mix(a, b, bands);
+            col = base * (0.25 + 1.4 * diff) + base * fres * 1.2;
+          }
+
+          // Energy pulse ring
+          float r = length(uv);
+          float ring = exp(-abs(r - (0.22 + fract(uTime * 0.15) * 0.6)) * 45.0) * tap;
+          col += vec3(0.2, 0.65, 1.0) * ring;
+
+          col += glow * vec3(0.25, 0.55, 1.0) * (0.9 + tap);
+
+          // Vignette
+          float vig = smoothstep(0.95, 0.35, r);
+          col *= 0.65 + 0.55 * vig;
+
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
+    });
+
+    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.material);
+    this.scene.add(this.mesh);
+    (this.camera as THREE.PerspectiveCamera).position.z = 1;
+  }
+
+  update(ctx: SceneRuntime): void {
+    this.material.uniforms.uTime.value = ctx.time;
+    this.material.uniforms.uTap.value = ctx.tap;
+    this.material.uniforms.uPointer.value.set(
+      ctx.pointer.x * 0.5 + 0.5,
+      ctx.pointer.y * 0.5 + 0.5
+    );
+  }
+
+  resize(ctx: SceneRuntime): void {
+    super.resize(ctx);
+    this.material.uniforms.uResolution.value.set(
+      ctx.size.width * ctx.size.dpr,
+      ctx.size.height * ctx.size.dpr
+    );
+  }
+}
+
+class MagnetosphereScene extends SceneBase {
+  protected baseCameraZ = 13;
+  private lines: THREE.LineSegments;
+  private linePositions: Float32Array;
+  private particle: THREE.Points;
+  private particlePositions: Float32Array;
+  private particleCount = 2400;
+  private burst = 0;
+
+  constructor() {
+    super('scene04');
+
+    this.scene.background = new THREE.Color(0x02030a);
+    this.scene.fog = new THREE.FogExp2(0x040818, 0.06);
+
+    const ambient = new THREE.AmbientLight(0x091028, 0.75);
+    const key = new THREE.DirectionalLight(0xffffff, 1.15);
+    key.position.set(6, 10, 5);
+    const rim = new THREE.PointLight(0x22d3ee, 1.6, 40, 2);
+    rim.position.set(-8, 2, -10);
+    this.scene.add(ambient, key, rim);
+
+    // Field lines: parametric loops around an implied dipole
+    const lineCount = 220;
+    const seg = 64;
+    this.linePositions = new Float32Array(lineCount * seg * 2 * 3);
+    let w = 0;
+    for (let i = 0; i < lineCount; i++) {
+      const lat = (i / (lineCount - 1)) * Math.PI - Math.PI / 2;
+      const r0 = 2.2 + Math.sin(lat * 2.0) * 0.6;
+      for (let s = 0; s < seg; s++) {
+        const a0 = (s / seg) * Math.PI * 2;
+        const a1 = ((s + 1) / seg) * Math.PI * 2;
+
+        const p0 = new THREE.Vector3(
+          Math.cos(a0) * r0,
+          Math.sin(lat) * 2.2,
+          Math.sin(a0) * r0
+        );
+        const p1 = new THREE.Vector3(
+          Math.cos(a1) * r0,
+          Math.sin(lat) * 2.2,
+          Math.sin(a1) * r0
+        );
+
+        // Write segment
+        this.linePositions[w++] = p0.x;
+        this.linePositions[w++] = p0.y;
+        this.linePositions[w++] = p0.z;
+        this.linePositions[w++] = p1.x;
+        this.linePositions[w++] = p1.y;
+        this.linePositions[w++] = p1.z;
+      }
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute(
+      'position',
+      new THREE.BufferAttribute(this.linePositions, 3)
+    );
+    const mat = new THREE.LineBasicMaterial({
+      color: 0x22d3ee,
+      transparent: true,
+      opacity: 0.35,
+      blending: THREE.AdditiveBlending,
+    });
+    this.lines = new THREE.LineSegments(geo, mat);
+    this.scene.add(this.lines);
+
+    // Aurora particles
+    this.particlePositions = new Float32Array(this.particleCount * 3);
+    for (let i = 0; i < this.particleCount; i++) {
+      const idx = i * 3;
+      const a = Math.random() * Math.PI * 2;
+      const r = 2.0 + Math.random() * 1.6;
+      const y = (Math.random() - 0.5) * 6.0;
+      this.particlePositions[idx] = Math.cos(a) * r;
+      this.particlePositions[idx + 1] = y;
+      this.particlePositions[idx + 2] = Math.sin(a) * r;
+    }
+    const pGeo = new THREE.BufferGeometry();
+    pGeo.setAttribute(
+      'position',
+      new THREE.BufferAttribute(this.particlePositions, 3)
+    );
+    const pMat = new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 }, uBurst: { value: 0 } },
+      vertexShader: `
+        uniform float uTime;
+        uniform float uBurst;
+        varying float vGlow;
+        void main() {
+          vec3 p = position;
+          float a = atan(p.z, p.x);
+          float w = sin(uTime * 1.1 + a * 6.0 + p.y * 0.6);
+          p.xz *= 1.0 + w * 0.08;
+          vec4 mv = modelViewMatrix * vec4(p, 1.0);
+          float z = max(0.0001, -mv.z);
+          vGlow = 0.6 + 0.4 * w + uBurst * 0.8;
+          gl_PointSize = (1.6 + vGlow * 2.6) * (240.0 / z);
+          gl_Position = projectionMatrix * mv;
+        }
+      `,
+      fragmentShader: `
+        precision highp float;
+        varying float vGlow;
+        void main() {
+          vec2 c = gl_PointCoord - 0.5;
+          float d = length(c);
+          float a = smoothstep(0.5, 0.1, d) * vGlow;
+          vec3 col = mix(vec3(0.2, 0.9, 1.0), vec3(0.6, 1.0, 0.2), vGlow * 0.35);
+          gl_FragColor = vec4(col, a * 0.8);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.particle = new THREE.Points(pGeo, pMat);
+    this.scene.add(this.particle);
+  }
+
+  update(ctx: SceneRuntime): void {
+    this.burst = Math.max(ctx.tap, damp(this.burst, 0, 3.2, ctx.dt));
+    (this.lines.material as THREE.LineBasicMaterial).opacity =
+      0.22 + 0.15 * Math.sin(ctx.time * 0.5) + this.burst * 0.25;
+
+    const pMat = this.particle.material as THREE.ShaderMaterial;
+    pMat.uniforms.uTime.value = ctx.time;
+    pMat.uniforms.uBurst.value = this.burst;
+
+    const cam = this.camera as THREE.PerspectiveCamera;
+    const targetZ = (this.baseCameraZ - ctx.press * 3.0) * this.aspectMult;
+    cam.position.z = damp(cam.position.z, targetZ, 2.8, ctx.dt);
+    cam.position.x = damp(cam.position.x, ctx.pointer.x * 2.8, 2.4, ctx.dt);
+    cam.position.y = damp(cam.position.y, ctx.pointer.y * 2.0, 2.4, ctx.dt);
+    cam.lookAt(0, 0, 0);
+
+    this.lines.rotation.y = ctx.time * 0.08 + ctx.pointer.x * 0.25;
+  }
+}
+
+class KaleidoGlassScene extends SceneBase {
+  protected baseCameraZ = 10;
+  private shards: THREE.Mesh[] = [];
+  private burst = 0;
+
+  constructor() {
+    super('scene06');
+    this.scene.background = new THREE.Color(0x030512);
+    this.scene.fog = new THREE.FogExp2(0x060a18, 0.07);
+
+    const ambient = new THREE.AmbientLight(0x0b1430, 0.6);
+    const key = new THREE.DirectionalLight(0xffffff, 1.35);
+    key.position.set(6, 10, 5);
+    const rim = new THREE.PointLight(0xff1bb7, 1.4, 40, 2);
+    rim.position.set(-8, 2, -10);
+    const cyan = new THREE.PointLight(0x22d3ee, 1.2, 40, 2);
+    cyan.position.set(10, 3, -12);
+    this.scene.add(ambient, key, rim, cyan);
+
+    const geo = new THREE.IcosahedronGeometry(1.0, 2);
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uBurst: { value: 0 },
+      },
+      vertexShader: `
+        uniform float uTime;
+        uniform float uBurst;
+        varying vec3 vN;
+        varying vec3 vP;
+        void main() {
+          vN = normalize(normalMatrix * normal);
+          vec3 p = position;
+          float wob = sin(uTime * 1.2 + p.x * 2.0 + p.y * 1.5) * 0.03;
+          p += vN * wob * (0.8 + uBurst * 1.2);
+          vP = p;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+        }
+      `,
+      fragmentShader: `
+        precision highp float;
+        uniform float uTime;
+        uniform float uBurst;
+        varying vec3 vN;
+        varying vec3 vP;
+
+        float fresnel(vec3 n, vec3 v) {
+          return pow(1.0 - max(dot(n, v), 0.0), 4.0);
+        }
+
+        void main() {
+          vec3 n = normalize(vN);
+          vec3 v = normalize(vec3(0.0, 0.0, 1.0));
+          float f = fresnel(n, v);
+          float ir = 0.5 + 0.5 * sin(uTime * 0.6 + vP.x * 3.0);
+          vec3 a = vec3(0.12, 0.85, 1.0);
+          vec3 b = vec3(1.0, 0.25, 0.8);
+          vec3 c = vec3(1.0, 0.7, 0.25);
+          vec3 col = mix(a, b, ir);
+          col = mix(col, c, 0.25 + 0.25 * sin(uTime * 0.8 + vP.y * 2.0));
+          col *= 0.25 + 1.8 * f;
+          col *= 1.0 + uBurst * 0.6;
+          gl_FragColor = vec4(col, 0.95);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    const count = 18;
+    for (let i = 0; i < count; i++) {
+      const m = new THREE.Mesh(geo, mat.clone());
+      m.position.set(
+        (Math.random() - 0.5) * 6,
+        (Math.random() - 0.5) * 4,
+        -6 + (Math.random() - 0.5) * 6
+      );
+      m.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+      const s = 0.6 + Math.random() * 1.6;
+      m.scale.setScalar(s);
+      this.shards.push(m);
+      this.scene.add(m);
+    }
+  }
+
+  update(ctx: SceneRuntime): void {
+    this.burst = Math.max(ctx.tap, damp(this.burst, 0, 3.4, ctx.dt));
+    const t = ctx.time;
+
+    this.shards.forEach((m, i) => {
+      m.rotation.x += ctx.dt * (0.2 + i * 0.01 + ctx.press * 0.4);
+      m.rotation.y += ctx.dt * (0.25 + i * 0.008 + ctx.press * 0.5);
+      m.position.x = damp(
+        m.position.x,
+        m.position.x + ctx.pointer.x * 0.002,
+        2.0,
+        ctx.dt
+      );
+      m.position.y = damp(
+        m.position.y,
+        m.position.y + ctx.pointer.y * 0.002,
+        2.0,
+        ctx.dt
+      );
+      const mat = m.material as THREE.ShaderMaterial;
+      mat.uniforms.uTime.value = t;
+      mat.uniforms.uBurst.value = this.burst + ctx.press * 0.35;
+    });
+
+    const cam = this.camera as THREE.PerspectiveCamera;
+    cam.position.z = (this.baseCameraZ - ctx.press * 3.0) * this.aspectMult;
+    cam.position.x = damp(cam.position.x, ctx.pointer.x * 1.8, 2.8, ctx.dt);
+    cam.position.y = damp(cam.position.y, ctx.pointer.y * 1.2, 2.8, ctx.dt);
+    cam.lookAt(0, 0, -6);
+  }
+}
+
+class TypographicSculptureScene extends SceneBase {
+  protected baseCameraZ = 14;
+  private voxels: THREE.InstancedMesh;
+  private dummy = new THREE.Object3D();
+  private base: Array<{ x: number; y: number; z: number; i: number }> = [];
+  private burst = 0;
+
+  constructor() {
+    super('scene07');
+
+    this.scene.background = new THREE.Color(0x02040a);
+    this.scene.fog = new THREE.FogExp2(0x040818, 0.065);
+
+    const ambient = new THREE.AmbientLight(0x0b1530, 0.65);
+    const key = new THREE.DirectionalLight(0xffffff, 1.3);
+    key.position.set(6, 10, 6);
+    const rim = new THREE.PointLight(0x22d3ee, 1.2, 40, 2);
+    rim.position.set(-10, 0, -12);
+    this.scene.add(ambient, key, rim);
+
+    // Simple voxel glyph bitmap (no font dependency)
+    const glyph = [
+      '0011111000111110001111100',
+      '0110001101100011011000110',
+      '1100000111000001110000011',
+      '1100000111000001110000011',
+      '1100000111000001110000011',
+      '0110001101100011011000110',
+      '0011111000111110001111100',
+    ];
+    const w = glyph[0].length;
+    const h = glyph.length;
+
+    const cube = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x081225,
+      roughness: 0.35,
+      metalness: 0.55,
+      emissive: new THREE.Color(0x0aa0ff),
+      emissiveIntensity: 0.22,
+    });
+
+    // Add depth layers for a real sculptural feel
+    const layers = 18;
+    for (let z = 0; z < layers; z++) {
+      for (let y = 0; y < h; y++) {
+        const row = glyph[y];
+        for (let x = 0; x < w; x++) {
+          if (row[x] !== '1') continue;
+          this.base.push({
+            x: (x - w / 2) * 0.24,
+            y: (h / 2 - y) * 0.28,
+            z: (z - layers / 2) * 0.24,
+            i: this.base.length,
+          });
+        }
+      }
+    }
+
+    const max = this.base.length;
+    this.voxels = new THREE.InstancedMesh(cube, mat, max);
+    this.voxels.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.scene.add(this.voxels);
+
+    // Initial matrices
+    for (let i = 0; i < max; i++) {
+      const b = this.base[i];
+      this.dummy.position.set(b.x, b.y, -8 + b.z);
+      this.dummy.rotation.set(0, 0, 0);
+      this.dummy.scale.setScalar(1);
+      this.dummy.updateMatrix();
+      this.voxels.setMatrixAt(i, this.dummy.matrix);
+    }
+    this.voxels.instanceMatrix.needsUpdate = true;
+  }
+
+  update(ctx: SceneRuntime): void {
+    const t = ctx.time;
+    this.burst = Math.max(ctx.tap, damp(this.burst, 0, 3.4, ctx.dt));
+
+    const shake = this.burst * 0.9;
+    const breathe = 0.12 + 0.08 * Math.sin(t * 0.9);
+    const twist = ctx.pointer.x * 0.55;
+
+    for (let i = 0; i < this.base.length; i++) {
+      const b = this.base[i];
+      const phase = (b.x + b.y * 0.8 + b.z * 0.6) * 0.6;
+      const wave = Math.sin(t * 1.4 + phase) * breathe;
+      const explode =
+        shake * (0.25 + 0.75 * Math.abs(Math.sin(phase + t * 2.0)));
+
+      const nx = b.x + wave * 0.8 + (Math.random() - 0.5) * explode * 0.15;
+      const ny = b.y + wave * 0.6 + (Math.random() - 0.5) * explode * 0.12;
+      const nz = -8 + b.z + wave * 0.8 + (Math.random() - 0.5) * explode * 0.2;
+
+      this.dummy.position.set(nx, ny, nz);
+      this.dummy.rotation.set(0, twist + wave * 0.18, 0);
+      const s = 0.9 + wave * 0.25 + ctx.press * 0.18;
+      this.dummy.scale.setScalar(s);
+      this.dummy.updateMatrix();
+      this.voxels.setMatrixAt(i, this.dummy.matrix);
+    }
+    this.voxels.instanceMatrix.needsUpdate = true;
+
+    const cam = this.camera as THREE.PerspectiveCamera;
+    cam.position.z = (this.baseCameraZ - ctx.press * 3.0) * this.aspectMult;
+    cam.position.x = damp(cam.position.x, ctx.pointer.x * 2.0, 2.4, ctx.dt);
+    cam.position.y = damp(cam.position.y, ctx.pointer.y * 1.4, 2.4, ctx.dt);
+    cam.lookAt(0, 0, -8);
+
+    const mat = this.voxels.material as THREE.MeshStandardMaterial;
+    mat.emissiveIntensity = 0.18 + this.burst * 0.25 + ctx.press * 0.18;
+  }
+}
+
+class OrbitalMechanicsScene extends SceneBase {
+  protected baseCameraZ = 16;
+  private bodies: THREE.InstancedMesh;
+  private dummy = new THREE.Object3D();
+  private count: number;
+  private pos: Float32Array;
+  private vel: Float32Array;
+  private mass: Float32Array;
+  private burst = 0;
+
+  constructor() {
+    super('scene08');
+    this.scene.background = new THREE.Color(0x02040a);
+    this.scene.fog = new THREE.FogExp2(0x040818, 0.055);
+
+    const ambient = new THREE.AmbientLight(0x0b1530, 0.6);
+    const key = new THREE.DirectionalLight(0xffffff, 1.25);
+    key.position.set(6, 10, 6);
+    const rim = new THREE.PointLight(0x22d3ee, 1.4, 50, 2);
+    rim.position.set(-10, 0, -12);
+    this.scene.add(ambient, key, rim);
+
+    this.count = 220;
+    const geo = new THREE.SphereGeometry(0.12, 10, 8);
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x081225,
+      roughness: 0.4,
+      metalness: 0.5,
+      emissive: new THREE.Color(0x0aa0ff),
+      emissiveIntensity: 0.25,
+    });
+    this.bodies = new THREE.InstancedMesh(geo, mat, this.count);
+    this.bodies.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.scene.add(this.bodies);
+
+    this.pos = new Float32Array(this.count * 3);
+    this.vel = new Float32Array(this.count * 3);
+    this.mass = new Float32Array(this.count);
+
+    for (let i = 0; i < this.count; i++) {
+      const idx = i * 3;
+      const a = Math.random() * Math.PI * 2;
+      const r = 1.5 + Math.random() * 6.5;
+      const y = (Math.random() - 0.5) * 1.4;
+      this.pos[idx] = Math.cos(a) * r;
+      this.pos[idx + 1] = y;
+      this.pos[idx + 2] = -8 + Math.sin(a) * r;
+
+      // Tangential velocity for orbit
+      const speed = 0.25 + Math.random() * 0.7;
+      this.vel[idx] = -Math.sin(a) * speed;
+      this.vel[idx + 1] = (Math.random() - 0.5) * 0.03;
+      this.vel[idx + 2] = Math.cos(a) * speed;
+
+      this.mass[i] = 0.5 + Math.random() * 1.5;
+    }
+  }
+
+  update(ctx: SceneRuntime): void {
+    this.burst = Math.max(ctx.tap, damp(this.burst, 0, 3.0, ctx.dt));
+    const tScale = 0.75 + ctx.press * 2.2;
+    const dt = Math.min(0.02, ctx.dt) * tScale;
+
+    // Central mass at origin-ish (slightly guided by pointer)
+    const cx = ctx.pointer.x * 1.1;
+    const cy = ctx.pointer.y * 0.6;
+    const cz = -8;
+
+    const G = 1.25 + this.burst * 1.2;
+
+    for (let i = 0; i < this.count; i++) {
+      const idx = i * 3;
+      let x = this.pos[idx];
+      let y = this.pos[idx + 1];
+      let z = this.pos[idx + 2];
+
+      const dx = cx - x;
+      const dy = cy - y;
+      const dz = cz - z;
+      const r2 = dx * dx + dy * dy + dz * dz + 0.18;
+      const inv = 1.0 / Math.sqrt(r2);
+      const a = G * inv * inv * inv;
+
+      this.vel[idx] += dx * a * dt;
+      this.vel[idx + 1] += dy * a * dt;
+      this.vel[idx + 2] += dz * a * dt;
+
+      // Small damping
+      this.vel[idx] *= 0.998;
+      this.vel[idx + 1] *= 0.998;
+      this.vel[idx + 2] *= 0.998;
+
+      x += this.vel[idx] * dt;
+      y += this.vel[idx + 1] * dt;
+      z += this.vel[idx + 2] * dt;
+
+      // Bound
+      if (Math.abs(x) > 14 || Math.abs(z + 8) > 14) {
+        x *= 0.2;
+        z = -8 + (z + 8) * 0.2;
+      }
+
+      this.pos[idx] = x;
+      this.pos[idx + 1] = y;
+      this.pos[idx + 2] = z;
+
+      this.dummy.position.set(x, y, z);
+      const s = 0.6 + this.mass[i] * 0.45 + this.burst * 0.15;
+      this.dummy.scale.setScalar(s);
+      this.dummy.updateMatrix();
+      this.bodies.setMatrixAt(i, this.dummy.matrix);
+    }
+    this.bodies.instanceMatrix.needsUpdate = true;
+
+    const cam = this.camera as THREE.PerspectiveCamera;
+    cam.position.z = (this.baseCameraZ - ctx.press * 4.0) * this.aspectMult;
+    cam.position.x = damp(cam.position.x, ctx.pointer.x * 3.0, 2.4, ctx.dt);
+    cam.position.y = damp(
+      cam.position.y,
+      2.0 + ctx.pointer.y * 1.6,
+      2.4,
+      ctx.dt
+    );
+    cam.lookAt(cx, cy, cz);
+
+    const mat = this.bodies.material as THREE.MeshStandardMaterial;
+    mat.emissiveIntensity = 0.22 + this.burst * 0.25 + ctx.press * 0.18;
+  }
+}
+
+class VoronoiShardsScene extends SceneBase {
+  protected baseCameraZ = 13;
+  private shards: THREE.InstancedMesh;
+  private dummy = new THREE.Object3D();
+  private base: Array<{
+    x: number;
+    y: number;
+    z: number;
+    s: number;
+    r: number;
+  }> = [];
+  private count: number;
+  private burst = 0;
+
+  constructor() {
+    super('scene09');
+    this.scene.background = new THREE.Color(0x02040a);
+    this.scene.fog = new THREE.FogExp2(0x040818, 0.07);
+
+    const ambient = new THREE.AmbientLight(0x0b1430, 0.65);
+    const key = new THREE.DirectionalLight(0xffffff, 1.2);
+    key.position.set(6, 10, 6);
+    const rim = new THREE.PointLight(0xff1bb7, 1.3, 42, 2);
+    rim.position.set(-10, 0, -12);
+    this.scene.add(ambient, key, rim);
+
+    this.count = 260;
+    const geo = new THREE.ConeGeometry(0.25, 1.2, 6, 1);
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x071023,
+      roughness: 0.35,
+      metalness: 0.7,
+      emissive: new THREE.Color(0x22d3ee),
+      emissiveIntensity: 0.14,
+    });
+    this.shards = new THREE.InstancedMesh(geo, mat, this.count);
+    this.shards.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.scene.add(this.shards);
+
+    for (let i = 0; i < this.count; i++) {
+      this.base.push({
+        x: (Math.random() - 0.5) * 12,
+        y: (Math.random() - 0.5) * 7,
+        z: -10 + (Math.random() - 0.5) * 10,
+        s: 0.5 + Math.random() * 1.8,
+        r: Math.random() * Math.PI * 2,
+      });
+    }
+  }
+
+  update(ctx: SceneRuntime): void {
+    const t = ctx.time;
+    this.burst = Math.max(ctx.tap, damp(this.burst, 0, 3.2, ctx.dt));
+
+    for (let i = 0; i < this.count; i++) {
+      const b = this.base[i];
+      const wob = Math.sin(t * 0.9 + b.x * 0.25 + b.z * 0.22);
+      const lift = Math.cos(t * 0.8 + b.y * 0.3) * 0.25;
+      const spin = b.r + t * (0.35 + i * 0.001);
+
+      this.dummy.position.set(
+        b.x + ctx.pointer.x * 2.2,
+        b.y + lift + ctx.pointer.y * 1.2,
+        b.z
+      );
+      this.dummy.rotation.set(wob * 0.6, spin, wob * 0.25);
+      const s = b.s * (0.85 + 0.15 * wob + this.burst * 0.2 + ctx.press * 0.15);
+      this.dummy.scale.setScalar(s);
+      this.dummy.updateMatrix();
+      this.shards.setMatrixAt(i, this.dummy.matrix);
+    }
+    this.shards.instanceMatrix.needsUpdate = true;
+
+    const cam = this.camera as THREE.PerspectiveCamera;
+    cam.position.z = (this.baseCameraZ - ctx.press * 3.0) * this.aspectMult;
+    cam.position.x = damp(cam.position.x, ctx.pointer.x * 2.2, 2.6, ctx.dt);
+    cam.position.y = damp(cam.position.y, ctx.pointer.y * 1.6, 2.6, ctx.dt);
+    cam.lookAt(0, 0, -10);
+
+    const mat = this.shards.material as THREE.MeshStandardMaterial;
+    mat.emissiveIntensity = 0.12 + this.burst * 0.18 + ctx.press * 0.18;
+  }
+}
+
+class MoireInterferenceScene extends SceneBase {
+  private material: THREE.ShaderMaterial;
+  private mesh: THREE.Mesh;
+  private phase = 0;
+
+  constructor() {
+    super('scene10');
+    this.material = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uPhase: { value: 0 },
+        uPointer: { value: new THREE.Vector2(0.5, 0.5) },
+        uResolution: { value: new THREE.Vector2(1, 1) },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        precision highp float;
+        varying vec2 vUv;
+        uniform float uTime;
+        uniform float uPhase;
+        uniform vec2 uPointer;
+        uniform vec2 uResolution;
+
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+
+        void main() {
+          vec2 uv = vUv;
+          vec2 p = uv - 0.5;
+          float aspect = uResolution.x / max(1.0, uResolution.y);
+          p.x *= aspect;
+
+          float t = uTime * 0.35;
+          float ph = uPhase;
+
+          // Two rotating grids create moiré
+          float a1 = t * 0.35 + (uPointer.x - 0.5) * 1.2;
+          float a2 = -t * 0.28 + (uPointer.y - 0.5) * 1.0 + ph;
+          mat2 r1 = mat2(cos(a1), -sin(a1), sin(a1), cos(a1));
+          mat2 r2 = mat2(cos(a2), -sin(a2), sin(a2), cos(a2));
+
+          vec2 p1 = r1 * p * (9.0 + 4.0 * sin(t));
+          vec2 p2 = r2 * p * (9.5 + 4.0 * cos(t * 1.1));
+
+          float g1 = abs(sin(p1.x) * sin(p1.y));
+          float g2 = abs(sin(p2.x) * sin(p2.y));
+          float m = abs(g1 - g2);
+
+          // Polar warp
+          float r = length(p);
+          float ang = atan(p.y, p.x);
+          float wave = sin(ang * 8.0 + t * 2.0) * 0.08;
+          m = mix(m, abs(sin((r + wave) * 26.0 - t * 3.0)), 0.35);
+
+          float band = smoothstep(0.05, 0.35, m);
+          vec3 colA = vec3(0.08, 0.9, 1.0);
+          vec3 colB = vec3(1.0, 0.25, 0.8);
+          vec3 colC = vec3(1.0, 0.7, 0.2);
+          vec3 col = mix(colA, colB, g1);
+          col = mix(col, colC, g2 * 0.7);
+          col *= 0.15 + band * 1.6;
+
+          // Soft grain
+          col += (hash(uv * uResolution + uTime * 60.0) - 0.5) * 0.02;
+
+          float vig = smoothstep(0.98, 0.3, r);
+          col *= 0.65 + 0.55 * vig;
+
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
+      depthTest: false,
+      depthWrite: false,
+    });
+    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.material);
+    this.scene.add(this.mesh);
+    (this.camera as THREE.PerspectiveCamera).position.z = 1;
+  }
+
+  update(ctx: SceneRuntime): void {
+    // Tap advances phase (feels like switching interference states)
+    this.phase = (this.phase + ctx.tap * 0.22) % (Math.PI * 2);
+    this.material.uniforms.uTime.value = ctx.time;
+    this.material.uniforms.uPhase.value = this.phase;
+    this.material.uniforms.uPointer.value.set(
+      ctx.pointer.x * 0.5 + 0.5,
+      ctx.pointer.y * 0.5 + 0.5
+    );
+  }
+
+  resize(ctx: SceneRuntime): void {
+    super.resize(ctx);
+    this.material.uniforms.uResolution.value.set(
+      ctx.size.width * ctx.size.dpr,
+      ctx.size.height * ctx.size.dpr
+    );
+  }
+}
+
+// =============================================================================
 // REMIX SHOWCASE SCENES (Higher-detail, feature-combined chapters)
 // =============================================================================
 type RemixPalette = {
@@ -5480,14 +6811,23 @@ class RemixShowcaseScene extends SceneBase {
   }
 }
 
-export const createScenes = (): TowerScene[] => {
-  // Replace the previous "basic" chapter set with higher-detail remix scenes.
-  // Each chapter gets a distinct seed + mode so it feels unique while reusing
-  // a shared high-performance feature stack.
-  return Array.from({ length: 16 }, (_, i) => {
-    const id = `scene${String(i).padStart(2, '0')}`;
-    return new RemixShowcaseScene(id, i, 1000 + i * 97);
-  });
-};
+export const createScenes = (): TowerScene[] => [
+  new FeedbackForgeScene(), // scene00
+  new StrangeAttractorScene(), // scene01
+  new RibbonFieldScene(), // scene02
+  new GyroidCavernScene(), // scene03
+  new MagnetosphereScene(), // scene04
+  new EventHorizonScene(), // scene05 (kept: strong)
+  new KaleidoGlassScene(), // scene06
+  new TypographicSculptureScene(), // scene07
+  new OrbitalMechanicsScene(), // scene08
+  new VoronoiShardsScene(), // scene09
+  new MoireInterferenceScene(), // scene10
+  new NeuralNetworkScene(), // scene11 (kept)
+  new LibraryScene(), // scene12 (kept)
+  new BioluminescentScene(), // scene13 (kept)
+  new HolographicCityScene(), // scene14 (kept)
+  new RealityCollapseScene(), // scene15 (kept)
+];
 
 export const getSceneMeta = () => sceneMeta;
