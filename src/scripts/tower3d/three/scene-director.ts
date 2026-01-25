@@ -2,12 +2,15 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js';
+import { AfterimagePass } from 'three/examples/jsm/postprocessing/AfterimagePass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
 import { UIControls } from './ui-controls';
 import type { TowerCaps } from '../core/caps';
 import { createScenes } from './scenes';
+import { GlobalParticleSystem, ParticleMode } from './gpgpu-system';
 import type { SceneRuntime, TowerScene } from './scenes';
 
 type Cleanup = () => void;
@@ -36,12 +39,17 @@ export class SceneDirector {
   public timeScale = 1.0;
   public autoRotate = false;
 
+  // Universal Particle System
+  private gpgpu: GlobalParticleSystem;
+
   // Short transition mask when the active chapter/scene changes.
   private cutFade = 0;
   // Render pipeline
   private composer: EffectComposer;
   private renderPass: RenderPass;
   public bloomPass: UnrealBloomPass;
+  public bokehPass: BokehPass;
+  public afterimagePass: AfterimagePass;
   private finalPass: ShaderPass;
   private outputPass: OutputPass;
   private fxaaPass: ShaderPass;
@@ -109,22 +117,56 @@ export class SceneDirector {
     this.renderer.toneMappingExposure = 0.9; // Reduced from 1.45 to prevent blown-out whites
     this.renderer.setClearColor(new THREE.Color(0x020205)); // Deep void
 
+    // Init GPGPU System
+    this.gpgpu = new GlobalParticleSystem(this.renderer);
+    // Add to a dedicated "ForePass" scene or just overlay it.
+    // Since we use a single RenderPass, we should probably add the GPGPU group to EACH scene or managing it centrally.
+    // Cleaner approach: The GPGPU group exists outside scenes but is rendered by the same camera.
+    // However, RenderPass takes a scene.
+    // Trick: We will inject the GPGPU group into the *Active Scene* group when switching.
+
     // --- Post Processing Stack (EffectComposer) ---
-    this.composer = new EffectComposer(this.renderer);
+    // 2026 Upgrade: Depth texture required for Bokeh
+    const renderTarget = new THREE.WebGLRenderTarget(
+      window.innerWidth * this.size.dpr,
+      window.innerHeight * this.size.dpr,
+      {
+        depthTexture: new THREE.DepthTexture(
+          window.innerWidth,
+          window.innerHeight
+        ),
+        depthBuffer: true,
+      }
+    );
+    this.composer = new EffectComposer(this.renderer, renderTarget);
 
     // 1. Render Pass: Renders the active 3D scene
     // Initialized with empty scene/camera; updated per-frame in tick()
     this.renderPass = new RenderPass(new THREE.Scene(), new THREE.Camera());
     this.composer.addPass(this.renderPass);
 
-    // 2. Unreal Bloom Pass: High-quality glow for neon cities
+    // 2. Bokeh Pass (Depth of Field) - Must be before Bloom/ToneMapping
+    this.bokehPass = new BokehPass(new THREE.Scene(), new THREE.Camera(), {
+      focus: 10.0,
+      aperture: 0.0001, // Start sharp
+      maxblur: 0.01,
+    });
+    // The Bokeh pass needs the scene/camera updated every frame like RenderPass
+    this.composer.addPass(this.bokehPass);
+
+    // 3. Unreal Bloom Pass: High-quality glow for neon cities
     const vecRes = new THREE.Vector2(window.innerWidth, window.innerHeight);
     this.bloomPass = new UnrealBloomPass(vecRes, 1.2, 0.4, 0.85);
     this.bloomPass.threshold = 0.85; // High threshold: Only very bright things glow
     this.bloomPass.strength = 0.6; // Moderate strength
     this.bloomPass.radius = 0.4;
     this.composer.addPass(this.bloomPass);
-    // 3. Final Composite Pass: Transitions, Glitch, Grain, Vignette, CA
+
+    // 4. Afterimage (Trails) for motion blur effect
+    this.afterimagePass = new AfterimagePass(0.0); // Start disabled (0 damp)
+    this.composer.addPass(this.afterimagePass);
+
+    // 5. Final Composite Pass: Transitions, Glitch, Grain, Vignette, CA
     const finalParams = {
       uniforms: {
         tDiffuse: { value: null },
@@ -304,11 +346,11 @@ export class SceneDirector {
     this.finalPass = new ShaderPass(new THREE.ShaderMaterial(finalParams));
     this.composer.addPass(this.finalPass);
 
-    // 4. Output Pass: Tone Mapping & Color Space Conversion
+    // 6. Output Pass: Tone Mapping & Color Space Conversion
     this.outputPass = new OutputPass();
     this.composer.addPass(this.outputPass);
 
-    // 5. FXAA: Antialiasing since default MSAA is off for offscreen buffers
+    // 7. FXAA: Antialiasing since default MSAA is off for offscreen buffers
     this.fxaaPass = new ShaderPass(FXAAShader);
     this.composer.addPass(this.fxaaPass);
 
@@ -327,6 +369,9 @@ export class SceneDirector {
     const initialId = this.root.dataset.towerScene || this.root.dataset.scene;
     this.activeScene =
       (initialId && this.sceneById.get(initialId)) || this.scenes[0];
+
+    // Inject GPGPU
+    this.activeScene.group.add(this.gpgpu.group);
 
     this.chapters = Array.from(
       this.root.querySelectorAll<HTMLElement>('[data-tower3d-chapter]')
@@ -618,8 +663,58 @@ export class SceneDirector {
     return this.activeScene.id;
   }
 
+  private updateParticleConfig(sceneId: string) {
+    // Map Scene ID to GPGPU Configuration
+    switch (sceneId) {
+      case 'scene00': // Magma
+        this.gpgpu.mode = ParticleMode.EXPLODE; // Embers
+        this.gpgpu.color.setHex(0xffaa00);
+        this.gpgpu.speed = 1.5;
+        break;
+      case 'scene01': // Liquid Metal
+        this.gpgpu.mode = ParticleMode.IDLE;
+        this.gpgpu.color.setHex(0xaaccff);
+        this.gpgpu.speed = 0.5;
+        break;
+      case 'scene02': // Fireflies
+        this.gpgpu.mode = ParticleMode.IDLE;
+        this.gpgpu.color.setHex(0xaaff00);
+        this.gpgpu.speed = 0.2;
+        break;
+      case 'scene07': // Matrix
+        this.gpgpu.mode = ParticleMode.RAIN;
+        this.gpgpu.color.setHex(0x00ff00);
+        this.gpgpu.speed = 2.0;
+        break;
+      case 'scene08': // Space
+        this.gpgpu.mode = ParticleMode.VORTEX;
+        this.gpgpu.color.setHex(0xaa88ff);
+        this.gpgpu.speed = 0.8;
+        break;
+      case 'scene09': // Crystal
+      case 'scene06': // Kaleido
+        this.gpgpu.mode = ParticleMode.IDLE;
+        this.gpgpu.color.setHex(0xffffff);
+        this.gpgpu.speed = 0.1;
+        break;
+      case 'scene13': // Biolum
+        this.gpgpu.mode = ParticleMode.IDLE;
+        this.gpgpu.color.setHex(0x0044ff);
+        this.gpgpu.speed = 0.4;
+        break;
+      default:
+        this.gpgpu.mode = ParticleMode.IDLE;
+        this.gpgpu.color.setHex(0x555555);
+        this.gpgpu.speed = 0.5;
+        break;
+    }
+  }
+
   public resize(): void {
     this.syncSize(true);
+    // Resize composer including depth buffers
+    this.composer.setSize(this.size.width, this.size.height);
+
     const runtime = this.buildRuntime(0, this.lastTime);
     this.scenes.forEach(scene => scene.resize(runtime));
   }
@@ -631,6 +726,23 @@ export class SceneDirector {
     if (!this.isVisible) return; // Pause rendering loop when hidden
 
     const now = performance.now() / 1000;
+
+    // Update Bokeh Uniforms to match active scene
+    if (this.bokehPass) {
+      // We have to feed the BokehPass the scene/camera manually because it stores them internally
+      // (unlike RenderPass which we update below but BokehPass might not read from RenderPass structure)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (this.bokehPass as any).scene = this.activeScene.group;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (this.bokehPass as any).camera = this.activeScene.camera;
+
+      // Update bokeh focus distance based on what we're looking at (usually center 0,0,0)
+      // Simple auto-focus: distance to origin
+      const dist = this.activeScene.camera.position.distanceTo(
+        new THREE.Vector3(0, 0, 0)
+      );
+      this.bokehPass.uniforms['focus'].value = dist;
+    }
     const realDt = Math.min(1 / 30, Math.max(1 / 240, now - this.lastTime));
     const dt = realDt * this.timeScale; // Apply time scaling
 
@@ -649,7 +761,16 @@ export class SceneDirector {
       this.root.dataset.towerScene = targetSceneId;
     }
     if (targetScene.id !== this.activeScene.id) {
+      // Remove GPGPU from old scene
+      this.activeScene.group.remove(this.gpgpu.group);
+
       this.activeScene = targetScene;
+
+      // Add GPGPU to new scene
+      this.activeScene.group.add(this.gpgpu.group);
+
+      this.updateParticleConfig(this.activeScene.id);
+
       this.cutFade = 1;
       // Cycle through different transition types for variety
       this.transitionType = (this.transitionType + 1) % 4;
@@ -718,6 +839,15 @@ export class SceneDirector {
     if (this.autoRotate) {
       this.activeScene.group.rotation.y += dt * 0.2;
     }
+
+    // Update GPGPU
+    // Transform pointer to world space approx for attractor
+    this.gpgpu.attractor.set(
+      (this.pointer.x - 0.5) * 20,
+      (this.pointer.y - 0.5) * -20,
+      0
+    );
+    this.gpgpu.update(this._simTime, dt);
 
     this.activeScene.update(runtime);
 
