@@ -2022,27 +2022,27 @@ class MoireInterferenceScene extends SceneBase {
 
         void main() {
             vec2 uv = vUv;
-            
+
             float scaleBase = 150.0;
-            
+
             // Layer 1
             float c1 = circle(uv, scaleBase, uTime * 5.0);
-            
+
             // Layer 2 - Offset
             vec2 off = vec2(sin(uTime * 0.7) * 0.02, cos(uTime * 0.5) * 0.02);
             // Expansion on press
-            float scale2 = scaleBase * (1.0 + uPress * 0.2); 
+            float scale2 = scaleBase * (1.0 + uPress * 0.2);
             float c2 = circle(uv - off, scale2, uTime * 5.5);
-            
+
             // Interference
             float i = abs(c1 - c2); // XOR pattern
-            
+
             // Colorize
             vec3 col = vec3(0.0);
             col += vec3(0.0, 1.0, 1.0) * c1 * 0.5;
             col += vec3(1.0, 0.0, 1.0) * c2 * 0.5;
             col += vec3(1.0, 1.0, 1.0) * i; // White interference ridges
-            
+
             // Vignette mask
             float d = length(uv - 0.5);
             float alpha = smoothstep(0.5, 0.3, d);
