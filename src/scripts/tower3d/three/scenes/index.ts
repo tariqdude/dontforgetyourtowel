@@ -19,6 +19,10 @@ export type SceneRuntime = {
   localProgress: number;
   pointer: THREE.Vector2;
   pointerVelocity: THREE.Vector2;
+  /** Instant interaction impulse (tap/click). Decays quickly. Range: 0..1 */
+  tap: number;
+  /** Normalized press/hold amount while pointer is down. Range: 0..1 */
+  press: number;
   scrollVelocity: number;
   sceneId: string;
   sceneIndex: number;
@@ -2065,6 +2069,7 @@ class EventHorizonScene extends SceneBase {
       uniforms: {
         uTime: { value: 0 },
         uProgress: { value: 0 },
+        uTap: { value: 0 },
         uResolution: { value: new THREE.Vector2(1, 1) },
         uPointer: { value: new THREE.Vector2(0.5, 0.5) },
         uGyro: { value: new THREE.Vector2() },
@@ -2081,6 +2086,7 @@ class EventHorizonScene extends SceneBase {
         varying vec2 vUv;
         uniform float uTime;
         uniform float uProgress;
+        uniform float uTap;
         uniform vec2 uResolution;
         uniform vec2 uPointer;
         uniform vec2 uGyro;
@@ -2158,9 +2164,11 @@ class EventHorizonScene extends SceneBase {
           vec2 p = (uv - 0.5) * vec2(aspect, 1.0);
           float t = uTime * 0.3;
 
+          float tap = clamp(uTap, 0.0, 1.0);
+
           // Black hole center with interaction
           vec2 bhPos = vec2(0.0) + (uPointer - 0.5) * 0.15 + uGyro * 0.1;
-          float bhMass = 0.8 + uProgress * 0.4;
+          float bhMass = 0.8 + uProgress * 0.4 + tap * 0.25;
 
           // Apply gravitational lensing
           vec2 lensed = gravLens(p, bhPos, bhMass);
@@ -2188,7 +2196,9 @@ class EventHorizonScene extends SceneBase {
           float ringDist = abs(distToBH - ringRadius);
           float einsteinRing = smoothstep(0.05, 0.01, ringDist);
           einsteinRing *= smoothstep(0.0, 0.1, distToBH); // fade at center
-          vec3 ringCol = vec3(1.0, 0.8, 0.5) * einsteinRing * 1.5;
+          // Slight spectral tint to feel more "real" + interactive overdrive
+          vec3 ringCol = mix(vec3(1.0, 0.75, 0.45), vec3(0.55, 0.85, 1.0), 0.25 + 0.25 * sin(t * 2.0 + ringRadius * 22.0));
+          ringCol *= einsteinRing * (1.5 + tap * 1.2);
           col += ringCol;
 
           // Accretion disk
@@ -2219,7 +2229,7 @@ class EventHorizonScene extends SceneBase {
           diskColor = mix(diskColor, diskCool, smoothstep(0.3, 0.5, diskRadius));
           diskColor *= 0.6 + doppler * 0.8; // Doppler beaming
 
-          col += diskColor * disk * (2.0 + uProgress);
+          col += diskColor * disk * (2.0 + uProgress + tap * 1.2);
 
           // Relativistic jets
           float jetAngle = abs(p.x - bhPos.x);
@@ -2230,7 +2240,7 @@ class EventHorizonScene extends SceneBase {
           jet *= 0.5 + jetPulse * 0.8;
 
           // Jet glow
-          vec3 jetCol = vec3(0.4, 0.6, 1.0) * jet * 1.5 * uProgress;
+          vec3 jetCol = vec3(0.35, 0.6, 1.0) * jet * (1.35 + tap * 1.0) * uProgress;
           col += jetCol;
 
           // Event horizon (pure black center)
@@ -2252,6 +2262,11 @@ class EventHorizonScene extends SceneBase {
           }
           col += vec3(0.8, 0.9, 1.0) * hawking * 0.6;
 
+          // Interaction shockwave (tap = brief energy pulse)
+          float swR = 0.16 + fract(uTime * 0.12) * 0.75;
+          float shock = exp(-abs(distToBH - swR) * 70.0) * tap;
+          col += vec3(0.55, 0.8, 1.0) * shock * 0.9;
+
           // Gravitational wave ripples (subtle)
           float wave = sin(distToBH * 40.0 - t * 6.0) * 0.5 + 0.5;
           wave *= smoothstep(0.5, 0.15, distToBH) * smoothstep(0.12, 0.2, distToBH);
@@ -2266,7 +2281,7 @@ class EventHorizonScene extends SceneBase {
           col *= 0.5 + 0.6 * vig;
 
           // Boost overall brightness
-          col *= 1.3;
+          col *= 1.3 + tap * 0.25;
 
           gl_FragColor = vec4(col, 1.0);
         }
@@ -2284,6 +2299,7 @@ class EventHorizonScene extends SceneBase {
     const gyroInfluence = gyroActive ? 0.5 : 0;
     this.material.uniforms.uTime.value = ctx.time;
     this.material.uniforms.uProgress.value = ctx.localProgress;
+    this.material.uniforms.uTap.value = ctx.tap;
     this.material.uniforms.uPointer.value.set(ctx.pointer.x, ctx.pointer.y);
     this.material.uniforms.uGyro.value.set(
       ctx.gyro.x * gyroInfluence,
@@ -3580,6 +3596,8 @@ class BioluminescentScene extends SceneBase {
   private planktonVelocities: Float32Array;
   private planktonCount = 3000;
   private causticPlane: THREE.Mesh;
+  private shafts: THREE.Mesh[] = [];
+  private burst = 0;
 
   constructor() {
     super('scene13');
@@ -3593,6 +3611,11 @@ class BioluminescentScene extends SceneBase {
     const ambient = new THREE.AmbientLight(0x001122, 0.2);
     this.scene.add(ambient);
 
+    // Soft overhead beam lighting (helps depth perception)
+    const top = new THREE.DirectionalLight(0x66ccff, 0.4);
+    top.position.set(0, 8, 6);
+    this.scene.add(top);
+
     // Create jellyfish
     for (let j = 0; j < 5; j++) {
       const jelly = this.createJellyfish();
@@ -3602,8 +3625,48 @@ class BioluminescentScene extends SceneBase {
         (Math.random() - 0.5) * 8 - 3
       );
       jelly.scale.setScalar(0.5 + Math.random() * 0.8);
+      jelly.userData.baseScale = jelly.scale.clone();
+      jelly.userData.basePosition = jelly.position.clone();
       this.jellyfish.push(jelly);
       this.scene.add(jelly);
+    }
+
+    // Volumetric-ish light shafts (cheap, additive)
+    for (let s = 0; s < 3; s++) {
+      const geo = new THREE.CylinderGeometry(0.2, 5.5, 18, 18, 1, true);
+      const mat = new THREE.ShaderMaterial({
+        uniforms: { uTime: { value: 0 }, uBurst: { value: 0 } },
+        vertexShader: `
+          varying vec3 vPos;
+          void main() {
+            vPos = position;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform float uTime;
+          uniform float uBurst;
+          varying vec3 vPos;
+          void main() {
+            float h = (vPos.y + 9.0) / 18.0;
+            float radial = 1.0 - smoothstep(0.0, 5.5, length(vPos.xz));
+            float flick = 0.55 + 0.45 * sin(uTime * 0.7 + vPos.x * 0.2 + vPos.z * 0.2);
+            float a = radial * (1.0 - h) * 0.08 * flick * (1.0 + uBurst * 1.3);
+            vec3 col = mix(vec3(0.05, 0.25, 0.35), vec3(0.25, 0.65, 0.85), h);
+            gl_FragColor = vec4(col, a);
+          }
+        `,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set((Math.random() - 0.5) * 10, 5, -6 + Math.random() * 6);
+      mesh.rotation.z = (Math.random() - 0.5) * 0.25;
+      mesh.rotation.x = (Math.random() - 0.5) * 0.15;
+      this.shafts.push(mesh);
+      this.scene.add(mesh);
     }
 
     // Create plankton cloud
@@ -3630,10 +3693,12 @@ class BioluminescentScene extends SceneBase {
       uniforms: {
         uTime: { value: 0 },
         uProgress: { value: 0 },
+        uBurst: { value: 0 },
       },
       vertexShader: `
         uniform float uTime;
         uniform float uProgress;
+        uniform float uBurst;
         varying float vGlow;
         varying float vDepth;
 
@@ -3644,7 +3709,7 @@ class BioluminescentScene extends SceneBase {
           // Organic pulsing glow
           float pulse = sin(uTime * 2.0 + position.x * 0.5 + position.y * 0.3) * 0.5 + 0.5;
           float flicker = sin(uTime * 8.0 + position.z * 2.0) * 0.3 + 0.7;
-          vGlow = pulse * flicker * (0.6 + uProgress * 0.6);
+          vGlow = pulse * flicker * (0.6 + uProgress * 0.6) * (1.0 + uBurst * 1.4);
 
           // Size varies with glow
           float size = 3.0 + vGlow * 4.0;
@@ -3655,6 +3720,7 @@ class BioluminescentScene extends SceneBase {
       `,
       fragmentShader: `
         uniform float uTime;
+        uniform float uBurst;
         varying float vGlow;
         varying float vDepth;
 
@@ -3675,7 +3741,7 @@ class BioluminescentScene extends SceneBase {
           float core = smoothstep(0.15, 0.0, dist);
           color += vec3(0.3, 0.2, 0.1) * core;
 
-          gl_FragColor = vec4(color * (0.8 + vGlow * 0.4), alpha * 0.85);
+          gl_FragColor = vec4(color * (0.8 + vGlow * 0.4) * (1.0 + uBurst * 0.35), alpha * (0.85 + uBurst * 0.1));
         }
       `,
       transparent: true,
@@ -3693,6 +3759,7 @@ class BioluminescentScene extends SceneBase {
       depthWrite: false,
       uniforms: {
         uTime: { value: 0 },
+        uBurst: { value: 0 },
       },
       vertexShader: `
         varying vec2 vUv;
@@ -3703,6 +3770,7 @@ class BioluminescentScene extends SceneBase {
       `,
       fragmentShader: `
         uniform float uTime;
+        uniform float uBurst;
         varying vec2 vUv;
 
         float caustic(vec2 uv, float t) {
@@ -3719,7 +3787,7 @@ class BioluminescentScene extends SceneBase {
         void main() {
           float c = caustic(vUv, uTime);
           vec3 color = vec3(0.1, 0.4, 0.5) * c;
-          gl_FragColor = vec4(color, c * 0.15);
+          gl_FragColor = vec4(color * (1.0 + uBurst * 0.35), c * (0.15 + uBurst * 0.08));
         }
       `,
     });
@@ -3813,17 +3881,27 @@ class BioluminescentScene extends SceneBase {
       1
     );
 
+    this.burst = Math.max(ctx.tap, damp(this.burst, 0, 3.0, ctx.dt));
+
     // Animate jellyfish
     this.jellyfish.forEach((jelly, i) => {
+      const baseScale =
+        (jelly.userData.baseScale as THREE.Vector3 | undefined) ??
+        new THREE.Vector3(0.8, 0.8, 0.8);
+      const basePos =
+        (jelly.userData.basePosition as THREE.Vector3 | undefined) ??
+        new THREE.Vector3();
+
       // Pulsing motion
       const pulse = Math.sin(t * 1.5 + i * 2) * 0.1 + 1;
-      jelly.scale.x = jelly.userData.baseScale?.x || 0.8;
-      jelly.scale.z = jelly.userData.baseScale?.z || 0.8;
-      jelly.scale.y = (jelly.userData.baseScale?.y || 0.8) * pulse;
+      jelly.scale.x = baseScale.x;
+      jelly.scale.z = baseScale.z;
+      jelly.scale.y = baseScale.y * pulse;
 
-      // Gentle drift
-      jelly.position.y += Math.sin(t * 0.5 + i) * 0.002;
-      jelly.position.x += Math.cos(t * 0.3 + i * 1.5) * 0.001;
+      // Gentle drift (stable around a base position)
+      jelly.position.x = basePos.x + Math.cos(t * 0.25 + i * 1.2) * 0.35;
+      jelly.position.y = basePos.y + Math.sin(t * 0.35 + i * 1.4) * 0.45;
+      jelly.position.z = basePos.z + Math.sin(t * 0.18 + i) * 0.25;
 
       // Tentacle animation
       jelly.children.forEach((child, ci) => {
@@ -3845,7 +3923,8 @@ class BioluminescentScene extends SceneBase {
         c => c instanceof THREE.PointLight
       ) as THREE.PointLight;
       if (glow) {
-        glow.intensity = 0.4 + Math.sin(t * 2 + i) * 0.2 + progress * 0.3;
+        glow.intensity =
+          0.35 + Math.sin(t * 2 + i) * 0.2 + progress * 0.3 + this.burst * 0.8;
       }
     });
 
@@ -3896,10 +3975,20 @@ class BioluminescentScene extends SceneBase {
     const planktonMat = this.plankton.material as THREE.ShaderMaterial;
     planktonMat.uniforms.uTime.value = t;
     planktonMat.uniforms.uProgress.value = progress;
+    planktonMat.uniforms.uBurst.value = this.burst;
 
     // Caustic animation
     const causticMat = this.causticPlane.material as THREE.ShaderMaterial;
     causticMat.uniforms.uTime.value = t;
+    causticMat.uniforms.uBurst.value = this.burst;
+
+    // Shafts
+    this.shafts.forEach((shaft, i) => {
+      shaft.rotation.y = t * 0.04 + i * 1.7;
+      const mat = shaft.material as THREE.ShaderMaterial;
+      mat.uniforms.uTime.value = t;
+      mat.uniforms.uBurst.value = this.burst;
+    });
 
     // Camera
     const cam = this.camera as THREE.PerspectiveCamera;
@@ -3920,15 +4009,37 @@ class BioluminescentScene extends SceneBase {
 // SCENE 14 - HOLOGRAPHIC DATA ARCHITECTURE
 // ============================================================================
 class HolographicCityScene extends SceneBase {
-  protected baseCameraZ = 15;
-  private buildings: THREE.Group;
+  protected baseCameraZ = 16;
+
+  private city: THREE.Group;
+  private buildings: THREE.InstancedMesh;
+  private windows: THREE.InstancedMesh;
+  private buildingCount = 144;
+  private windowCount = 0;
+
+  private buildingCenters: THREE.Vector3[] = [];
+  private buildingSizes: { w: number; h: number; d: number }[] = [];
+  private dummy = new THREE.Object3D();
+
+  private ground: THREE.Mesh;
+  private streetLines: THREE.LineSegments;
+
   private dataStreams: THREE.Points;
   private streamPositions: Float32Array;
   private streamVelocities: Float32Array;
-  private streamCount = 2000;
+  private streamCount = 2600;
+
+  private traffic: THREE.Points;
+  private trafficPositions: Float32Array;
+  private trafficSpeeds: Float32Array;
+  private trafficCount = 900;
+
   private codeRain: THREE.Points;
   private codePositions: Float32Array;
-  private gridLines: THREE.LineSegments;
+  private codeCount = 1400;
+
+  private overclock = 0;
+  private lookTarget = new THREE.Vector3(0, 1.5, -8);
 
   constructor() {
     super('scene14');
@@ -3938,69 +4049,235 @@ class HolographicCityScene extends SceneBase {
     const cam = this.camera as THREE.PerspectiveCamera;
     cam.position.set(0, 5, 15);
 
-    // Cyberpunk lighting
-    const ambient = new THREE.AmbientLight(0x112244, 0.3);
-    const neonPink = new THREE.PointLight(0xff0088, 2, 30);
-    neonPink.position.set(-10, 8, 5);
-    const neonCyan = new THREE.PointLight(0x00ffff, 2, 30);
-    neonCyan.position.set(10, 6, -5);
-    this.scene.add(ambient, neonPink, neonCyan);
+    // Cyberpunk lighting (more city-like: overhead haze + street neon)
+    const ambient = new THREE.AmbientLight(0x0b1a2a, 0.55);
+    const key = new THREE.DirectionalLight(0xaad0ff, 0.65);
+    key.position.set(10, 18, 10);
+    const neonPink = new THREE.PointLight(0xff1bb7, 2.0, 44, 2);
+    neonPink.position.set(-12, 8, -4);
+    const neonCyan = new THREE.PointLight(0x3dffff, 2.2, 44, 2);
+    neonCyan.position.set(12, 7, -14);
+    this.scene.add(ambient, key, neonPink, neonCyan);
 
-    this.buildings = new THREE.Group();
-    this.scene.add(this.buildings);
+    this.city = new THREE.Group();
+    this.scene.add(this.city);
 
-    // Create holographic buildings
-    const buildingCount = 25;
-    for (let b = 0; b < buildingCount; b++) {
-      const building = this.createBuilding();
-      const gridX = ((b % 5) - 2) * 6;
-      const gridZ = (Math.floor(b / 5) - 2) * 6 - 8;
-      building.position.set(
-        gridX + (Math.random() - 0.5) * 2,
-        0,
-        gridZ + (Math.random() - 0.5) * 2
-      );
-      this.buildings.add(building);
-    }
+    // Ground plane (gives the city a "surface")
+    const groundGeo = new THREE.PlaneGeometry(70, 70, 1, 1);
+    const groundMat = new THREE.MeshStandardMaterial({
+      color: 0x040810,
+      roughness: 0.95,
+      metalness: 0.05,
+      emissive: new THREE.Color(0x02060d),
+      emissiveIntensity: 0.6,
+    });
+    this.ground = new THREE.Mesh(groundGeo, groundMat);
+    this.ground.rotation.x = -Math.PI / 2;
+    this.ground.position.y = -3.05;
+    this.city.add(this.ground);
 
-    // Grid floor
-    const gridSize = 40;
-    const gridDivisions = 40;
+    // Street/grid lines (denser, with a stronger "avenue" emphasis)
+    const gridSize = 64;
+    const divisions = 64;
     const gridPoints: number[] = [];
-    for (let i = -gridDivisions / 2; i <= gridDivisions / 2; i++) {
-      const pos = (i / gridDivisions) * gridSize;
-      // Horizontal lines
+    for (let i = -divisions / 2; i <= divisions / 2; i++) {
+      const pos = (i / divisions) * gridSize;
       gridPoints.push(-gridSize / 2, -3, pos, gridSize / 2, -3, pos);
-      // Vertical lines
       gridPoints.push(pos, -3, -gridSize / 2, pos, -3, gridSize / 2);
     }
-    const gridGeo = new THREE.BufferGeometry();
-    gridGeo.setAttribute(
+    const streetGeo = new THREE.BufferGeometry();
+    streetGeo.setAttribute(
       'position',
       new THREE.Float32BufferAttribute(gridPoints, 3)
     );
-    const gridMat = new THREE.LineBasicMaterial({
-      color: 0x0066ff,
+    const streetMat = new THREE.LineBasicMaterial({
+      color: 0x0aa0ff,
       transparent: true,
-      opacity: 0.3,
+      opacity: 0.22,
     });
-    this.gridLines = new THREE.LineSegments(gridGeo, gridMat);
-    this.scene.add(this.gridLines);
+    this.streetLines = new THREE.LineSegments(streetGeo, streetMat);
+    this.city.add(this.streetLines);
 
-    // Data streams (particles moving between buildings)
+    // Buildings (instanced boxes) + windows (instanced emissive quads)
+    const bodyGeo = new THREE.BoxGeometry(1, 1, 1);
+    const bodyMat = new THREE.MeshStandardMaterial({
+      color: 0x071023,
+      roughness: 0.55,
+      metalness: 0.35,
+      emissive: new THREE.Color(0x061a2e),
+      emissiveIntensity: 0.35,
+    });
+    this.buildings = new THREE.InstancedMesh(
+      bodyGeo,
+      bodyMat,
+      this.buildingCount
+    );
+    this.buildings.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.city.add(this.buildings);
+
+    const windowGeo = new THREE.PlaneGeometry(0.12, 0.085);
+    const windowMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      vertexColors: true,
+    });
+
+    // Layout: a real "city" grid with an empty main avenue
+    const spanX = 12;
+    const spanZ = 12;
+    const stepX = 2.4;
+    const stepZ = 2.6;
+    const centerZ = -8;
+
+    // Precompute buildings, then create windows
+    this.buildingCenters = [];
+    this.buildingSizes = [];
+
+    let bi = 0;
+    for (let z = 0; z < spanZ && bi < this.buildingCount; z++) {
+      for (let x = 0; x < spanX && bi < this.buildingCount; x++) {
+        const gx = (x - (spanX - 1) / 2) * stepX;
+        const gz = (z - (spanZ - 1) / 2) * stepZ + centerZ;
+
+        // Main avenue gap + side streets
+        const avenue = Math.abs(gx) < 1.2;
+        const crossStreet = Math.abs(gz - centerZ) < 1.1;
+        const streetSkip = avenue || (crossStreet && Math.random() < 0.65);
+        if (streetSkip) continue;
+
+        const dist = Math.hypot(gx * 0.8, (gz - centerZ) * 0.6);
+        const downtown = Math.max(0, 1 - dist / 14);
+        const h = 2.2 + Math.random() * 6.0 + downtown * 10.0;
+        const w = 0.9 + Math.random() * 1.6;
+        const d = 0.9 + Math.random() * 1.6;
+
+        this.dummy.position.set(
+          gx + (Math.random() - 0.5) * 0.35,
+          -3 + h / 2,
+          gz + (Math.random() - 0.5) * 0.35
+        );
+        this.dummy.rotation.y = (Math.random() - 0.5) * 0.25;
+        this.dummy.scale.set(w, h, d);
+        this.dummy.updateMatrix();
+        this.buildings.setMatrixAt(bi, this.dummy.matrix);
+
+        this.buildingCenters.push(this.dummy.position.clone());
+        this.buildingSizes.push({ w, h, d });
+        bi++;
+      }
+    }
+
+    // If we skipped too many for streets, fill remaining with far silhouettes
+    while (bi < this.buildingCount) {
+      const gx = (Math.random() - 0.5) * 34;
+      const gz = centerZ + (Math.random() - 0.5) * 34;
+      const h = 2.0 + Math.random() * 14.0;
+      const w = 0.8 + Math.random() * 1.8;
+      const d = 0.8 + Math.random() * 1.8;
+      this.dummy.position.set(gx, -3 + h / 2, gz);
+      this.dummy.rotation.y = (Math.random() - 0.5) * 0.35;
+      this.dummy.scale.set(w, h, d);
+      this.dummy.updateMatrix();
+      this.buildings.setMatrixAt(bi, this.dummy.matrix);
+      this.buildingCenters.push(this.dummy.position.clone());
+      this.buildingSizes.push({ w, h, d });
+      bi++;
+    }
+    this.buildings.instanceMatrix.needsUpdate = true;
+
+    // Windows: cap instance count to stay mobile-friendly
+    const maxWindows = 6500;
+    const winColors = [
+      new THREE.Color(0x3dffff),
+      new THREE.Color(0xffa340),
+      new THREE.Color(0xff2bd6),
+      new THREE.Color(0xa6ff3d),
+    ];
+
+    // Rough estimate; we will stop at maxWindows
+    this.windows = new THREE.InstancedMesh(windowGeo, windowMat, maxWindows);
+    this.windows.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.windows.instanceColor = new THREE.InstancedBufferAttribute(
+      new Float32Array(maxWindows * 3),
+      3
+    );
+    this.city.add(this.windows);
+
+    let wi = 0;
+    for (let i = 0; i < this.buildingCenters.length && wi < maxWindows; i++) {
+      const center = this.buildingCenters[i];
+      const size = this.buildingSizes[i];
+      const floors = clamp(Math.floor(size.h / 0.55), 4, 18);
+      const cols = clamp(Math.floor((size.w + size.d) * 3.2), 3, 10);
+
+      // Four faces: +Z, -Z, +X, -X
+      const faces: Array<{
+        nx: number;
+        nz: number;
+        rotY: number;
+        span: number;
+      }> = [
+        { nx: 0, nz: 1, rotY: 0, span: size.w },
+        { nx: 0, nz: -1, rotY: Math.PI, span: size.w },
+        { nx: 1, nz: 0, rotY: -Math.PI / 2, span: size.d },
+        { nx: -1, nz: 0, rotY: Math.PI / 2, span: size.d },
+      ];
+
+      for (const face of faces) {
+        if (wi >= maxWindows) break;
+        // Not every building face gets heavy windows (depth + variation)
+        if (Math.random() < 0.15) continue;
+
+        for (let fy = 0; fy < floors && wi < maxWindows; fy++) {
+          const y = -3 + 0.35 + fy * (size.h / floors);
+          for (let cx = 0; cx < cols && wi < maxWindows; cx++) {
+            if (Math.random() < 0.35) continue; // sparsity
+            const frac = (cx + 0.5) / cols;
+            const offset = (frac - 0.5) * face.span * 0.85;
+
+            const px =
+              center.x +
+              face.nx * (size.w / 2 + 0.02) +
+              (face.nz !== 0 ? offset : 0);
+            const pz =
+              center.z +
+              face.nz * (size.d / 2 + 0.02) +
+              (face.nx !== 0 ? offset : 0);
+
+            this.dummy.position.set(px, y, pz);
+            this.dummy.rotation.set(0, face.rotY, 0);
+            this.dummy.scale.setScalar(0.85 + Math.random() * 0.35);
+            this.dummy.updateMatrix();
+            this.windows.setMatrixAt(wi, this.dummy.matrix);
+
+            const c = winColors[(i + fy + cx) % winColors.length];
+            this.windows.setColorAt(wi, c);
+            wi++;
+          }
+        }
+      }
+    }
+    this.windowCount = wi;
+    this.windows.count = this.windowCount;
+    this.windows.instanceMatrix.needsUpdate = true;
+    if (this.windows.instanceColor)
+      this.windows.instanceColor.needsUpdate = true;
+
+    // Data streams (rising packets around rooftops)
     this.streamPositions = new Float32Array(this.streamCount * 3);
     this.streamVelocities = new Float32Array(this.streamCount * 3);
     for (let i = 0; i < this.streamCount; i++) {
       const idx = i * 3;
-      this.streamPositions[idx] = (Math.random() - 0.5) * 30;
-      this.streamPositions[idx + 1] = Math.random() * 15;
-      this.streamPositions[idx + 2] = (Math.random() - 0.5) * 30 - 8;
-      // Random direction
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 0.05 + Math.random() * 0.1;
-      this.streamVelocities[idx] = Math.cos(angle) * speed;
-      this.streamVelocities[idx + 1] = (Math.random() - 0.5) * 0.02;
-      this.streamVelocities[idx + 2] = Math.sin(angle) * speed;
+      const b = this.buildingCenters[i % this.buildingCenters.length];
+      this.streamPositions[idx] = b.x + (Math.random() - 0.5) * 1.6;
+      this.streamPositions[idx + 1] = -2.8 + Math.random() * 14;
+      this.streamPositions[idx + 2] = b.z + (Math.random() - 0.5) * 1.6;
+      this.streamVelocities[idx] = (Math.random() - 0.5) * 0.02;
+      this.streamVelocities[idx + 1] = 0.08 + Math.random() * 0.18;
+      this.streamVelocities[idx + 2] = (Math.random() - 0.5) * 0.02;
     }
 
     const streamGeo = new THREE.BufferGeometry();
@@ -4014,10 +4291,12 @@ class HolographicCityScene extends SceneBase {
       uniforms: {
         uTime: { value: 0 },
         uProgress: { value: 0 },
+        uOverclock: { value: 0 },
       },
       vertexShader: `
         uniform float uTime;
         uniform float uProgress;
+        uniform float uOverclock;
         varying float vGlow;
         varying float vColorPhase;
 
@@ -4026,7 +4305,7 @@ class HolographicCityScene extends SceneBase {
 
           // Pulse based on height
           float heightPulse = sin(uTime * 3.0 + position.y * 2.0) * 0.5 + 0.5;
-          vGlow = heightPulse * (0.7 + uProgress * 0.5);
+          vGlow = heightPulse * (0.7 + uProgress * 0.5) * (1.0 + uOverclock * 0.9);
           vColorPhase = position.y * 0.1 + uTime * 0.5;
 
           float size = 5.0 + vGlow * 4.0;
@@ -4063,10 +4342,61 @@ class HolographicCityScene extends SceneBase {
     this.dataStreams = new THREE.Points(streamGeo, streamMat);
     this.scene.add(this.dataStreams);
 
-    // Code rain (Matrix-style)
-    const codeCount = 1500;
-    this.codePositions = new Float32Array(codeCount * 3);
-    for (let i = 0; i < codeCount; i++) {
+    // Traffic (tiny moving lights along the street plane)
+    this.trafficPositions = new Float32Array(this.trafficCount * 3);
+    this.trafficSpeeds = new Float32Array(this.trafficCount);
+    for (let i = 0; i < this.trafficCount; i++) {
+      const idx = i * 3;
+      const laneX = (Math.floor(Math.random() * 14) - 7) * 2.4;
+      const laneZ = (Math.floor(Math.random() * 14) - 7) * 2.6 + centerZ;
+      const alongX = Math.random() > 0.5;
+      this.trafficPositions[idx] = alongX ? -32 + Math.random() * 64 : laneX;
+      this.trafficPositions[idx + 1] = -2.98 + Math.random() * 0.12;
+      this.trafficPositions[idx + 2] = alongX
+        ? laneZ
+        : -32 + Math.random() * 64 + centerZ;
+      this.trafficSpeeds[i] = (alongX ? 1 : -1) * (0.18 + Math.random() * 0.28);
+    }
+
+    const trafficGeo = new THREE.BufferGeometry();
+    trafficGeo.setAttribute(
+      'position',
+      new THREE.BufferAttribute(this.trafficPositions, 3)
+    );
+    const trafficMat = new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 }, uOverclock: { value: 0 } },
+      vertexShader: `
+        uniform float uTime;
+        uniform float uOverclock;
+        varying float vGlow;
+        void main() {
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          float flicker = sin(uTime * 12.0 + position.x * 0.7 + position.z * 0.6) * 0.5 + 0.5;
+          vGlow = 0.55 + flicker * 0.55 + uOverclock * 0.6;
+          gl_PointSize = (2.0 + vGlow * 3.0) * (210.0 / -mv.z);
+          gl_Position = projectionMatrix * mv;
+        }
+      `,
+      fragmentShader: `
+        varying float vGlow;
+        void main() {
+          vec2 c = gl_PointCoord - 0.5;
+          float d = length(c);
+          float a = smoothstep(0.5, 0.1, d) * vGlow;
+          vec3 col = mix(vec3(0.2, 0.9, 1.0), vec3(1.0, 0.5, 0.2), vGlow * 0.35);
+          gl_FragColor = vec4(col, a * 0.8);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.traffic = new THREE.Points(trafficGeo, trafficMat);
+    this.scene.add(this.traffic);
+
+    // Code rain (Matrix-style) - slightly reduced to keep focus on the city
+    this.codePositions = new Float32Array(this.codeCount * 3);
+    for (let i = 0; i < this.codeCount; i++) {
       const idx = i * 3;
       this.codePositions[idx] = (Math.random() - 0.5) * 40;
       this.codePositions[idx + 1] = Math.random() * 20;
@@ -4129,59 +4459,6 @@ class HolographicCityScene extends SceneBase {
     this.scene.add(this.codeRain);
   }
 
-  private createBuilding(): THREE.Group {
-    const group = new THREE.Group();
-    const height = 3 + Math.random() * 10;
-    const width = 0.8 + Math.random() * 1.2;
-    const depth = 0.8 + Math.random() * 1.2;
-
-    // Wireframe structure
-    const buildGeo = new THREE.BoxGeometry(width, height, depth);
-    const edges = new THREE.EdgesGeometry(buildGeo);
-    const lineMat = new THREE.LineBasicMaterial({
-      color: 0x00aaff,
-      transparent: true,
-      opacity: 0.6,
-    });
-    const wireframe = new THREE.LineSegments(edges, lineMat);
-    wireframe.position.y = height / 2;
-    group.add(wireframe);
-
-    // Holographic panels
-    const panelMat = new THREE.MeshBasicMaterial({
-      color: 0x0044aa,
-      transparent: true,
-      opacity: 0.15,
-      side: THREE.DoubleSide,
-    });
-    const panelGeo = new THREE.PlaneGeometry(width * 0.8, height * 0.3);
-
-    // Front panel
-    const frontPanel = new THREE.Mesh(panelGeo, panelMat.clone());
-    frontPanel.position.set(0, height * 0.6, depth / 2 + 0.01);
-    group.add(frontPanel);
-
-    // Add some "window" lights
-    const windowCount = Math.floor(height / 1.5);
-    for (let w = 0; w < windowCount; w++) {
-      const windowGeo = new THREE.PlaneGeometry(0.15, 0.1);
-      const windowMat = new THREE.MeshBasicMaterial({
-        color: Math.random() > 0.5 ? 0xff8800 : 0x00ffff,
-        transparent: true,
-        opacity: 0.8,
-      });
-      const windowMesh = new THREE.Mesh(windowGeo, windowMat);
-      windowMesh.position.set(
-        (Math.random() - 0.5) * width * 0.6,
-        0.5 + w * 1.2,
-        depth / 2 + 0.02
-      );
-      group.add(windowMesh);
-    }
-
-    return group;
-  }
-
   update(ctx: SceneRuntime): void {
     const t = ctx.time;
     const progress = ctx.localProgress;
@@ -4191,29 +4468,31 @@ class HolographicCityScene extends SceneBase {
       1
     );
 
-    // Animate data streams
+    this.overclock = Math.max(ctx.tap, damp(this.overclock, 0, 3.5, ctx.dt));
+
+    // Animate data streams (rising packets)
     const streamAttr = this.dataStreams.geometry.getAttribute(
       'position'
     ) as THREE.BufferAttribute;
     for (let i = 0; i < this.streamCount; i++) {
       const idx = i * 3;
-      this.streamPositions[idx] += this.streamVelocities[idx] * (1 + impulse);
-      this.streamPositions[idx + 1] += this.streamVelocities[idx + 1];
+      this.streamPositions[idx] +=
+        this.streamVelocities[idx] * (1 + impulse * 0.5 + this.overclock * 1.2);
+      this.streamPositions[idx + 1] +=
+        this.streamVelocities[idx + 1] * (1 + this.overclock * 1.4);
       this.streamPositions[idx + 2] +=
-        this.streamVelocities[idx + 2] * (1 + impulse);
+        this.streamVelocities[idx + 2] *
+        (1 + impulse * 0.5 + this.overclock * 1.2);
 
-      // Wrap around
-      if (Math.abs(this.streamPositions[idx]) > 20) {
-        this.streamPositions[idx] *= -0.9;
-      }
-      if (
-        this.streamPositions[idx + 1] > 18 ||
-        this.streamPositions[idx + 1] < 0
-      ) {
-        this.streamVelocities[idx + 1] *= -1;
-      }
-      if (Math.abs(this.streamPositions[idx + 2] + 8) > 20) {
-        this.streamPositions[idx + 2] = (Math.random() - 0.5) * 30 - 8;
+      // Drift toward center avenue a bit (reads as "flow")
+      this.streamPositions[idx] *= 0.999;
+
+      // Wrap: respawn near random rooftop
+      if (this.streamPositions[idx + 1] > 16) {
+        const b = this.buildingCenters[i % this.buildingCenters.length];
+        this.streamPositions[idx] = b.x + (Math.random() - 0.5) * 1.6;
+        this.streamPositions[idx + 1] = -2.8 + Math.random() * 6;
+        this.streamPositions[idx + 2] = b.z + (Math.random() - 0.5) * 1.6;
       }
     }
     streamAttr.needsUpdate = true;
@@ -4222,14 +4501,33 @@ class HolographicCityScene extends SceneBase {
     const streamMat = this.dataStreams.material as THREE.ShaderMaterial;
     streamMat.uniforms.uTime.value = t;
     streamMat.uniforms.uProgress.value = progress;
+    streamMat.uniforms.uOverclock.value = this.overclock;
+
+    // Traffic motion
+    const trafficAttr = this.traffic.geometry.getAttribute(
+      'position'
+    ) as THREE.BufferAttribute;
+    for (let i = 0; i < this.trafficCount; i++) {
+      const idx = i * 3;
+      this.trafficPositions[idx] +=
+        this.trafficSpeeds[i] * ctx.dt * (1 + this.overclock * 2.2);
+      // Wrap across the city
+      if (this.trafficPositions[idx] > 34) this.trafficPositions[idx] = -34;
+      if (this.trafficPositions[idx] < -34) this.trafficPositions[idx] = 34;
+    }
+    trafficAttr.needsUpdate = true;
+    const trafficMat = this.traffic.material as THREE.ShaderMaterial;
+    trafficMat.uniforms.uTime.value = t;
+    trafficMat.uniforms.uOverclock.value = this.overclock;
 
     // Animate code rain (falling)
     const codeAttr = this.codeRain.geometry.getAttribute(
       'position'
     ) as THREE.BufferAttribute;
-    for (let i = 0; i < this.codePositions.length / 3; i++) {
+    for (let i = 0; i < this.codeCount; i++) {
       const idx = i * 3;
-      this.codePositions[idx + 1] -= 0.08 * (1 + progress * 0.5);
+      this.codePositions[idx + 1] -=
+        0.075 * (1 + progress * 0.5 + this.overclock * 0.8);
       if (this.codePositions[idx + 1] < -5) {
         this.codePositions[idx + 1] = 20;
         this.codePositions[idx] = (Math.random() - 0.5) * 40;
@@ -4242,33 +4540,36 @@ class HolographicCityScene extends SceneBase {
     codeMat.uniforms.uTime.value = t;
     codeMat.uniforms.uProgress.value = progress;
 
-    // Building wireframe pulse
-    this.buildings.children.forEach((building, i) => {
-      building.traverse(child => {
-        if (child instanceof THREE.LineSegments) {
-          const mat = child.material as THREE.LineBasicMaterial;
-          mat.opacity = 0.4 + Math.sin(t * 2 + i) * 0.2 + progress * 0.2;
-        }
-      });
-    });
+    // Streets pulse
+    const streetMat = this.streetLines.material as THREE.LineBasicMaterial;
+    streetMat.opacity =
+      0.18 +
+      Math.sin(t * 0.55) * 0.06 +
+      progress * 0.18 +
+      this.overclock * 0.12;
 
-    // Grid pulse
-    const gridMat = this.gridLines.material as THREE.LineBasicMaterial;
-    gridMat.opacity = 0.2 + Math.sin(t * 0.5) * 0.1 + progress * 0.2;
+    // Windows shimmer (update material opacity only)
+    const winMat = this.windows.material as THREE.MeshBasicMaterial;
+    winMat.opacity = 0.75 + this.overclock * 0.25;
 
     // Camera
     const cam = this.camera as THREE.PerspectiveCamera;
-    const targetZ = (this.baseCameraZ - progress * 8) * this.aspectMult;
-    const targetY = 4 + progress * 3;
-    cam.position.x = damp(cam.position.x, ctx.pointer.x * 4, 3, ctx.dt);
-    cam.position.y = damp(
-      cam.position.y,
-      targetY + ctx.pointer.y * 2,
-      3,
-      ctx.dt
-    );
-    cam.position.z = damp(cam.position.z, targetZ, 3, ctx.dt);
-    cam.lookAt(0, 2, -10);
+    const targetZ = (this.baseCameraZ - progress * 9) * this.aspectMult;
+    const targetY = 4.5 + progress * 3.5;
+    const orbit =
+      (ctx.pointer.x * 0.65 + (ctx.gyroActive ? ctx.gyro.x * 0.45 : 0)) *
+      (1 + this.overclock * 0.5);
+    const lift =
+      ctx.pointer.y * 0.55 + (ctx.gyroActive ? ctx.gyro.y * 0.35 : 0);
+
+    cam.position.x = damp(cam.position.x, orbit * 7.0, 2.6, ctx.dt);
+    cam.position.y = damp(cam.position.y, targetY + lift * 3.0, 2.6, ctx.dt);
+    cam.position.z = damp(cam.position.z, targetZ, 2.6, ctx.dt);
+
+    this.lookTarget.x = damp(this.lookTarget.x, orbit * 1.2, 2.0, ctx.dt);
+    this.lookTarget.y = damp(this.lookTarget.y, 1.6 + lift * 0.8, 2.0, ctx.dt);
+    this.lookTarget.z = damp(this.lookTarget.z, -8 - progress * 5, 2.0, ctx.dt);
+    cam.lookAt(this.lookTarget);
   }
 }
 
@@ -4283,6 +4584,7 @@ class RealityCollapseScene extends SceneBase {
   private particleRing: THREE.Points;
   private fragmentMeshes: THREE.Mesh[] = [];
   private fragmentBasePositions: THREE.Vector3[] = [];
+  private burst = 0;
 
   constructor() {
     super('scene15');
@@ -4307,8 +4609,8 @@ class RealityCollapseScene extends SceneBase {
       new THREE.TorusGeometry(0.4, 0.15, 8, 16), // Scene 01 - Relic
       new THREE.SphereGeometry(0.3, 8, 6), // Scene 02 - Fireflies
       new THREE.BoxGeometry(0.6, 0.8, 0.3), // Scene 03 - Typography
-      new THREE.CylinderGeometry(0.1, 0.4, 0.8, 6), // Scene 04 - Corridor
-      new THREE.OctahedronGeometry(0.45, 0), // Scene 05 - Crystal
+      new THREE.PlaneGeometry(0.7, 0.5), // Scene 04 - Aurora
+      new THREE.SphereGeometry(0.35, 10, 8), // Scene 05 - Event Horizon
       new THREE.BoxGeometry(0.5, 0.5, 0.5), // Scene 06 - Blueprint
       new THREE.SphereGeometry(0.35, 6, 4), // Scene 07 - Ink
       new THREE.PlaneGeometry(0.8, 0.6), // Scene 08 - Cloth
@@ -4317,7 +4619,7 @@ class RealityCollapseScene extends SceneBase {
       new THREE.IcosahedronGeometry(0.35, 0), // Scene 11 - Neural
       new THREE.BoxGeometry(0.4, 0.7, 0.4), // Scene 12 - Library
       new THREE.SphereGeometry(0.4, 12, 8), // Scene 13 - Bioluminescent
-      new THREE.ConeGeometry(0.3, 0.6, 4), // Scene 14 - Holographic
+      new THREE.BoxGeometry(0.45, 0.85, 0.45), // Scene 14 - Data City
     ];
 
     const fragmentColors = [
@@ -4325,8 +4627,8 @@ class RealityCollapseScene extends SceneBase {
       0xaaaaaa, // Metal gray
       0xffdd44, // Firefly gold
       0xffffff, // Typography white
-      0x8844ff, // Corridor purple
-      0x88ffff, // Crystal cyan
+      0x7affd6, // Aurora mint
+      0xff8844, // Event Horizon warm
       0x44aaff, // Blueprint blue
       0x222222, // Ink dark
       0xff6644, // Cloth warm
@@ -4335,7 +4637,7 @@ class RealityCollapseScene extends SceneBase {
       0x44ff88, // Neural green
       0xffaa44, // Library amber
       0x44ffaa, // Bio teal
-      0xff0088, // Holo magenta
+      0x00e5ff, // Data city cyan
     ];
 
     // Position fragments in a sphere around center
@@ -4496,8 +4798,12 @@ class RealityCollapseScene extends SceneBase {
   update(ctx: SceneRuntime): void {
     const t = ctx.time;
     const progress = ctx.localProgress;
+    this.burst = Math.max(ctx.tap, damp(this.burst, 0, 3.2, ctx.dt));
     const impulse = clamp(
-      Math.abs(ctx.scrollVelocity) * 1.5 + ctx.pointerVelocity.length() * 1.0,
+      Math.abs(ctx.scrollVelocity) * 1.5 +
+        ctx.pointerVelocity.length() * 1.0 +
+        this.burst * 1.1 +
+        ctx.press * 0.35,
       0,
       1
     );
@@ -4533,6 +4839,9 @@ class RealityCollapseScene extends SceneBase {
     this.fragmentMeshes.forEach((mesh, i) => {
       const base = this.fragmentBasePositions[i];
       const mat = mesh.material as THREE.MeshStandardMaterial;
+
+      const n = base.clone().normalize();
+      const shock = this.burst * (1.2 + 0.4 * Math.sin(t * 10 + i));
 
       // Rotation
       mesh.rotation.x += ctx.dt * (0.3 + i * 0.05);
@@ -4584,6 +4893,15 @@ class RealityCollapseScene extends SceneBase {
         mat.emissiveIntensity = 0;
       }
 
+      // Tap shockwave: a brief radial push and glitter boost
+      targetX += n.x * shock * 0.9;
+      targetY += n.y * shock * 0.6;
+      targetZ += n.z * shock * 0.9;
+      mat.emissiveIntensity = Math.min(
+        1.2,
+        mat.emissiveIntensity + this.burst * 0.35
+      );
+
       mesh.position.x = damp(mesh.position.x, targetX, 4, ctx.dt);
       mesh.position.y = damp(mesh.position.y, targetY, 4, ctx.dt);
       mesh.position.z = damp(mesh.position.z, targetZ, 4, ctx.dt);
@@ -4600,7 +4918,12 @@ class RealityCollapseScene extends SceneBase {
             ? 0.6 + stageProgress * 1.4
             : 2.0;
     this.centralOrb.scale.setScalar(
-      damp(this.centralOrb.scale.x, orbScale, 3, ctx.dt)
+      damp(
+        this.centralOrb.scale.x,
+        orbScale + this.burst * 0.5 + ctx.press * 0.25,
+        3,
+        ctx.dt
+      )
     );
     this.orbMaterial.uniforms.uTime.value = t;
     this.orbMaterial.uniforms.uProgress.value = progress;
@@ -4619,7 +4942,7 @@ class RealityCollapseScene extends SceneBase {
     ringMat.uniforms.uTime.value = t;
     ringMat.uniforms.uProgress.value = progress;
     ringMat.uniforms.uEnergy.value =
-      impulse + (stage === 4 ? stageProgress : 0);
+      impulse + (stage === 4 ? stageProgress : 0) + this.burst * 0.9;
 
     // Camera
     const cam = this.camera as THREE.PerspectiveCamera;
@@ -4639,7 +4962,9 @@ class RealityCollapseScene extends SceneBase {
       const white = stageProgress * 0.3;
       this.scene.background = new THREE.Color(white, white, white);
     } else {
-      this.scene.background = new THREE.Color(0x000000);
+      // Tiny interactive flash on tap to feel responsive
+      const flash = this.burst * 0.06;
+      this.scene.background = new THREE.Color(flash, flash * 0.6, flash * 1.2);
     }
   }
 }

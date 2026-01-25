@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import gsap from 'gsap';
 import type { TowerCaps } from '../core/caps';
 import { createScenes } from './scenes';
 import type { SceneRuntime, TowerScene } from './scenes';
@@ -40,6 +39,10 @@ export class SceneDirector {
   private pointerTarget = new THREE.Vector2();
   private pointerVelocity = new THREE.Vector2();
   private lastPointer = new THREE.Vector2();
+
+  private pointerDown = false;
+  private pressTime = 0;
+  private tap = 0;
 
   // Gyroscope support for mobile tilt parallax
   private gyro = new THREE.Vector3();
@@ -375,6 +378,8 @@ export class SceneDirector {
       localProgress: this.localProgress,
       pointer: this.pointer,
       pointerVelocity: this.pointerVelocity,
+      tap: this.tap,
+      press: clamp(this.pressTime * 2.0, 0, 1),
       scrollVelocity: this.scrollVelocity,
       sceneId: this.activeScene.id,
       sceneIndex: this.sceneIndex,
@@ -391,6 +396,27 @@ export class SceneDirector {
     window.addEventListener('pointermove', onPointerMove, { passive: true });
     this.cleanups.push(() =>
       window.removeEventListener('pointermove', onPointerMove)
+    );
+
+    const onPointerDown = (event: PointerEvent) => {
+      this.pointerDown = true;
+      this.tap = 1;
+      this.setPointerTarget(event.clientX, event.clientY);
+    };
+    const onPointerUp = () => {
+      this.pointerDown = false;
+    };
+    window.addEventListener('pointerdown', onPointerDown, { passive: true });
+    window.addEventListener('pointerup', onPointerUp, { passive: true });
+    window.addEventListener('pointercancel', onPointerUp, { passive: true });
+    this.cleanups.push(() =>
+      window.removeEventListener('pointerdown', onPointerDown)
+    );
+    this.cleanups.push(() =>
+      window.removeEventListener('pointerup', onPointerUp)
+    );
+    this.cleanups.push(() =>
+      window.removeEventListener('pointercancel', onPointerUp)
     );
 
     const onTouchMove = (event: TouchEvent) => {
@@ -623,6 +649,12 @@ export class SceneDirector {
       (this.pointer.y - this.lastPointer.y) / Math.max(0.001, dt)
     );
     this.lastPointer.copy(this.pointer);
+
+    // Tap/press interaction signals (works for mouse + touch)
+    this.tap = damp(this.tap, 0, 18, dt);
+    this.pressTime = this.pointerDown
+      ? Math.min(1, this.pressTime + dt)
+      : Math.max(0, this.pressTime - dt * 4);
 
     // Smooth gyroscope values
     this.gyro.x = damp(this.gyro.x, this.gyroTarget.x, 5, dt);
