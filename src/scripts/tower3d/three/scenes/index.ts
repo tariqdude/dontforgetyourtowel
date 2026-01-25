@@ -46,86 +46,96 @@ export interface SceneMeta {
 
 const sceneMeta: SceneMeta[] = [
   {
-    id: 'feedback-forge',
-    title: 'Feedback Forge',
+    id: 'scene00',
+    title: 'Origin Core',
     subtitle: 'Resonant Structures',
     index: 0,
   },
   {
-    id: 'strange-attractor',
-    title: 'Strange Attractors',
+    id: 'scene01',
+    title: 'Liquid-Metal Relic',
     subtitle: 'Chaotic Systems',
     index: 1,
   },
   {
-    id: 'ribbon-field',
-    title: 'Flow Fields',
+    id: 'scene02',
+    title: 'Million Fireflies',
     subtitle: 'Vector Calculus',
     index: 2,
   },
   {
-    id: 'gyroid-cavern',
-    title: 'Gyroid Cavern',
+    id: 'scene03',
+    title: 'Kinetic Typography',
     subtitle: 'Minimal Surfaces',
     index: 3,
   },
   {
-    id: 'magnetosphere',
-    title: 'Magnetosphere',
+    id: 'scene04',
+    title: 'Aurora Borealis',
     subtitle: 'Field Theory',
     index: 4,
   },
   {
-    id: 'event-horizon',
+    id: 'scene05',
     title: 'Event Horizon',
     subtitle: 'Singularity',
     index: 5,
   },
   {
-    id: 'kaleido-glass',
-    title: 'Kaleido Glass',
+    id: 'scene06',
+    title: 'Holographic Blueprint',
     subtitle: 'Refraction',
     index: 6,
   },
   {
-    id: 'typo-sculpt',
-    title: 'Data Sculpture',
+    id: 'scene07',
+    title: 'Volumetric Ink',
     subtitle: 'Information',
     index: 7,
   },
   {
-    id: 'orbit-mech',
-    title: 'Orbital Mechanics',
+    id: 'scene08',
+    title: 'Cloth & Light',
     subtitle: 'Gravity',
     index: 8,
   },
   {
-    id: 'voronoi',
-    title: 'Voronoi Shards',
+    id: 'scene09',
+    title: 'Sculpted Point Cloud',
     subtitle: 'Tessellation',
     index: 9,
   },
-  { id: 'moire', title: 'Moiré Patterns', subtitle: 'Interference', index: 10 },
   {
-    id: 'neural',
-    title: 'Neural Networks',
+    id: 'scene10',
+    title: 'Fractal Finale',
+    subtitle: 'Interference',
+    index: 10,
+  },
+  {
+    id: 'scene11',
+    title: 'Neural Constellation',
     subtitle: 'Deep Learning',
     index: 11,
   },
-  { id: 'library', title: 'The Library', subtitle: 'Knowledge', index: 12 },
   {
-    id: 'biolum',
-    title: 'Bioluminescence',
+    id: 'scene12',
+    title: 'Library of Babel',
+    subtitle: 'Knowledge',
+    index: 12,
+  },
+  {
+    id: 'scene13',
+    title: 'Bioluminescent Abyss',
     subtitle: 'Organic Light',
     index: 13,
   },
   {
-    id: 'hologram',
-    title: 'Holographic City',
+    id: 'scene14',
+    title: 'Holographic Data City',
     subtitle: 'Future State',
     index: 14,
   },
-  { id: 'collapse', title: 'Reality Collapse', subtitle: 'Entropy', index: 15 },
+  { id: 'scene15', title: 'Reality Collapse', subtitle: 'Entropy', index: 15 },
 ];
 
 // --- Math Helpers ---
@@ -224,7 +234,7 @@ class FeedbackForgeScene extends SceneBase {
 
   constructor() {
     super();
-    this.id = 'feedback-forge';
+    this.id = 'scene00';
     this.contentRadius = 5.0; // Keeps the forge visible
 
     // 1. Core Energy Source (Volumetric Shader look via layers)
@@ -456,7 +466,7 @@ class StrangeAttractorScene extends SceneBase {
 
   constructor() {
     super();
-    this.id = 'strange-attractor';
+    this.id = 'scene01';
     this.contentRadius = 6.0;
 
     // Aizawa Attractor parameters
@@ -613,7 +623,7 @@ class RibbonFieldScene extends SceneBase {
 
   constructor() {
     super();
-    this.id = 'ribbon-field';
+    this.id = 'scene02';
     this.contentRadius = 6.0;
 
     // A single strip geometry
@@ -779,7 +789,7 @@ class GyroidCavernScene extends SceneBase {
 
   constructor() {
     super();
-    this.id = 'gyroid-cavern';
+    this.id = 'scene03';
     this.contentRadius = 6;
 
     // A box that acts as the bounds for our raymarcher
@@ -936,7 +946,7 @@ class MagnetosphereScene extends SceneBase {
 
   constructor() {
     super();
-    this.id = 'magnetosphere';
+    this.id = 'scene04';
     this.contentRadius = 5.0;
 
     // 1. Magnetic Field Lines (Dipole)
@@ -1082,7 +1092,7 @@ class EventHorizonScene extends SceneBase {
 
   constructor() {
     super();
-    this.id = 'event-horizon';
+    this.id = 'scene05';
     this.contentRadius = 4.0;
 
     // Base Shader for Accretion Disk
@@ -1206,7 +1216,7 @@ class KaleidoGlassScene extends SceneBase {
 
   constructor() {
     super();
-    this.id = 'kaleido-glass';
+    this.id = 'scene06';
     this.contentRadius = 4.0;
     this.crystal = new THREE.Group();
     this.shards = [];
@@ -1306,7 +1316,7 @@ class TypographicSculptureScene extends SceneBase {
 
   constructor() {
     super();
-    this.id = 'typo-sculpt';
+    this.id = 'scene07';
     this.contentRadius = 6.0;
 
     // Generate texture with chars
@@ -1403,7 +1413,7 @@ class OrbitalMechanicsScene extends SceneBase {
 
   constructor() {
     super();
-    this.id = 'orbit-mech';
+    this.id = 'scene08';
     this.contentRadius = 8.0;
 
     // Planet
@@ -1482,7 +1492,7 @@ class VoronoiShardsScene extends SceneBase {
 
   constructor() {
     super();
-    this.id = 'voronoi';
+    this.id = 'scene09';
     this.contentRadius = 4.0;
 
     // Fake voronoi by scaling polyhedrons packed together
@@ -1563,7 +1573,7 @@ class MoireInterferenceScene extends SceneBase {
 
   constructor() {
     super();
-    this.id = 'moire';
+    this.id = 'scene10';
     this.contentRadius = 4.0;
 
     // Wireframe spheres
@@ -1624,7 +1634,7 @@ class NeuralNetworkScene extends SceneBase {
 
   constructor() {
     super();
-    this.id = 'neural';
+    this.id = 'scene11';
     this.contentRadius = 5.0;
 
     // Nodes
@@ -1730,7 +1740,7 @@ class LibraryScene extends SceneBase {
 
   constructor() {
     super();
-    this.id = 'library';
+    this.id = 'scene12';
     this.contentRadius = 6.0;
 
     const geo = new THREE.BoxGeometry(0.2, 1.0, 0.7);
@@ -1782,7 +1792,7 @@ class BioluminescentScene extends SceneBase {
 
   constructor() {
     super();
-    this.id = 'biolum';
+    this.id = 'scene13';
     this.contentRadius = 4.0;
 
     const geo = new THREE.BufferGeometry();
@@ -1866,7 +1876,7 @@ class HolographicCityScene extends SceneBase {
 
   constructor() {
     super();
-    this.id = 'hologram';
+    this.id = 'scene14';
     this.contentRadius = 6.0;
     this.city = new THREE.Group();
 
@@ -1925,7 +1935,7 @@ class RealityCollapseScene extends SceneBase {
 
   constructor() {
     super();
-    this.id = 'collapse';
+    this.id = 'scene15';
     this.contentRadius = 3.0;
 
     const geo = new THREE.IcosahedronGeometry(2, 4);
