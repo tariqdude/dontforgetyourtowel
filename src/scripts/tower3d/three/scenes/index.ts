@@ -259,7 +259,7 @@ class FeedbackForgeScene extends SceneBase {
         }
 
         void main() {
-          vN = normal;
+          vN = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
           // Turbulent displacement
           float t = uTime * 1.5;
           vec3 n1 = hash(position * 2.0 + t);
@@ -267,9 +267,12 @@ class FeedbackForgeScene extends SceneBase {
 
           float displacement = (n1.x + n2.y * 0.5) * (0.2 + uPulse * 0.5); // More displacement on pulse
           vec3 pos = position + normal * displacement;
-          vP = pos;
+          
+          vec4 worldPos = modelMatrix * vec4(pos, 1.0);
+          vP = worldPos.xyz;
           vDisp = displacement;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+          
+          gl_Position = projectionMatrix * viewMatrix * worldPos;
         }
       `,
       fragmentShader: `
@@ -479,8 +482,8 @@ class LiquidMetalScene extends SceneBase {
 
     this.material = new THREE.MeshStandardMaterial({
       color: 0xaaaaaa,
-      metalness: 1.0,
-      roughness: 0.05,
+      metalness: 0.6,
+      roughness: 0.2,
       envMapIntensity: 1.5,
     });
 
@@ -1595,13 +1598,15 @@ class MatrixRainScene extends SceneBase {
 
             vec3 pos = mix(posA, posB, morph);
 
-            // Billboarding
-            vec3 look = normalize(cameraPosition - pos);
-            vec3 right = cross(vec3(0.0, 1.0, 0.0), look);
-            vec3 up = vec3(0.0, 1.0, 0.0);
-            pos += (position.x * right + position.y * up) * (1.0 - morph * 0.5); // Shrink slightly in ball mode
+            // Billboarding (View Space)
+            vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+            
+            // Apply scale/offset in View Space (always faces camera)
+            // 'position' is the quad vertex offset (-0.2 to 0.2)
+            float scale = 1.0 - morph * 0.5;
+            mvPosition.xy += position.xy * scale;
 
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+            gl_Position = projectionMatrix * mvPosition;
 
             // Alpha fade top/bottom for rain, solid for ball
             float rainAlpha = smoothstep(7.5, 5.0, abs(y));
@@ -2888,10 +2893,11 @@ class ElectricStormScene extends SceneBase {
       transparent: true,
       depthWrite: false, // Don't block
       vertexShader: `
-        varying vec3 vPos;
+        varying vec3 vWorldPos;
         void main() {
-            vPos = position;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+            vWorldPos = worldPosition.xyz;
+            gl_Position = projectionMatrix * viewMatrix * worldPosition;
         }
       `,
       fragmentShader: `
@@ -2899,7 +2905,8 @@ class ElectricStormScene extends SceneBase {
         uniform float uPress;
         uniform vec3 uCameraPos;
         uniform vec3 uPointer;
-        varying vec3 vPos;
+        uniform vec2 uResolution;
+        varying vec3 vWorldPos;
 
         // --- Fast Noise 3D ---
         // A simple hash function
@@ -2949,7 +2956,7 @@ class ElectricStormScene extends SceneBase {
         }
 
         void main() {
-             vec3 rayDir = normalize(vPos - uCameraPos);
+             vec3 rayDir = normalize(vWorldPos - uCameraPos);
              vec3 rayPos = uCameraPos;
 
              // Raymarch loop
@@ -2960,10 +2967,14 @@ class ElectricStormScene extends SceneBase {
              float totDensity = 0.0;
              vec3 totLight = vec3(0.0);
 
+             // Offset start to box entry? 
+             // Ideally we intersect box first, but for now we just march from camera 
+             // since camera is 'inside' the volume zone (baseDistance=15, box=30)
+             
              // Dynamic step size
              float stepSize = 0.5;
 
-             for(int i=0; i<40; i++) {
+             for(int i=0; i<60; i++) {
                  vec3 p = rayPos + rayDir * dist;
 
                  // Density
@@ -2990,7 +3001,7 @@ class ElectricStormScene extends SceneBase {
 
                  dist += stepSize;
 
-                 if(alpha >= 0.95 || dist > 40.0) break;
+                 if(alpha >= 0.95 || dist > 50.0) break;
              }
 
              // Foggy background blend
@@ -3008,6 +3019,16 @@ class ElectricStormScene extends SceneBase {
 
   init(ctx: SceneRuntime) {
     if (this.bg) this.bg = new THREE.Color(0x05070f);
+  }
+
+  resize(ctx: SceneRuntime) {
+    const mat = this.cloud.material as THREE.ShaderMaterial;
+    if (mat.uniforms.uResolution) {
+      mat.uniforms.uResolution.value.set(
+        ctx.size.width * ctx.size.dpr,
+        ctx.size.height * ctx.size.dpr
+      );
+    }
   }
 
   update(ctx: SceneRuntime) {
