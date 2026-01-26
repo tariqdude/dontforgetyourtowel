@@ -702,6 +702,11 @@ export class SceneDirector {
         this.gpgpu.color.setHex(0x0044ff);
         this.gpgpu.speed = 0.4;
         break;
+      case 'scene16': // Electric Storm
+        this.gpgpu.mode = ParticleMode.VORTEX;
+        this.gpgpu.color.setHex(0x00ffff);
+        this.gpgpu.speed = 3.0;
+        break;
       default:
         this.gpgpu.mode = ParticleMode.IDLE;
         this.gpgpu.color.setHex(0x555555);

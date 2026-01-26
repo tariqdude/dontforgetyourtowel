@@ -3,10 +3,10 @@ import { GPUComputationRenderer } from 'three/examples/jsm/misc/GPUComputationRe
 
 /*
   Unified GPGPU Particle System
-  
+
   This system creates a "Universal Particle Field" that can transform into different behaviors
   depending on the active scene, without needing to rewrite simulation logic for every scene.
-  
+
   Modes:
   0: IDLE (Slow floating dust)
   1: RAIN (Falling directional)
@@ -143,7 +143,7 @@ export class GlobalParticleSystem {
 
             vec4 mvPosition = modelViewMatrix * vec4( pos, 1.0 );
             gl_Position = projectionMatrix * mvPosition;
-            
+
             // Size attenuation
             gl_PointSize = uSize * ( 30.0 / -mvPosition.z );
             // Stretch based on speed (fake motion blur)
@@ -158,7 +158,7 @@ export class GlobalParticleSystem {
             vec2 c = gl_PointCoord - 0.5;
             float dist = length(c);
             if(dist > 0.5) discard;
-            
+
             float alpha = smoothstep(0.5, 0.0, dist);
             // Brighten when moving fast
             vec3 col = uColor + vec3(vSpeed * 0.5);
@@ -222,7 +222,7 @@ export class GlobalParticleSystem {
       vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
       vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
       vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
-      float snoise(vec3 v) { 
+      float snoise(vec3 v) {
         const vec2  C = vec2(1.0/6.0, 1.0/3.0) ;
         const vec4  D = vec4(0.0, 0.5, 1.0, 2.0);
         vec3 i  = floor(v + dot(v, C.yyy) );
@@ -234,10 +234,10 @@ export class GlobalParticleSystem {
         vec3 x1 = x0 - i1 + C.xxx;
         vec3 x2 = x0 - i2 + C.yyy;
         vec3 x3 = x0 - D.yyy;
-        i = mod289(i); 
-        vec4 p = permute( permute( permute( 
+        i = mod289(i);
+        vec4 p = permute( permute( permute(
                    i.z + vec4(0.0, i1.z, i2.z, 1.0 ))
-                 + i.y + vec4(0.0, i1.y, i2.y, 1.0 )) 
+                 + i.y + vec4(0.0, i1.y, i2.y, 1.0 ))
                  + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
         float n_ = 0.142857142857;
         vec3  ns = n_ * D.wyz - D.xzx;
@@ -265,7 +265,7 @@ export class GlobalParticleSystem {
         p3 *= norm.w;
         vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
         m = m * m;
-        return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1), 
+        return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1),
                                       dot(p2,x2), dot(p3,x3) ) );
       }
       vec3 curlNoise( vec3 p ){
@@ -289,17 +289,17 @@ export class GlobalParticleSystem {
         vec3 vel = texture2D( textureVelocity, uv ).xyz;
 
         float dt = 0.016 * uSpeed; // assume 60fps
-        
+
         // --- BEHAVIORS --- //
-        
+
         vec3 acc = vec3(0.0);
-        
-        if (uMode < 0.5) { 
+
+        if (uMode < 0.5) {
            // 0: IDLE (Drift with Curl Noise)
            vec3 noise = curlNoise(pos * 0.2 + uTime * 0.1);
            acc += noise * 0.5;
            vel *= 0.98; // Friction
-        } 
+        }
         else if (uMode < 1.5) {
            // 1: RAIN (Gravity)
            acc += vec3(0.0, -9.8, 0.0) * 0.5;
@@ -339,27 +339,27 @@ export class GlobalParticleSystem {
         vec3 pos = texture2D( texturePosition, uv ).xyz;
         vec3 vel = texture2D( textureVelocity, uv ).xyz;
 
-        float dt = 0.016; 
+        float dt = 0.016;
         pos += vel * dt;
 
         // BOUNDS CHECK / RESPAWN
         float limit = 15.0;
-        
-        if (uMode < 1.5 && uMode > 0.5) { 
+
+        if (uMode < 1.5 && uMode > 0.5) {
             // Rain respawn (top)
             if (pos.y < -10.0) {
                pos.y = 10.0 + fract(pos.x * 123.0) * 5.0;
                pos.x = (fract(pos.z * 123.0) - 0.5) * 20.0;
                pos.z = (fract(pos.y * 123.0) - 0.5) * 20.0;
             }
-        } 
+        }
         else {
            // Box respawn
             if (abs(pos.x) > limit || abs(pos.y) > limit || abs(pos.z) > limit) {
                 // Wrap around or reset to center? Wrap around looks better
                 if (pos.x > limit) pos.x -= limit*2.0;
                 else if (pos.x < -limit) pos.x += limit*2.0;
-                
+
                 if (pos.y > limit) pos.y -= limit*2.0;
                 else if (pos.y < -limit) pos.y += limit*2.0;
 

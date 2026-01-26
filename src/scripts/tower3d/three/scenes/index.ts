@@ -234,17 +234,19 @@ class FeedbackForgeScene extends SceneBase {
     this.contentRadius = 5.0; // Keeps the forge visible
 
     // 1. Core Energy Source (Volumetric Shader look via layers)
-    const coreGeo = new THREE.IcosahedronGeometry(1.5, 30); // Higher poly for smooth noise
+    const coreGeo = new THREE.IcosahedronGeometry(1.5, 60); // Higher poly for smooth noise
     const coreMat = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
         uColorA: { value: new THREE.Color('#ff2a00') },
         uColorB: { value: new THREE.Color('#ffaa00') },
         uPulse: { value: 0 },
+        uNoiseScale: { value: 2.0 },
       },
       vertexShader: `
         varying vec3 vN;
         varying vec3 vP;
+        varying float vDisp;
         uniform float uTime;
         uniform float uPulse;
 
@@ -263,92 +265,40 @@ class FeedbackForgeScene extends SceneBase {
           vec3 n1 = hash(position * 2.0 + t);
           vec3 n2 = hash(position * 4.0 - t * 0.5);
 
-          float displacement = (n1.x + n2.y * 0.5) * (0.2 + uPulse * 0.4);
+          float displacement = (n1.x + n2.y * 0.5) * (0.2 + uPulse * 0.5); // More displacement on pulse
           vec3 pos = position + normal * displacement;
           vP = pos;
+          vDisp = displacement;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
         }
       `,
       fragmentShader: `
         varying vec3 vN;
         varying vec3 vP;
+        varying float vDisp;
         uniform float uTime;
         uniform vec3 uColorA;
         uniform vec3 uColorB;
         uniform float uPulse;
 
-        // Simplex noise function for better lava texture
-        vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
-        float snoise(vec3 v){
-          const vec2  C = vec2(1.0/6.0, 1.0/3.0) ;
-          const vec4  D = vec4(0.0, 0.5, 1.0, 2.0);
-          vec3 i  = floor(v + dot(v, C.yyy) );
-          vec3 x0 = v - i + dot(i, C.xxx) ;
-          vec3 g = step(x0.yzx, x0.xyz);
-          vec3 l = 1.0 - g;
-          vec3 i1 = min( g.xyz, l.zxy );
-          vec3 i2 = max( g.xyz, l.zxy );
-          vec3 x1 = x0 - i1 + C.xxx;
-          vec3 x2 = x0 - i2 + C.yyy;
-          vec3 x3 = x0 - D.yyy;
-          i = mod(i, 289.0);
-          vec4 p = permute( permute( permute(
-                     i.z + vec4(0.0, i1.z, i2.z, 1.0 ))
-                   + i.y + vec4(0.0, i1.y, i2.y, 1.0 ))
-                   + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
-          float n_ = 0.142857142857;
-          vec3  ns = n_ * D.wyz - D.xzx;
-          vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
-          vec4 x_ = floor(j * ns.z);
-          vec4 y_ = floor(j - 7.0 * x_ );
-          vec4 x = x_ *ns.x + ns.yyyy;
-          vec4 y = y_ *ns.x + ns.yyyy;
-          vec4 h = 1.0 - abs(x) - abs(y);
-          vec4 b0 = vec4( x.xy, y.xy );
-          vec4 b1 = vec4( x.zw, y.zw );
-          vec4 s0 = floor(b0)*2.0 + 1.0;
-          vec4 s1 = floor(b1)*2.0 + 1.0;
-          vec4 sh = -step(h, vec4(0.0));
-          vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy ;
-          vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww ;
-          vec3 p0 = vec3(a0.xy,h.x);
-          vec3 p1 = vec3(a0.zw,h.y);
-          vec3 p2 = vec3(a1.xy,h.z);
-          vec3 p3 = vec3(a1.zw,h.w);
-          vec4 norm = inversesqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
-          p0 *= norm.x;
-          p1 *= norm.y;
-          p2 *= norm.z;
-          p3 *= norm.w;
-          vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
-          m = m * m;
-          return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1),
-                                        dot(p2,x2), dot(p3,x3) ) );
-        }
-
         void main() {
           vec3 viewDir = normalize(cameraPosition - vP);
-          float fresnel = pow(1.0 - dot(vN, viewDir), 2.0);
+          float fresnel = pow(1.0 - dot(vN, viewDir), 3.0);
 
-          // Lava math
-          float noiseVal = snoise(vP * 2.0 + uTime * 0.5);
-          float heat = smoothstep(0.2, 0.8, noiseVal);
+          // Heat map based on displacement
+          float heat = smoothstep(-0.2, 0.3, vDisp);
 
-          // Dark crust
-          vec3 crustColor = vec3(0.05, 0.02, 0.02);
+          // Magma gradient
+          vec3 col = mix(uColorA, uColorB, heat);
 
-          // Glowing magma
-          vec3 magmaColor = mix(uColorA, uColorB, heat);
-          magmaColor *= 2.0; // Overdrive for bloom
+          // Add "superheated" white spots
+          col += vec3(1.0, 1.0, 0.8) * smoothstep(0.25, 0.3, vDisp) * (1.0 + uPulse * 2.0);
 
-          // Mix based on heat threshold
-          vec3 col = mix(crustColor, magmaColor, heat);
+          // Dark crust where cool
+          col = mix(vec3(0.05, 0.0, 0.0), col, smoothstep(-0.3, 0.0, vDisp));
 
-          // Add pulse
-          col += vec3(1.0, 0.8, 0.2) * uPulse * heat * 5.0;
-
-          // Rim light on crust
-          col += vec3(0.2, 0.1, 0.1) * fresnel * (1.0-heat);
+          // Fresnel rim
+          col += uColorB * fresnel * 0.5;
 
           gl_FragColor = vec4(col, 1.0);
         }
@@ -357,38 +307,47 @@ class FeedbackForgeScene extends SceneBase {
     this.core = new THREE.Mesh(coreGeo, coreMat);
     this.group.add(this.core);
 
-    // 2. Orbital Rings (Industrial)
+    // 2. Orbital Rings (Industrial + Sci-Fi)
     const ringMat = new THREE.MeshStandardMaterial({
       color: 0x111111,
       metalness: 0.9,
       roughness: 0.2,
       emissive: 0xff4400,
       emissiveIntensity: 0.2,
+      flatShading: true,
     });
 
     // Add point light for the rings to catch
     const light = new THREE.PointLight(0xff6600, 5, 20);
     this.group.add(light);
 
-    for (let i = 0; i < 4; i++) {
-      const r = 2.8 + i * 1.5;
-      // Hexagonal rings for more sci-fi look
-      const geo = new THREE.TorusGeometry(r, 0.08 + i * 0.02, 6, 100);
+    // Add blue counter-light
+    const light2 = new THREE.PointLight(0x0044ff, 3, 20);
+    light2.position.set(5, 5, 5);
+    this.group.add(light2);
+
+    for (let i = 0; i < 6; i++) {
+      const r = 3.0 + i * 1.2;
+      // Hexagonal / Octagonal rings
+      const segments = 6 + (i % 2) * 2;
+      const thick = 0.05 + i * 0.02;
+      const geo = new THREE.TorusGeometry(r, thick, 4, segments * 4);
       const mesh = new THREE.Mesh(geo, ringMat.clone());
       mesh.userData = {
-        axis: new THREE.Vector3(
+        baseAxis: new THREE.Vector3(
           Math.random() - 0.5,
           Math.random() - 0.5,
           Math.random() - 0.5
         ).normalize(),
-        speed: (0.1 + Math.random() * 0.4) * (i % 2 == 0 ? 1 : -1),
+        speed: (0.2 + Math.random() * 0.3) * (i % 2 == 0 ? 1 : -1),
+        index: i,
       };
       this.rings.push(mesh);
       this.group.add(mesh);
     }
 
     // 3. Sparks / Embers
-    const pCount = 1200;
+    const pCount = 2000;
     const pGeo = new THREE.BufferGeometry();
     const pPos = new Float32Array(pCount * 3);
     this.particleData = new Float32Array(pCount * 4); // x,y,z, speed
@@ -396,7 +355,7 @@ class FeedbackForgeScene extends SceneBase {
     for (let i = 0; i < pCount; i++) {
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      const r = 2.0 + Math.random() * 6.0;
+      const r = 2.5 + Math.random() * 8.0;
       pPos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
       pPos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
       pPos[i * 3 + 2] = r * Math.cos(phi);
@@ -410,11 +369,12 @@ class FeedbackForgeScene extends SceneBase {
 
     const pMat = new THREE.PointsMaterial({
       color: 0xffaa00,
-      size: 0.12,
+      size: 0.15,
       transparent: true,
-      opacity: 0.6,
+      opacity: 0.8,
       blending: THREE.AdditiveBlending,
-      map: this.createSparkTexture(), // Create procedural texture
+      map: this.createSparkTexture(),
+      depthWrite: false,
     });
     this.particles = new THREE.Points(pGeo, pMat);
     this.group.add(this.particles);
@@ -428,7 +388,8 @@ class FeedbackForgeScene extends SceneBase {
     const ctx = cvs.getContext('2d')!;
     const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
     grad.addColorStop(0, 'rgba(255,255,255,1)');
-    grad.addColorStop(0.4, 'rgba(255,200,100,0.5)');
+    grad.addColorStop(0.2, 'rgba(255,220,150,0.8)');
+    grad.addColorStop(0.5, 'rgba(255,100,50,0.4)');
     grad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 32, 32);
@@ -442,63 +403,62 @@ class FeedbackForgeScene extends SceneBase {
     const t = ctx.time;
 
     // Core Pulse
-    (this.core.material as THREE.ShaderMaterial).uniforms.uTime.value = t;
-    (this.core.material as THREE.ShaderMaterial).uniforms.uPulse.value =
-      ctx.press;
+    const mat = this.core.material as THREE.ShaderMaterial;
+    mat.uniforms.uTime.value = t;
+    // Expontential pulse for impact
+    mat.uniforms.uPulse.value = Math.pow(ctx.press, 2.0);
 
     // Rings
     this.rings.forEach((r, i) => {
       const u = r.userData;
-      // Add gyro tilt to ring axis
-      const axis = u.axis
-        .clone()
-        .applyAxisAngle(new THREE.Vector3(1, 0, 0), ctx.gyro.x)
-        .normalize();
-      r.rotateOnAxis(axis, u.speed * ctx.dt * (1 + ctx.press * 4));
+      // Normal behavior: Random axis rotation
+      // Press behavior: Align rings to a sphere formation or specific axis
 
-      (r.material as THREE.MeshPhysicalMaterial).emissiveIntensity =
-        0.5 + Math.sin(t * 3 + i) * 0.3 + ctx.press * 2;
+      let axis = u.baseAxis.clone();
+
+      // Add Gyro/Mouse influence to axis
+      const tilt = new THREE.Vector3(
+        ctx.gyro.x + ctx.pointer.y,
+        ctx.gyro.y + ctx.pointer.x,
+        0
+      ).multiplyScalar(0.5);
+      axis.add(tilt).normalize();
+
+      // Overdrive speed on press
+      const currentSpeed = u.speed * (1.0 + ctx.press * 8.0);
+
+      r.rotateOnAxis(axis, currentSpeed * ctx.dt);
+
+      // Emissive Pulse
+      const ringMat = r.material as THREE.MeshStandardMaterial;
+      ringMat.emissiveIntensity =
+        0.2 + Math.sin(t * 2.0 + i) * 0.1 + ctx.press * 3.0;
+
+      // Color shift on press
+      if (ctx.press > 0.5) {
+        ringMat.emissive.setHSL(0.05 + 0.1 * ctx.press, 1.0, 0.5);
+      } else {
+        ringMat.emissive.setHex(0xff4400);
+      }
     });
 
-    // Particle orbit
+    // Particle orbit field
     const pos = this.particles.geometry.attributes.position
       .array as Float32Array;
-    for (
-      let i = 0;
-      i < this.particles.geometry.attributes.position.count;
-      i++
-    ) {
-      const idx = i * 3;
-      const speed = this.particleData[i * 4 + 3];
-      // Vortex motion
-      const x = pos[idx];
-      const z = pos[idx + 2];
-      const angle = speed * ctx.dt * (1 + ctx.press);
+    const count = this.particles.geometry.attributes.position.count;
 
-      pos[idx] = x * Math.cos(angle) - z * Math.sin(angle);
-      pos[idx + 2] = x * Math.sin(angle) + z * Math.cos(angle);
-
-      // Rise
-      pos[idx + 1] += speed * ctx.dt;
-      if (pos[idx + 1] > 6) pos[idx + 1] = -6;
-    }
-    this.particles.geometry.attributes.position.needsUpdate = true;
+    // Rotate entire particle system slowly
+    this.particles.rotation.y = t * 0.05;
+    this.particles.rotation.z = Math.sin(t * 0.1) * 0.1;
 
     // Camera Orbit
-    const mx = ctx.pointer.x * 0.5 + ctx.gyro.y * 0.5;
-    const my = ctx.pointer.y * 0.5 + ctx.gyro.x * 0.5;
+    // Interactive looking
+    const mx = ctx.pointer.x * 2.0;
+    const my = ctx.pointer.y * 2.0;
 
-    this.camera.position.x = damp(this.camera.position.x, mx * 3, 4, ctx.dt);
-    this.camera.position.y = damp(this.camera.position.y, my * 3, 4, ctx.dt);
-    this.camera.position.z = damp(
-      this.camera.position.z,
-      this.baseDistance,
-      4,
-      ctx.dt
-    );
+    this.camera.position.x = damp(this.camera.position.x, mx * 5, 2, ctx.dt);
+    this.camera.position.y = damp(this.camera.position.y, my * 5, 2, ctx.dt);
     this.camera.lookAt(0, 0, 0);
-
-    this.group.rotation.y = t * 0.05;
   }
 }
 
@@ -513,25 +473,26 @@ class LiquidMetalScene extends SceneBase {
     this.id = 'scene01';
     this.contentRadius = 5.0;
 
-    // High fidelity geometry
-    const geo = new THREE.IcosahedronGeometry(2.5, 30); // High poly for smooth noise
+    // High fidelity geometry with localized density if possible
+    // (but standard is uniform)
+    const geo = new THREE.IcosahedronGeometry(2.5, 60);
 
     this.material = new THREE.MeshStandardMaterial({
-      color: 0x888888,
+      color: 0xaaaaaa,
       metalness: 1.0,
-      roughness: 0.1,
-      envMapIntensity: 1.0,
-      flatShading: false,
+      roughness: 0.05,
+      envMapIntensity: 1.5,
     });
 
-    // Custom Shader Injection for Vertex Displacement
+    // Custom Shader Injection
     this.material.onBeforeCompile = shader => {
       shader.uniforms.uTime = { value: 0 };
+      shader.uniforms.uPointer = { value: new THREE.Vector3() };
+      shader.uniforms.uPress = { value: 0 };
 
-      shader.vertexShader = `
-        uniform float uTime;
-
-        // Simplex Noise
+      // Helper functions
+      const noiseFuncs = `
+        // Simplex Noise (Ashima Arts)
         vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
         float snoise(vec3 v){
           const vec2  C = vec2(1.0/6.0, 1.0/3.0) ;
@@ -579,7 +540,13 @@ class LiquidMetalScene extends SceneBase {
           return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1),
                                         dot(p2,x2), dot(p3,x3) ) );
         }
+      `;
 
+      shader.vertexShader = `
+        uniform float uTime;
+        uniform vec3 uPointer;
+        uniform float uPress;
+        ${noiseFuncs}
         ${shader.vertexShader}
       `;
 
@@ -589,38 +556,60 @@ class LiquidMetalScene extends SceneBase {
           #include <begin_vertex>
 
           float time = uTime * 0.5;
-          float noise = snoise(position * 0.8 + time);
 
-          // Displace along normal
-          // Sharp peaks for liquid tension look
-          float displacement = noise * 1.5;
+          // Organic motion
+          float n = snoise(position * 0.8 + time);
+          float n2 = snoise(position * 1.5 - time * 0.5);
+          float combined = (n + n2 * 0.5) * 0.8;
+
+          // Interactive Spike
+          // Since scene rotates, we need world pos or counter-rotated pointer
+          // Here we just use raw distance in local space assuming pointer is passed in local space
+          float d = distance(position, uPointer);
+          float pull = smoothstep(1.5, 0.0, d);
+
+          // Spike direction is normal, but sharpened
+          float spike = pull * (1.0 + uPress * 3.0) * 1.5;
+
+          // Add high frequency ripple on spike
+          float ripple = sin(d * 10.0 - uTime * 5.0) * 0.1 * pull;
+
+          float displacement = combined + spike + ripple;
 
           transformed += normal * displacement;
         `
       );
 
-      // Recalculate normal for correct lighting (approximate)
-      // For high quality we need derivatives but flat shading or standard lighting might hide it
-      // Let's rely on high poly count and built-in varyings
+      // Update Fragment to be aware of interaction for color/roughness
+      // Note: MeshStandardMaterial fragment structure is complex.
+      // We'll rely on geometry changes affecting lighting (Standard material auto-computes lighting on displaced normals if using tangents, but here it uses default normals unless we recompute)
+      // Recomputing normals in vertex shader for lighting:
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <defaultnormal_vertex>',
+        `
+          #include <defaultnormal_vertex>
+          // Perturb normal based on noise derivative approximation
+          float ep = 0.01;
+          vec3 pOriginal = position;
+          // (Simplified analytic or finite difference normal update would go here
+          //  but for "Liquid Metal" smooth shading often looks fine even with mismatched normals
+          //  as it looks like refraction/internal reflection)
+          `
+      );
 
-      // Keep reference to uniforms updating
       this.material.userData.shader = shader;
     };
 
     this.mesh = new THREE.Mesh(geo, this.material);
     this.group.add(this.mesh);
 
-    // Dynamic Lights to make the metal shine
-    const light1 = new THREE.PointLight(0xff0044, 5, 20);
-    light1.position.set(5, 5, 5);
-    this.group.add(light1);
+    // Dynamic Lights
+    const light1 = new THREE.PointLight(0xff0044, 4, 30);
+    const light2 = new THREE.PointLight(0x0044ff, 4, 30);
+    const light3 = new THREE.PointLight(0xffffff, 2, 30); // Specular highlight
 
-    const light2 = new THREE.PointLight(0x0044ff, 5, 20);
-    light2.position.set(-5, -5, 5);
-    this.group.add(light2);
-
-    // Animate lights to create moving reflections
-    this.mesh.userData.lights = [light1, light2];
+    this.mesh.userData.lights = [light1, light2, light3];
+    this.group.add(light1, light2, light3);
   }
 
   init(_ctx: SceneRuntime) {}
@@ -628,26 +617,52 @@ class LiquidMetalScene extends SceneBase {
   update(ctx: SceneRuntime) {
     if (this.material.userData.shader) {
       this.material.userData.shader.uniforms.uTime.value = ctx.time;
+      this.material.userData.shader.uniforms.uPress.value = ctx.press;
+
+      // Map pointer to sphere surface approx
+      // The mesh rotates, so we need to construct a target point in local space
+      // Or just move a "attractor" in world space and pass that to shader.
+      // But shader uses 'position' which is local.
+
+      // Let's project pointer to 3D plane at z=0 then unrotate
+      let vec = new THREE.Vector3(ctx.pointer.x * 5, ctx.pointer.y * 5, 2.0);
+
+      // Counter-rotate against the group rotation to stay with mouse visually
+      vec.applyAxisAngle(new THREE.Vector3(0, 1, 0), -ctx.time * 0.1);
+
+      this.material.userData.shader.uniforms.uPointer.value.copy(vec);
     }
 
-    // Rotate lights
-    const l1 = this.mesh.userData.lights[0];
-    const l2 = this.mesh.userData.lights[1];
+    // Rotate lights nicely
+    const [l1, l2, l3] = this.mesh.userData.lights;
 
-    l1.position.x = Math.sin(ctx.time) * 6;
-    l1.position.z = Math.cos(ctx.time) * 6;
+    l1.position.set(
+      Math.sin(ctx.time * 0.7) * 8,
+      Math.cos(ctx.time * 0.5) * 8,
+      8
+    );
 
-    l2.position.x = Math.sin(ctx.time + 2) * 6;
-    l2.position.y = Math.cos(ctx.time * 0.5) * 6;
+    l2.position.set(
+      Math.sin(ctx.time * 0.5 + 2) * 8,
+      Math.cos(ctx.time * 0.3 + 1) * -8,
+      8
+    );
+
+    l3.position.set(0, 0, 10 + ctx.press * 5); // Flash on press
 
     this.group.rotation.y = ctx.time * 0.1;
+
+    // Closer camera for detail
     this.camera.position.z = damp(
       this.camera.position.z,
-      this.baseDistance,
+      this.baseDistance * 0.9,
       3,
       ctx.dt
     );
-    this.camera.lookAt(0, 0, 0);
+
+    // Tilt camera with gyro
+    this.camera.rotation.x = ctx.gyro.x * 0.1;
+    this.camera.rotation.y = ctx.gyro.y * 0.1;
   }
 }
 
@@ -1464,7 +1479,7 @@ class KaleidoGlassScene extends SceneBase {
 
 class MatrixRainScene extends SceneBase {
   private mesh: THREE.InstancedMesh;
-  private count = 2000;
+  private count = 3000; // Increased density
   private dummy = new THREE.Object3D();
 
   constructor() {
@@ -1472,32 +1487,32 @@ class MatrixRainScene extends SceneBase {
     this.id = 'scene07';
     this.contentRadius = 8.0;
 
-    // 1. Procedural Matrix Texture
-    const size = 512;
+    // 1. Procedural Matrix Texture (Higher Res)
+    const size = 1024;
     const cvs = document.createElement('canvas');
     cvs.width = size;
     cvs.height = size;
     const ctx = cvs.getContext('2d')!;
 
-    // Black Bg
+    // Transparent Black Bg
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, size, size);
 
     // Draw grid of characters
-    const cols = 16;
-    const rows = 16;
+    const cols = 32; // More chars
+    const rows = 32;
     const cell = size / cols;
-    ctx.font = `bold ${cell * 0.8}px monospace`;
+    ctx.font = `bold ${cell * 0.9}px monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    const chars = 'XYZ010101<>?#@&DATA';
+    // Katakana / Matrix chars
+    const chars = 'XYZ010101<>?#@&DATAﾊﾐﾋｰｳｼﾅﾓﾆｻﾜﾂｵﾘｱﾎﾃﾏｹﾒｴｶｷﾑﾕﾗｾﾈｽﾀﾇﾍ';
 
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < cols; x++) {
-        // Varying green colors
-        const hue = 120 + Math.random() * 20; // Matrix Green
-        const lit = 40 + Math.random() * 60;
+        const hue = 120 + Math.random() * 40; // Matrix Green to Cyan
+        const lit = 50 + Math.random() * 50;
         ctx.fillStyle = `hsl(${hue}, 100%, ${lit}%)`;
         const char = chars[Math.floor(Math.random() * chars.length)];
         ctx.fillText(char, x * cell + cell / 2, y * cell + cell / 2);
@@ -1505,11 +1520,11 @@ class MatrixRainScene extends SceneBase {
     }
 
     const tex = new THREE.CanvasTexture(cvs);
-    tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.NearestFilter;
+    tex.magFilter = THREE.LinearFilter; // Smoother
+    tex.minFilter = THREE.LinearFilter;
 
     // 2. Geometry
-    const geo = new THREE.PlaneGeometry(0.5, 0.5);
+    const geo = new THREE.PlaneGeometry(0.4, 0.4);
 
     // 3. Shader Material for Rain Effect
     const mat = new THREE.ShaderMaterial({
@@ -1517,6 +1532,7 @@ class MatrixRainScene extends SceneBase {
         uTime: { value: 0 },
         uMap: { value: tex },
         uPress: { value: 0 },
+        uPointer: { value: new THREE.Vector2(0, 0) },
       },
       vertexShader: `
         attribute float aOffset;
@@ -1529,47 +1545,82 @@ class MatrixRainScene extends SceneBase {
 
         uniform float uTime;
         uniform float uPress;
+        uniform vec2 uPointer;
+
+        // Rotation matrix helper
+        mat3 rotateY(float theta) {
+            float c = cos(theta);
+            float s = sin(theta);
+            return mat3(
+                c, 0, s,
+                0, 1, 0,
+                -s, 0, c
+            );
+        }
 
         void main() {
-            // Select random character from 16x16 grid based on time
-            float t = uTime * 5.0 + aOffset * 10.0;
-            float charIdx = floor(mod(t, 256.0));
+            // -- UV Animation --
+            // Select random character grid
+            float t = uTime * aSpeed * 3.0 + aOffset * 100.0;
+            float charIdx = floor(mod(t, 1024.0)); // 32x32 = 1024
 
-            float cx = mod(charIdx, 16.0);
-            float cy = floor(charIdx / 16.0);
+            float cx = mod(charIdx, 32.0);
+            float cy = floor(charIdx / 32.0);
+            vUv = (uv + vec2(cx, cy)) / 32.0;
 
-            vUv = (uv + vec2(cx, cy)) / 16.0;
+            // -- 1. Rain State (Cylinder Waterfall) --
+            float fall = uTime * aSpeed * 3.0;
+            float y = 15.0 - mod(fall + aOffset * 30.0, 30.0);
+            y -= 7.5; // -7.5 to 7.5
 
-            // Waterfall motion
-            float fall = uTime * aSpeed * 2.0;
-            float y = 10.0 - mod(fall + aOffset * 20.0, 20.0);
-            y -= 5.0; // range -5 to 5
-
-            // Vortex twist
-            float angle = aOffset * 6.28 + y * 0.5 * (1.0 + uPress * 2.0);
+            float angle = aOffset * 6.28;
             float r = aRadius;
+            vec3 posA = vec3(cos(angle)*r, y, sin(angle)*r);
 
-            // Expand on press
-            r += smoothstep(0.0, 1.0, uPress) * 5.0 * sin(y * 2.0);
+            // -- 2. Entity State (Sphere Artifact) --
+            // Map index to sphere coords
+            float phi = aOffset * 3.14159 * 2.0;
+            float theta = acos(2.0 * fract(aSpeed * 13.0) - 1.0);
+            float rad = 3.5;
+            vec3 posB = vec3(
+                rad * sin(theta) * cos(phi),
+                rad * sin(theta) * sin(phi),
+                rad * cos(theta)
+            );
+            // Rotate the data ball
+            posB = rotateY(uTime * 2.0) * posB;
 
-            vec3 pos = vec3(cos(angle)*r, y, sin(angle)*r);
+            // -- Interaction Mix --
+            // uPress drives the morph
+            float morph = smoothstep(0.0, 1.0, uPress);
 
-            // Billboarding - face center
-            vec3 center = vec3(0.0, y, 0.0);
-            vec3 look = normalize(center - pos);
+            // Interaction: Mouse Repulsion on Rain
+            // Project pointer (screen) to world approx
+            vec3 repelTarget = vec3(uPointer.x * 10.0, uPointer.y * 10.0, 0.0);
+            vec3 dir = posA - repelTarget; // Repel only affects rain state usually
+            float dist = length(dir);
+            vec3 repelForce = normalize(dir) * smoothstep(5.0, 0.0, dist) * 3.0 * (1.0 - morph);
+
+            posA += repelForce;
+
+            vec3 pos = mix(posA, posB, morph);
+
+            // Billboarding
+            vec3 look = normalize(cameraPosition - pos);
             vec3 right = cross(vec3(0.0, 1.0, 0.0), look);
             vec3 up = vec3(0.0, 1.0, 0.0);
-
-            vec3 localPos = position.x * right + position.y * up;
-            pos += localPos;
+            pos += (position.x * right + position.y * up) * (1.0 - morph * 0.5); // Shrink slightly in ball mode
 
             gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
 
-            // Fade top/bottom
-            vAlpha = smoothstep(5.0, 3.0, abs(y));
+            // Alpha fade top/bottom for rain, solid for ball
+            float rainAlpha = smoothstep(7.5, 5.0, abs(y));
+            vAlpha = mix(rainAlpha, 1.0, morph);
 
             // Glitch flash
-            vGlow = step(0.95, fract(t * 0.1)) * 2.0;
+            vGlow = step(0.98, fract(t * 0.05)) * 2.0;
+            // Matrix glow on press
+            vGlow += morph * 0.5;
         }
       `,
       fragmentShader: `
@@ -1580,9 +1631,14 @@ class MatrixRainScene extends SceneBase {
 
         void main() {
             vec4 c = texture2D(uMap, vUv);
-            if (c.r < 0.1 && c.g < 0.1 && c.b < 0.1) discard;
+            if (c.g < 0.2) discard; // Green channel key
+
             vec3 color = c.rgb;
-            color += vec3(1.0) * vGlow;
+            color *= vec3(0.2, 1.0, 0.5); // Ensure matrix green tint
+
+            // Add glow bloom
+            color += vec3(0.5, 1.0, 0.8) * vGlow;
+
             gl_FragColor = vec4(color, vAlpha);
         }
       `,
@@ -1601,7 +1657,7 @@ class MatrixRainScene extends SceneBase {
     for (let i = 0; i < this.count; i++) {
       offsets[i] = Math.random();
       speeds[i] = 1.0 + Math.random();
-      radii[i] = 2.0 + Math.random() * 6.0;
+      radii[i] = 3.0 + Math.random() * 8.0;
 
       this.dummy.position.set(0, 0, 0);
       this.dummy.updateMatrix();
@@ -1630,16 +1686,17 @@ class MatrixRainScene extends SceneBase {
     const t = ctx.time;
     const press = ctx.press;
 
-    // Vortex Math
-    // Since everything is in shader, we just need to update light rotation or camera ?
-    // Actually the shader does the motion 'fall = uTime...'.
+    const mat = this.mesh.material as THREE.ShaderMaterial;
+    mat.uniforms.uTime.value = t;
+    // Smooth press transition
+    mat.uniforms.uPress.value = press;
+    mat.uniforms.uPointer.value.copy(ctx.pointer);
 
-    // We update uniforms
-    (this.mesh.material as THREE.ShaderMaterial).uniforms.uTime.value = t;
-    (this.mesh.material as THREE.ShaderMaterial).uniforms.uPress.value = press;
+    this.group.rotation.x = ctx.pointer.y * 0.1;
+    this.group.rotation.z = ctx.pointer.x * 0.1;
 
-    this.group.rotation.x = ctx.pointer.y * 0.2;
-    this.group.rotation.z = ctx.pointer.x * 0.2;
+    // Twist the whole group slightly
+    this.group.rotation.y = t * 0.1;
 
     this.camera.position.z = damp(
       this.camera.position.z,
@@ -2775,6 +2832,193 @@ class RealityCollapseScene extends SceneBase {
   }
 }
 
+// --- Scene 16: Electric Storm (Volumetric) ---
+
+class ElectricStormScene extends SceneBase {
+  private cloud: THREE.Mesh;
+
+  constructor() {
+    super();
+    this.id = 'scene16';
+    this.contentRadius = 10.0;
+    this.baseDistance = 15.0; // Inside the volume
+
+    // Huge box content
+    const geo = new THREE.BoxGeometry(30, 30, 30);
+    // Invert normal so we see inside
+    geo.scale(-1, 1, 1);
+
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uPress: { value: 0 },
+        uResolution: {
+          value: new THREE.Vector2(window.innerWidth, window.innerHeight),
+        },
+        uCameraPos: { value: new THREE.Vector3() },
+        uPointer: { value: new THREE.Vector3() },
+      },
+      side: THREE.BackSide, // Render inside
+      transparent: true,
+      depthWrite: false, // Don't block
+      vertexShader: `
+        varying vec3 vPos;
+        void main() {
+            vPos = position;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        uniform float uPress;
+        uniform vec3 uCameraPos;
+        uniform vec3 uPointer;
+        varying vec3 vPos;
+
+        // --- Fast Noise 3D ---
+        // A simple hash function
+        float hash(float n) { return fract(sin(n) * 43758.5453); }
+        float noise(vec3 x) {
+            vec3 p = floor(x);
+            vec3 f = fract(x);
+            f = f * f * (3.0 - 2.0 * f);
+            float n = p.x + p.y * 57.0 + 113.0 * p.z;
+            return mix(mix(mix(hash(n + 0.0), hash(n + 1.0), f.x),
+                           mix(hash(n + 57.0), hash(n + 58.0), f.x), f.y),
+                       mix(mix(hash(n + 113.0), hash(n + 114.0), f.x),
+                           mix(hash(n + 170.0), hash(n + 171.0), f.x), f.y), f.z);
+        }
+
+        // FBM
+        float map(vec3 p) {
+            float f = 0.0;
+            // Move noise with time
+            vec3 mv = vec3(uTime * 0.2, uTime * 0.1, uTime * 0.05);
+            // Distort with pointer
+            float d = length(p - uPointer);
+            float push = smoothstep(10.0, 0.0, d) * uPress * 5.0;
+
+            p += mv;
+
+            // 3 octaves
+            f += 0.500 * noise(p); p = p * 2.02;
+            f += 0.250 * noise(p); p = p * 2.03;
+            f += 0.125 * noise(p);
+
+            // Density Threshold
+            // Make center emptier for visibility
+            return smoothstep(0.3 + push * 0.1, 0.8, f);
+        }
+
+        // Lightning Function
+        float lightning(vec3 p) {
+            // Jittery lines
+            float t = uTime * 20.0;
+            float r = noise(p * 0.5 + vec3(0, t, 0));
+            // Thin threshold
+            float bolt = 1.0 - smoothstep(0.02, 0.03, abs(r - 0.5));
+            // Flicker
+            bolt *= step(0.8, fract(t * 0.2));
+            return bolt;
+        }
+
+        void main() {
+             vec3 rayDir = normalize(vPos - uCameraPos);
+             vec3 rayPos = uCameraPos;
+
+             // Raymarch loop
+             vec3 col = vec3(0.0);
+             float alpha = 0.0;
+             float dist = 0.0;
+
+             float totDensity = 0.0;
+             vec3 totLight = vec3(0.0);
+
+             // Dynamic step size
+             float stepSize = 0.5;
+
+             for(int i=0; i<40; i++) {
+                 vec3 p = rayPos + rayDir * dist;
+
+                 // Density
+                 float dens = map(p * 0.15); // Scale noise space
+
+                 if(dens > 0.01) {
+                     // Accumulate density
+                     float a = dens * 0.4;
+                     totDensity += a * (1.0 - totDensity);
+
+                     // Lighting (internal)
+                     // Base ambient
+                     vec3 light = vec3(0.1, 0.2, 0.3) * dens;
+
+                     // Electric Flash
+                     float bolt = lightning(p * 1.5);
+                     vec3 elec = vec3(0.4, 0.8, 1.0) + vec3(0.2, 0.0, 1.0) * uPress;
+                     light += elec * bolt * 5.0 * dens;
+
+                     // Accumulate light
+                     totLight += light * (1.0 - alpha);
+                     alpha += a;
+                 }
+
+                 dist += stepSize;
+
+                 if(alpha >= 0.95 || dist > 40.0) break;
+             }
+
+             // Foggy background blend
+             vec3 bg = vec3(0.02, 0.02, 0.05);
+             col = totLight + bg * (1.0 - alpha);
+
+             gl_FragColor = vec4(col, 1.0);
+        }
+      `,
+    });
+
+    this.cloud = new THREE.Mesh(geo, mat);
+    this.group.add(this.cloud);
+  }
+
+  init(ctx: SceneRuntime) {
+    if (this.bg) this.bg = new THREE.Color(0x05070f);
+  }
+
+  update(ctx: SceneRuntime) {
+    const mat = this.cloud.material as THREE.ShaderMaterial;
+    mat.uniforms.uTime.value = ctx.time;
+    mat.uniforms.uPress.value = ctx.press;
+
+    // Convert camera position to shader local space if needed,
+    // but here we just pass world pos relative to scene center (0,0,0)
+    mat.uniforms.uCameraPos.value.copy(this.camera.position);
+
+    // Pointer 3D projection approx
+    const px = (ctx.pointer.x - 0.5) * 20.0;
+    const py = (ctx.pointer.y - 0.5) * -20.0;
+    mat.uniforms.uPointer.value.set(px, py, 0.0);
+
+    // Slow drift rotation
+    this.group.rotation.y = Math.sin(ctx.time * 0.1) * 0.1;
+
+    // Camera movement
+    this.camera.position.z = damp(
+      this.camera.position.z,
+      this.baseDistance,
+      3,
+      ctx.dt
+    );
+    // Allow looking around
+    this.camera.position.x = damp(
+      this.camera.position.x,
+      ctx.pointer.x * 5,
+      2,
+      ctx.dt
+    );
+    this.camera.lookAt(0, 0, 0);
+  }
+}
+
 // --- Factory ---
 
 export const createScenes = (): TowerScene[] => [
@@ -2794,6 +3038,7 @@ export const createScenes = (): TowerScene[] => [
   new BioluminescentScene(),
   new HolographicCityScene(),
   new RealityCollapseScene(),
+  new ElectricStormScene(),
 ];
 
 export const getSceneMeta = () => sceneMeta;

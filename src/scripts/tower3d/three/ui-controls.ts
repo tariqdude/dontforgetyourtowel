@@ -70,6 +70,16 @@ export class UIControls {
       this.director.bloomPass.strength = v;
     });
 
+    this.addSlider('Aperture', 0.0001, 0.01, 0.0001, 0.0001, v => {
+      // Bokeh Aperture (Blur amount)
+      this.director.bokehPass.uniforms['aperture'].value = v;
+    });
+
+    this.addSlider('Trails', 0.0, 0.95, 0.0, 0.05, v => {
+      // Afterimage Damp (0 = off, 0.95 = heavy trails)
+      this.director.afterimagePass.uniforms['damp'].value = v;
+    });
+
     this.addSlider('Exposure', 0.1, 2.0, 0.9, 0.1, v => {
       this.director.renderer.toneMappingExposure = v;
     });
