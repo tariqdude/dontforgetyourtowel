@@ -74,18 +74,18 @@ export class ElectricStormScene extends SceneBase {
             // Flowing wind
             float t = uTime * 0.5;
             float noise = snoise(uv * 3.0 + vec2(t * 0.2, t * 0.1));
-            
+
             // Pointer Interaction
             // Map uPointer (-1..1) to Plane Space (-12.5..12.5)
-            vec2 ptrPos = uPointer * 12.0; 
+            vec2 ptrPos = uPointer * 12.0;
             float dist = distance(position.xy, ptrPos);
-            
+
             // Ripple / Bubble up at mouse
             float proximity = smoothstep(5.0, 0.0, dist);
             vProx = proximity; // Pass to frag
 
             float height = noise * 2.0;
-            
+
             // Add interaction swell
             height += proximity * 4.0 * sin(uTime * 3.0 - dist * 2.0);
 
@@ -109,9 +109,9 @@ export class ElectricStormScene extends SceneBase {
             // Smoke texture approx via noise (displacement)
             // Color ramp
             float mixVal = smoothstep(-2.0, 4.0, vElev);
-            
+
             vec3 col = mix(uColorA, uColorB, mixVal);
-            
+
             // White hot core where mouse is
             col = mix(col, uColorC, vProx * 0.8);
 

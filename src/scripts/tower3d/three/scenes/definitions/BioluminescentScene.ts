@@ -35,11 +35,11 @@ export class BioluminescentScene extends SceneBase {
         varying vec3 vNormal;
         varying float vDisp;
 
-         // Simplex 3D Noise 
+         // Simplex 3D Noise
         vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
         vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
 
-        float snoise(vec3 v){ 
+        float snoise(vec3 v){
             const vec2  C = vec2(1.0/6.0, 1.0/3.0) ;
             const vec4  D = vec4(0.0, 0.5, 1.0, 2.0);
             vec3 i  = floor(v + dot(v, C.yyy) );
@@ -51,10 +51,10 @@ export class BioluminescentScene extends SceneBase {
             vec3 x1 = x0 - i1 + 1.0 * C.xxx;
             vec3 x2 = x0 - i2 + 2.0 * C.xxx;
             vec3 x3 = x0 - 1.0 + 3.0 * C.xxx;
-            i = mod(i, 289.0 ); 
-            vec4 p = permute( permute( permute( 
+            i = mod(i, 289.0 );
+            vec4 p = permute( permute( permute(
                         i.z + vec4(0.0, i1.z, i2.z, 1.0 ))
-                    + i.y + vec4(0.0, i1.y, i2.y, 1.0 )) 
+                    + i.y + vec4(0.0, i1.y, i2.y, 1.0 ))
                     + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
             float n_ = 0.142857142857;
             vec3  ns = n_ * D.wyz - D.xzx;
@@ -82,21 +82,21 @@ export class BioluminescentScene extends SceneBase {
             p3 *= norm.w;
             vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
             m = m * m;
-            return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1), 
+            return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1),
                                         dot(p2,x2), dot(p3,x3) ) );
         }
 
         void main() {
             vUv = uv;
             vNormal = normal;
-            
+
             // Organic Pulse
             float t = uTime * 0.5;
             float noise = snoise(position + t);
             float pulse = snoise(position * 0.5 - t * 0.2);
-            
+
             float interaction = uHover * sin(position.x * 10.0 + uTime * 10.0) * 0.5;
-            
+
             float displacement = noise * 0.5 + pulse * 1.0 + interaction;
             vDisp = displacement;
 
@@ -118,7 +118,7 @@ export class BioluminescentScene extends SceneBase {
             // Color mix based on displacement
             float mixVal = smoothstep(-0.5, 1.0, vDisp);
             vec3 col = mix(deepBlue, cyan, mixVal);
-            
+
             // Highlights on "peaks"
             col = mix(col, hotPink, smoothstep(0.8, 1.2, vDisp));
 
@@ -127,7 +127,7 @@ export class BioluminescentScene extends SceneBase {
             // Simple view dir approx (assuming camera at z)
             float rim = 1.0 - abs(n.z);
             rim = pow(rim, 3.0);
-            
+
             col += rim * vec3(0.5, 0.8, 1.0);
 
             gl_FragColor = vec4(col, 1.0);

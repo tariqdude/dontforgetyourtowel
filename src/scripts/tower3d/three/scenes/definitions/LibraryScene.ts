@@ -36,7 +36,7 @@ export class LibraryScene extends SceneBase {
             vId = instanceMatrix[3][0]; // Random seed from position?
 
             vec4 worldPos = instanceMatrix * vec4(position, 1.0);
-            
+
             // Interaction: Books float towards camera if near pointer
             // Pointer is -1..1 xy
             vec3 pDisp = worldPos.xyz;
@@ -44,7 +44,7 @@ export class LibraryScene extends SceneBase {
             vec2 screenPos = pDisp.xy * 0.1; // Approx
             float d = distance(screenPos, uPointer);
             float hover = smoothstep(2.0, 0.0, d);
-            
+
             worldPos.z += hover * 2.0;
             worldPos.x += hover * sin(uTime * 5.0 + vId) * 0.2;
 
