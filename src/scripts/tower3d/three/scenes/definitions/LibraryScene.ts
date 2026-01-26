@@ -22,17 +22,32 @@ export class LibraryScene extends SceneBase {
       uniforms: {
         uTime: { value: 0 },
         uColor: { value: new THREE.Color(0xffaa00) }, // Gold
+        uPointer: { value: new THREE.Vector2() },
       },
       vertexShader: `
         varying vec2 vUv;
         varying vec3 vPos;
         varying float vId;
+        uniform vec2 uPointer;
+        uniform float uTime;
 
         void main() {
             vUv = uv;
             vId = instanceMatrix[3][0]; // Random seed from position?
 
             vec4 worldPos = instanceMatrix * vec4(position, 1.0);
+            
+            // Interaction: Books float towards camera if near pointer
+            // Pointer is -1..1 xy
+            vec3 pDisp = worldPos.xyz;
+            // Cheap projection match
+            vec2 screenPos = pDisp.xy * 0.1; // Approx
+            float d = distance(screenPos, uPointer);
+            float hover = smoothstep(2.0, 0.0, d);
+            
+            worldPos.z += hover * 2.0;
+            worldPos.x += hover * sin(uTime * 5.0 + vId) * 0.2;
+
             vPos = worldPos.xyz;
             gl_Position = projectionMatrix * viewMatrix * worldPos;
         }
@@ -129,6 +144,7 @@ export class LibraryScene extends SceneBase {
     const t = ctx.time;
     const mat = this.books.material as THREE.ShaderMaterial;
     mat.uniforms.uTime.value = t;
+    mat.uniforms.uPointer.value.set(ctx.pointer.x, ctx.pointer.y);
 
     // Endless Flight
     // const speed = 4.0;

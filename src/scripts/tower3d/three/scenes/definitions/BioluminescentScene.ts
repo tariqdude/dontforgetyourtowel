@@ -3,11 +3,16 @@ import { SceneBase } from './SceneBase';
 import type { SceneRuntime } from './types';
 import { damp } from './SceneUtils';
 
+/**
+ * Scene 13: Bioluminescent Abyss
+ * Replaces the old broken scene with a procedural "Deep Sea Core"
+ * A deforming, iridescent sphere that reacts to sound/motion, surrounded by floating organic particles.
+ */
 export class BioluminescentScene extends SceneBase {
-  private strands: THREE.Mesh;
-  private spores: THREE.InstancedMesh;
-  private count = 8000;
-  private sporeCount = 4000;
+  private core: THREE.Mesh;
+  private particles: THREE.InstancedMesh;
+  private count = 2000;
+  private dummy = new THREE.Object3D();
 
   constructor() {
     super();
@@ -15,198 +20,173 @@ export class BioluminescentScene extends SceneBase {
     this.contentRadius = 6.0;
     this.baseDistance = 14.0;
 
-    // 1. Sea Anemone Strands
-    // High density instanced planes
-    const strandH = 6.0;
-    const strandGeo = new THREE.PlaneGeometry(0.06, strandH, 1, 32);
-    strandGeo.translate(0, strandH * 0.5, 0); // Pivot at bottom
-
-    const geo = new THREE.InstancedBufferGeometry();
-    geo.index = strandGeo.index;
-    geo.attributes.position = strandGeo.attributes.position;
-    geo.attributes.uv = strandGeo.attributes.uv;
-
-    const offsets: number[] = [];
-    const data: number[] = []; // phase, length, bend
-
-    for (let i = 0; i < this.count; i++) {
-      // Sphere distribution
-      const r = 2.0;
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
-
-      const x = r * Math.sin(phi) * Math.cos(theta);
-      const y = r * Math.sin(phi) * Math.sin(theta);
-      const z = r * Math.cos(phi);
-
-      offsets.push(x, y, z);
-      data.push(Math.random() * 10.0, 0.5 + Math.random(), Math.random());
-    }
-
-    geo.setAttribute(
-      'aOffset',
-      new THREE.InstancedBufferAttribute(new Float32Array(offsets), 3)
-    );
-    geo.setAttribute(
-      'aData',
-      new THREE.InstancedBufferAttribute(new Float32Array(data), 3)
-    );
-    geo.instanceCount = this.count; // CRITICAL FIX: Enable instancing
-
-    const mat = new THREE.ShaderMaterial({
+    // 1. Central "Living" Core
+    const coreGeo = new THREE.IcosahedronGeometry(3.0, 60); // High poly for displacement
+    const coreMat = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
-        uPress: { value: 0 },
-        uColorA: { value: new THREE.Color(0x00ffaa) }, // Cyan
-        uColorB: { value: new THREE.Color(0xaa00ff) }, // Purple
+        uHover: { value: 0 }, // Pointer interaction
       },
-      side: THREE.DoubleSide,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
+      wireframe: false,
       vertexShader: `
-         attribute vec3 aOffset;
-         attribute vec3 aData; // phase, scale, bend
-         varying float vH;
-         varying vec3 vPos;
-         uniform float uTime;
-         uniform float uPress;
+        uniform float uTime;
+        uniform float uHover;
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        varying float vDisp;
 
-         void main() {
-           vH = uv.y;
+         // Simplex 3D Noise 
+        vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
+        vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
 
-           vec3 normal = normalize(aOffset);
-           vec3 p = position;
-           p.y *= aData.y; // Length variation
+        float snoise(vec3 v){ 
+            const vec2  C = vec2(1.0/6.0, 1.0/3.0) ;
+            const vec4  D = vec4(0.0, 0.5, 1.0, 2.0);
+            vec3 i  = floor(v + dot(v, C.yyy) );
+            vec3 x0 = v - i + dot(i, C.xxx) ;
+            vec3 g = step(x0.yzx, x0.xyz);
+            vec3 l = 1.0 - g;
+            vec3 i1 = min( g.xyz, l.zxy );
+            vec3 i2 = max( g.xyz, l.zxy );
+            vec3 x1 = x0 - i1 + 1.0 * C.xxx;
+            vec3 x2 = x0 - i2 + 2.0 * C.xxx;
+            vec3 x3 = x0 - 1.0 + 3.0 * C.xxx;
+            i = mod(i, 289.0 ); 
+            vec4 p = permute( permute( permute( 
+                        i.z + vec4(0.0, i1.z, i2.z, 1.0 ))
+                    + i.y + vec4(0.0, i1.y, i2.y, 1.0 )) 
+                    + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
+            float n_ = 0.142857142857;
+            vec3  ns = n_ * D.wyz - D.xzx;
+            vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+            vec4 x_ = floor(j * ns.z);
+            vec4 y_ = floor(j - 7.0 * x_ );
+            vec4 x = x_ *ns.x + ns.yyyy;
+            vec4 y = y_ *ns.x + ns.yyyy;
+            vec4 h = 1.0 - abs(x) - abs(y);
+            vec4 b0 = vec4( x.xy, y.xy );
+            vec4 b1 = vec4( x.zw, y.zw );
+            vec4 s0 = floor(b0)*2.0 + 1.0;
+            vec4 s1 = floor(b1)*2.0 + 1.0;
+            vec4 sh = -step(h, vec4(0.0));
+            vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy ;
+            vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww ;
+            vec3 p0 = vec3(a0.xy,h.x);
+            vec3 p1 = vec3(a0.zw,h.y);
+            vec3 p2 = vec3(a1.xy,h.z);
+            vec3 p3 = vec3(a1.zw,h.w);
+            vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
+            p0 *= norm.x;
+            p1 *= norm.y;
+            p2 *= norm.z;
+            p3 *= norm.w;
+            vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+            m = m * m;
+            return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1), 
+                                        dot(p2,x2), dot(p3,x3) ) );
+        }
 
-           // Current Position (Base + Height)
-           vec3 current = aOffset + normal * p.y;
+        void main() {
+            vUv = uv;
+            vNormal = normal;
+            
+            // Organic Pulse
+            float t = uTime * 0.5;
+            float noise = snoise(position + t);
+            float pulse = snoise(position * 0.5 - t * 0.2);
+            
+            float interaction = uHover * sin(position.x * 10.0 + uTime * 10.0) * 0.5;
+            
+            float displacement = noise * 0.5 + pulse * 1.0 + interaction;
+            vDisp = displacement;
 
-           // Curl Noise / Sway
-           // Simple sine waves for cheap swaying
-           float sway = sin(uTime + current.x) * 0.2 + cos(uTime * 1.5 + current.z) * 0.2;
-           sway *= vH; // More at tip
-
-           // Apply sway perpendicular to normal?
-           // Just add to position loosely
-           current.x += sway * aData.z;
-           current.z += sway * aData.z;
-
-           // Interaction Shockwave
-           // If uPress > 0, strands blow outward
-           float blow = smoothstep(0.0, 1.0, uPress) * vH * 3.0;
-           current += normal * blow;
-
-           gl_Position = projectionMatrix * modelViewMatrix * vec4(current, 1.0);
-           vPos = current;
-         }
-       `,
+            vec3 pos = position + normal * displacement;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+        }
+      `,
       fragmentShader: `
-         varying float vH;
-         varying vec3 vPos;
-         uniform float uTime;
-         uniform vec3 uColorA;
-         uniform vec3 uColorB;
-         uniform float uPress;
+        varying vec3 vNormal;
+        varying float vDisp;
+        uniform float uTime;
 
-         void main() {
-            // Bio-Luminescence
-            // Pulse moves up
-            float pulse = mod(uTime * 2.0 - vPos.y, 8.0);
-            float glow = smoothstep(0.8, 1.0, 1.0 - abs(pulse - vH * 8.0));
+        void main() {
+            // Bio-luminescent colors
+            vec3 deepBlue = vec3(0.0, 0.1, 0.4);
+            vec3 cyan = vec3(0.0, 0.8, 0.9);
+            vec3 hotPink = vec3(1.0, 0.1, 0.6);
 
-            vec3 col = mix(uColorA, uColorB, vH);
+            // Color mix based on displacement
+            float mixVal = smoothstep(-0.5, 1.0, vDisp);
+            vec3 col = mix(deepBlue, cyan, mixVal);
+            
+            // Highlights on "peaks"
+            col = mix(col, hotPink, smoothstep(0.8, 1.2, vDisp));
 
-            // Tip glow
-            col += vec3(1.0) * glow;
+            // Rim light
+            vec3 n = normalize(vNormal);
+            // Simple view dir approx (assuming camera at z)
+            float rim = 1.0 - abs(n.z);
+            rim = pow(rim, 3.0);
+            
+            col += rim * vec3(0.5, 0.8, 1.0);
 
-            // Add sparkle
-            float sparkle = step(0.98, fract(vH * 20.0 + uTime));
-            col += sparkle * 0.5;
-
-            float alpha = smoothstep(0.0, 0.2, vH) * (1.0 - vH) + glow;
-
-            gl_FragColor = vec4(col, alpha);
-         }
-       `,
+            gl_FragColor = vec4(col, 1.0);
+        }
+      `,
     });
-    this.strands = new THREE.Mesh(geo, mat);
-    this.group.add(this.strands);
 
-    // 2. Spores (Boids-like particles)
-    const sporeGeo = new THREE.IcosahedronGeometry(0.04, 0);
-    const sporeMat = new THREE.ShaderMaterial({
-      uniforms: { uTime: { value: 0 } },
-      vertexShader: `
-          attribute vec3 aOffset;
-          varying float vAlpha;
-          uniform float uTime;
-          void main() {
-            // Orbiting math
-            float t = uTime * 0.5 + aOffset.z; // Speed
-            float r = 5.0 + sin(t*0.5)*2.0;
+    this.core = new THREE.Mesh(coreGeo, coreMat);
+    this.group.add(this.core);
 
-            vec3 p = vec3(
-              sin(t * aOffset.x) * r,
-              cos(t * aOffset.y) * r,
-              sin(t) * cos(t) * r
-            );
-
-            vec4 mv = modelViewMatrix * vec4(p, 1.0);
-            gl_Position = projectionMatrix * mv;
-
-            vAlpha = 0.5 + 0.5 * sin(t * 5.0);
-          }
-        `,
-      fragmentShader: `
-          varying float vAlpha;
-          void main() {
-             gl_FragColor = vec4(1.0, 1.0, 0.8, vAlpha);
-          }
-        `,
+    // 2. Floating Plankton (Particles)
+    const pGeo = new THREE.DodecahedronGeometry(0.05, 0);
+    const pMat = new THREE.MeshBasicMaterial({
+      color: 0xccffaa,
       transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
+      opacity: 0.6,
     });
+    this.particles = new THREE.InstancedMesh(pGeo, pMat, this.count);
 
-    this.spores = new THREE.InstancedMesh(sporeGeo, sporeMat, this.sporeCount);
+    // Distribute in a shell
+    for (let i = 0; i < this.count; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = 5.0 + Math.random() * 5.0; // Outside core
 
-    // Init spores with random params
-    const sDummy = new THREE.Object3D();
-    const sOffsets = new Float32Array(this.sporeCount * 3);
-
-    for (let i = 0; i < this.sporeCount; i++) {
-      sOffsets[i * 3] = Math.random() * 0.5 + 0.5; // speed x
-      sOffsets[i * 3 + 1] = Math.random() * 0.5 + 0.5; // speed y
-      sOffsets[i * 3 + 2] = Math.random() * 100.0; // Phase
-
-      sDummy.position.set(0, 0, 0);
-      sDummy.updateMatrix();
-      this.spores.setMatrixAt(i, sDummy.matrix);
+      this.dummy.position.set(
+        r * Math.sin(phi) * Math.cos(theta),
+        r * Math.sin(phi) * Math.sin(theta),
+        r * Math.cos(phi)
+      );
+      this.dummy.scale.setScalar(0.5 + Math.random());
+      this.dummy.updateMatrix();
+      this.particles.setMatrixAt(i, this.dummy.matrix);
     }
-
-    sporeGeo.setAttribute(
-      'aOffset',
-      new THREE.InstancedBufferAttribute(sOffsets, 3)
-    );
-    this.group.add(this.spores);
+    this.group.add(this.particles);
   }
 
   init(_ctx: SceneRuntime) {}
 
   update(ctx: SceneRuntime) {
-    const mat = this.strands.material as THREE.ShaderMaterial;
+    const mat = this.core.material as THREE.ShaderMaterial;
     mat.uniforms.uTime.value = ctx.time;
-    mat.uniforms.uPress.value = ctx.press;
+    // Map pointer distance to hover intensity
+    const dist = ctx.pointer.length();
+    mat.uniforms.uHover.value = damp(
+      mat.uniforms.uHover.value,
+      (1.0 - Math.min(dist, 1.0)) * ctx.press,
+      5,
+      ctx.dt
+    );
 
-    const sMat = this.spores.material as THREE.ShaderMaterial;
-    sMat.uniforms.uTime.value = ctx.time;
-
+    // Gentle rotation
     this.group.rotation.y = ctx.time * 0.1;
+    this.particles.rotation.y = -ctx.time * 0.05;
 
     this.camera.position.z = damp(
       this.camera.position.z,
       this.baseDistance,
-      3,
+      2,
       ctx.dt
     );
     this.camera.lookAt(0, 0, 0);

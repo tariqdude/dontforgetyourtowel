@@ -10,7 +10,8 @@ export class MillionFirefliesScene extends SceneBase {
   constructor() {
     super();
     this.id = 'scene02';
-    this.contentRadius = 6.0;
+    this.contentRadius = 8.0;
+    this.baseDistance = 14.0; // Ensure camera isn't too close
 
     const geo = new THREE.BufferGeometry();
     const pos = new Float32Array(this.count * 3);
@@ -93,9 +94,9 @@ export class MillionFirefliesScene extends SceneBase {
 
                 // Size attenuation (boosted for visibility)
                 float dCam = length(mv.xyz);
-                gl_PointSize = (8.0 + uPress * 5.0) * (30.0 / dCam);
+                gl_PointSize = (12.0 + uPress * 10.0) * (50.0 / dCam);
 
-                vAlpha = 0.6 + 0.4 * sin(t * 3.0 + phase);
+                vAlpha = 0.8 + 0.2 * sin(t * 3.0 + phase);
 
                 // Pass color based on speed/radius
                 vCol = mix(vec3(1.0, 0.6, 0.0), vec3(0.0, 0.8, 1.0), smoothstep(2.0, 8.0, r));

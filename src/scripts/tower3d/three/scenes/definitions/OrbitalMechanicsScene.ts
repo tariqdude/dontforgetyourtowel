@@ -17,6 +17,27 @@ export class OrbitalMechanicsScene extends SceneBase {
     this.id = 'scene08';
     this.contentRadius = 8.0;
 
+    // 0. Starfield Background (New)
+    const starGeo = new THREE.BufferGeometry();
+    const starCount = 2000;
+    const starPos = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount; i++) {
+      const r = 20 + Math.random() * 30;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      starPos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      starPos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+      starPos[i * 3 + 2] = r * Math.cos(phi);
+    }
+    starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+    const starMat = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 0.1,
+      transparent: true,
+      opacity: 0.6,
+    });
+    this.group.add(new THREE.Points(starGeo, starMat));
+
     // 1. Procedural Gas Giant (Hyper-Real)
     // Multi-layered noise for clouds and storms
     const pGeo = new THREE.SphereGeometry(2.5, 128, 128);

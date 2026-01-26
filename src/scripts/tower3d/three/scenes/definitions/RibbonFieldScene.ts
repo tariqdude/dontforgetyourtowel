@@ -19,6 +19,8 @@ export class RibbonFieldScene extends SceneBase {
     const mat = new THREE.ShaderMaterial({
       side: THREE.DoubleSide,
       transparent: true,
+      blending: THREE.NormalBlending, // Reduced glow blowout
+      depthWrite: false,
       uniforms: {
         uTime: { value: 0 },
         uPress: { value: 0 },
@@ -115,17 +117,16 @@ export class RibbonFieldScene extends SceneBase {
             float irid = sin(NdotV * 10.0 + vUv.y * 20.0);
             vec3 rainbow = 0.5 + 0.5 * cos(vec3(0,2,4) + irid * 3.0);
 
-            vec3 col = mix(vColor, rainbow, 0.5 * fresnel);
+            vec3 col = mix(vColor * 0.5, rainbow, 0.3 * fresnel); // Darken base color
 
             // Metallic highlight
             float spec = pow(max(dot(reflect(-viewDir, normal), vec3(0,1,0)), 0.0), 30.0);
-            col += vec3(1.0) * spec;
+            col += vec3(0.5) * spec; // Reduce specular
 
-            gl_FragColor = vec4(col, vAlpha * (0.6 + 0.4 * fresnel));
+            gl_FragColor = vec4(col, vAlpha * (0.4 + 0.3 * fresnel)); // Lower alpha
         }
       `,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
+      // blending: THREE.AdditiveBlending, // Removed
     });
 
     this.mesh = new THREE.InstancedMesh(geo, mat, this.count);

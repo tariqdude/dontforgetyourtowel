@@ -13,8 +13,8 @@ export class VoronoiShardsScene extends SceneBase {
     this.id = 'scene09';
     this.contentRadius = 8.0;
 
-    // Sharp crystalline shapes
-    const geo = new THREE.OctahedronGeometry(0.25, 0);
+    // Sharp crystalline shapes - More complex geometry
+    const geo = new THREE.IcosahedronGeometry(0.3, 0);
 
     // Quantum Dispersion Shader
     // Simulates "Diamond" refraction with chromatic aberration
@@ -39,6 +39,16 @@ export class VoronoiShardsScene extends SceneBase {
         void main() {
             vRand = aRandom;
             vec3 pos = position; // local
+
+            // Rotate everything slowly
+            float rotSpeed = 0.2;
+            float rAngle = uTime * rotSpeed + aRandom.x * 6.28;
+            float ca = cos(rAngle);
+            float sa = sin(rAngle);
+            // Rotate around random axis? simpler: Y rotation
+            pos.x = position.x * ca - position.z * sa;
+            pos.z = position.x * sa + position.z * ca;
+
 
             // Quantum Blink (Existence probability)
             // A sine wave that makes scale go to 0 occasionally
