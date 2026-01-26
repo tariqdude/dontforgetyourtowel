@@ -398,6 +398,37 @@ export class SceneDirector {
 
     this.root.dataset.towerScene = this.activeScene.id;
     this.root.dataset.towerRendered = '1';
+
+    // Debug access
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__TOWER__ = this;
+
+    // Heartbeat for diagnosing frozen loops
+    this.initHeartbeat();
+
+    // Handle Context Loss
+    this.canvas.addEventListener('webglcontextlost', e => {
+      e.preventDefault();
+      this.reportError(
+        'WebGL Context Lost',
+        ' GPU crashes or resource exhaustion.'
+      );
+      // Pause rendering
+      this.isVisible = false;
+    });
+
+    this.canvas.addEventListener('webglcontextrestored', () => {
+      this.reportError('WebGL Context Restored', 'Reloading...');
+      window.location.reload();
+    });
+  }
+
+  private initHeartbeat() {
+    const hb = document.createElement('div');
+    hb.style.cssText =
+      'position:absolute;bottom:5px;left:5px;width:4px;height:4px;background:#0f0;z-index:9999;border-radius:50%;pointer-events:none;';
+    hb.className = 'tower-heartbeat';
+    this.root.appendChild(hb);
   }
 
   private handleVisibility = () => {
@@ -900,8 +931,28 @@ export class SceneDirector {
       this.renderer.setClearColor(new THREE.Color(0x05070f));
     }
 
-    this.resetViewport();
-    this.composer.render();
+    try {
+      this.resetViewport();
+      this.composer.render();
+    } catch (e) {
+      // Fatal render error fallback
+      if (!this.root.dataset.renderError) {
+        this.reportError('Composer Render (Fatal)', e);
+        this.root.dataset.renderError = '1';
+      }
+      // Attempt raw render
+      try {
+        this.renderer.render(this.renderPass.scene, this.renderPass.camera);
+      } catch (e2) {
+        // Even raw render failed
+      }
+    }
+
+    // Update heartbeat visual to prove loop is alive
+    const hb = this.root.querySelector('.tower-heartbeat') as HTMLElement;
+    if (hb) {
+      hb.style.opacity = Math.sin(now * 10) > 0 ? '1' : '0.2';
+    }
   }
 
   private reportError(context: string, error: unknown) {
