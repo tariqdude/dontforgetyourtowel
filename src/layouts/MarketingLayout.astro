@@ -9,6 +9,7 @@ import StructuredData from '../components/StructuredData.astro';
 import MobileNav from '../components/business/MobileNav.astro';
 import StickyCTA from '../components/business/StickyCTA.astro';
 import LiveChat from '../components/business/LiveChat';
+import PullToRefresh from '../components/ui/PullToRefresh.astro';
 
 interface Props {
   title: string;
@@ -42,6 +43,7 @@ const {
     <StructuredData type="website" />
   </head>
   <body class={`antialiased ${bodyClass}`.trim()}>
+    <PullToRefresh />
     <a
       href="#main-content"
       class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-sm focus:bg-accent-600 focus:px-4 focus:py-2 focus:text-white focus:outline-none focus:ring-2 focus:ring-accent-400"

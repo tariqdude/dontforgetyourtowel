@@ -857,6 +857,7 @@ export class SceneDirector {
     }
 
     if (targetScene.id !== this.activeScene.id) {
+      this.mainScene.remove(this.activeScene.group);
       this.activeScene = targetScene;
 
       this.updateParticleConfig(this.activeScene.id);
