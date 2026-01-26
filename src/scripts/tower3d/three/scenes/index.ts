@@ -127,11 +127,17 @@ const sceneMeta: SceneMeta[] = [
   },
   {
     id: 'scene14',
-    title: 'Cyber City',
+    title: 'Neon Metropolis',
     subtitle: 'Future State',
     index: 14,
   },
-  { id: 'scene15', title: 'Entropy Void', subtitle: 'Collapse', index: 15 },
+  { id: 'scene15', title: 'Digital Decay', subtitle: 'Collapse', index: 15 },
+  {
+    id: 'scene16',
+    title: 'Electric Storm',
+    subtitle: 'Volumetric',
+    index: 16,
+  },
 ];
 
 // --- Math Helpers ---
@@ -3023,396 +3029,369 @@ class BioluminescentScene extends SceneBase {
   }
 }
 
-// --- Scene 14: Cyber City (Network) ---
+// --- Scene 14: Cyber City (Neon Metropolis) ---
 
 class HolographicCityScene extends SceneBase {
   private city: THREE.Group;
-  private traffic: THREE.InstancedMesh;
   private buildings: THREE.InstancedMesh;
+  private traffic: THREE.InstancedMesh;
+  private grid: THREE.Mesh;
 
-  // Traffic Params
-  private trafficCount = 20000; // HUGE increase from 3000 to 20000
+  private buildingCount = 2000;
+  private trafficCount = 5000;
 
   constructor() {
     super();
     this.id = 'scene14';
     this.contentRadius = 8.0;
+    this.baseDistance = 20.0;
+
     this.city = new THREE.Group();
+    this.group.add(this.city);
 
-    // ---------------------------------------------------------
-    // 1. Cyberpunk Buildings (Procedural Shader)
-    // ---------------------------------------------------------
-    const bGeo = new THREE.BoxGeometry(1, 1, 1);
-    bGeo.translate(0, 0.5, 0); // Pivot at bottom
-
-    // Custom Shader for "Data Buildings"
-    const bMat = new THREE.ShaderMaterial({
-      transparent: true,
-      side: THREE.DoubleSide,
+    // 1. Infinite Grid Floor
+    const gridGeo = new THREE.PlaneGeometry(200, 200, 100, 100);
+    const gridMat = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
-        uBaseColor: { value: new THREE.Color(0x050510) },
-        uRimColor: { value: new THREE.Color(0x0088ff) },
-        uWindowColor: { value: new THREE.Color(0xffaa00) },
+        uColor: { value: new THREE.Color(0x0044ff) },
+      },
+      transparent: true,
+      vertexShader: `
+         varying vec2 vUv;
+         void main() {
+           vUv = uv;
+           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+         }
+       `,
+      fragmentShader: `
+         varying vec2 vUv;
+         uniform float uTime;
+         uniform vec3 uColor;
+
+         void main() {
+           // Moving Grid
+           vec2 uv = vUv * 40.0;
+           uv.y += uTime * 0.5;
+
+           vec2 grid = step(0.98, fract(uv));
+           float line = max(grid.x, grid.y);
+
+           // Fade distance
+           float dist = length(vUv - 0.5);
+           float mask = 1.0 - smoothstep(0.0, 0.5, dist);
+
+           gl_FragColor = vec4(uColor, line * mask);
+         }
+       `,
+      side: THREE.DoubleSide,
+    });
+    this.grid = new THREE.Mesh(gridGeo, gridMat);
+    this.grid.rotation.x = -Math.PI / 2;
+    this.grid.position.y = -5.0; // Floor
+    this.city.add(this.grid);
+
+    // 2. Skyscrapers (Data Servers)
+    const bGeo = new THREE.BoxGeometry(1, 1, 1);
+    bGeo.translate(0, 0.5, 0); // Pivot base
+
+    const bMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uBase: { value: new THREE.Color(0x050510) },
+        uNeon: { value: new THREE.Color(0x00aaff) },
+        uWin: { value: new THREE.Color(0xff00cc) },
       },
       vertexShader: `
-        varying vec2 vUv;
-        varying vec3 vPos;
-        varying vec3 vWorldPos;
-        varying float vHeight;
-
-        void main() {
-          vUv = uv;
-          vPos = position;
-
-          // Instance Matrix handles placement
-          vec4 worldPos = instanceMatrix * vec4(position, 1.0);
-          vWorldPos = worldPos.xyz;
-          vHeight = worldPos.y; // approximate height for gradients
-
-          gl_Position = projectionMatrix * viewMatrix * worldPos;
-        }
-      `,
+         varying vec3 vPos;
+         varying vec3 vWorld;
+         varying float vId;
+         void main() {
+            vec4 world = instanceMatrix * vec4(position, 1.0);
+            vWorld = world.xyz;
+            vPos = position;
+            vId = instanceMatrix[3][0]; // Random ID from position X
+            gl_Position = projectionMatrix * viewMatrix * world;
+         }
+       `,
       fragmentShader: `
-        varying vec2 vUv;
-        varying vec3 vPos;
-        varying vec3 vWorldPos;
-        varying float vHeight;
-        uniform float uTime;
-        uniform vec3 uBaseColor;
-        uniform vec3 uRimColor;
-        uniform vec3 uWindowColor;
+         varying vec3 vPos;
+         varying vec3 vWorld;
+         varying float vId;
+         uniform float uTime;
+         uniform vec3 uBase;
+         uniform vec3 uNeon;
+         uniform vec3 uWin;
 
-        // Random function
-        float random(vec2 st) {
-            return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
-        }
+         float hash(float n) { return fract(sin(n)*43758.5453); }
 
-        void main() {
-            // 1. Base Glassy Body
-            vec3 color = uBaseColor;
-            float alpha = 0.85;
+         void main() {
+            // Edges (Neon Wireframe)
+            // Barycentric logic is hard without attribute. Use UV or Position.
+            // Box is 0..1 in Y, -0.5..0.5 in XZ? No BoxGeometry is centered usually.
+            // But we translated Y.
 
-            // 2. Grid / Wireframe effect (Barycentric fake or UV based)
-            // Edges logic
-            float edgeThick = 0.02;
-            float gridX = step(1.0 - edgeThick, vUv.x) + step(vUv.x, edgeThick);
-            float gridY = step(1.0 - edgeThick, vUv.y) + step(vUv.y, edgeThick);
-            float isEdge = clamp(gridX + gridY, 0.0, 1.0);
+            // Grid texture on building
+            // Assume 1 unit width.
+            float gx = step(0.95, fract(vPos.x * 2.0)) + step(0.95, fract(vPos.z * 2.0));
+            float gy = step(0.95, fract(vPos.y * 4.0));
 
-            color += uRimColor * isEdge * 0.5;
+            vec3 col = uBase;
 
-            // 3. Procedural Windows
-            // Map world position to grid
-            vec2 winGrid = floor(vWorldPos.xz * 1.5 + vWorldPos.y * 3.0);
-            float winRand = random(winGrid + floor(uTime * 0.5)); // flicker slowly
+            // Windows
+            float win = step(0.6, hash(floor(vPos.y * 10.0) + floor(vPos.x*2.0) + vId));
+            // Blink windows
+            float blink = step(0.9, sin(uTime * 2.0 + vId + vPos.y*10.0));
+            if(win > 0.5 && blink < 0.5) col = mix(col, uWin, 0.8);
 
-            // Only show windows on sides, not roof (vPos.y > 0.99 is roof)
-            float isSide = step(vPos.y, 0.99);
+            // Neon Edges
+            if(gx > 0.5 || gy > 0.5) col = uNeon;
 
-            if (isSide > 0.5 && winRand > 0.7) {
-                // Window shape
-                float wx = fract(vWorldPos.x * 2.0 + vWorldPos.z * 2.0);
-                float wy = fract(vWorldPos.y * 4.0);
-                float winShape = step(0.2, wx) * step(0.8, wx) * step(0.2, wy) * step(0.8, wy);
+            // Top Glow
+            if(vPos.y > 0.98) col = uNeon * 2.0;
 
-                color += uWindowColor * winShape * 2.0; // HDR Glow
-            }
+            // Fog from bottom
+            float fog = smoothstep(-5.0, 20.0, vWorld.y);
 
-            // 4. Scanline Sweep
-            float scan = fract(uTime * 0.2 - vWorldPos.y * 0.05);
-            float scanLine = smoothstep(0.48, 0.5, scan) * smoothstep(0.52, 0.5, scan);
-            color += uRimColor * scanLine * 3.0;
-
-            // 5. Bottom Fade (Fog)
-            float fog = smoothstep(-15.0, 0.0, vWorldPos.y);
-            alpha *= fog;
-
-            gl_FragColor = vec4(color, alpha);
-        }
-      `,
+            gl_FragColor = vec4(col, 1.0);
+         }
+       `,
     });
 
-    this.buildings = new THREE.InstancedMesh(bGeo, bMat, 1500);
-
-    // Generate City Layout
+    this.buildings = new THREE.InstancedMesh(bGeo, bMat, this.buildingCount);
     const dummy = new THREE.Object3D();
-    let idx = 0;
-    const gridS = 32;
-    for (let x = -gridS; x <= gridS; x++) {
-      for (let z = -gridS; z <= gridS; z++) {
-        // Skip center for camera fly-through
-        const dist = Math.sqrt(x * x + z * z);
-        if (dist < 3) continue;
+    const citySize = 100;
 
-        const density = Math.random();
-        if (density > 0.3) continue; // 30% fill
-        if (idx >= 1500) break;
+    for (let i = 0; i < this.buildingCount; i++) {
+      const x = (Math.random() - 0.5) * citySize;
+      const z = (Math.random() - 0.5) * citySize;
 
-        const h = 2.0 + Math.pow(Math.random(), 4.0) * 30.0; // Towering skyscrapers
+      // Avoid center street
+      if (Math.abs(x) < 5.0) continue;
 
-        dummy.position.set(x * 2.5, -10.0, z * 2.5);
-        dummy.scale.set(1.5 + Math.random(), h, 1.5 + Math.random());
-        dummy.updateMatrix();
-        this.buildings.setMatrixAt(idx++, dummy.matrix);
-      }
+      const h = 5.0 + Math.random() * 20.0;
+      const w = 1.0 + Math.random() * 2.0;
+
+      dummy.position.set(x, -5.0, z);
+      dummy.scale.set(w, h, w);
+      dummy.updateMatrix();
+      this.buildings.setMatrixAt(i, dummy.matrix);
     }
     this.city.add(this.buildings);
 
-    // ---------------------------------------------------------
-    // 2. GPU Traffic System (High Performance)
-    // ---------------------------------------------------------
-    const tGeo = new THREE.BoxGeometry(0.2, 0.1, 0.5);
-    // Custom shader for traffic to handle movement on GPU
-    const tMat = new THREE.ShaderMaterial({
+    // 3. Flying Traffic (Data Packets)
+    const carGeo = new THREE.BoxGeometry(0.2, 0.1, 0.5);
+    const carMat = new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 } },
       transparent: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
-      uniforms: {
-        uTime: { value: 0 },
-      },
       vertexShader: `
-            attribute vec3 aOffset; // x=lane, y=height, z=startZ
-            attribute float aSpeed;
-            attribute vec3 aColor;
+          attribute vec3 aOffset; // x, y, speed
+          attribute vec3 aColor;
+          varying vec3 vColor;
+          uniform float uTime;
 
-            varying vec3 vColor;
+          void main() {
+             vColor = aColor;
+             vec3 p = position;
 
-            uniform float uTime;
+             // Move along Z
+             float z = mod(uTime * aOffset.z, 200.0) - 100.0;
+             // Direction based on X sign?
+             if(aOffset.x < 0.0) z = -z;
 
-            void main() {
-                vColor = aColor;
+             vec3 finalPos = vec3(aOffset.x, aOffset.y, z) + p;
 
-                vec3 pos = position;
+             // Stretch Z
+             // p.z *= 2.0; // handled in geometry
 
-                // Animate Z
-                // Loop domain: -60 to 60
-                float z = aOffset.z + uTime * aSpeed;
-                z = mod(z + 60.0, 120.0) - 60.0;
-
-                // World Position transform
-                vec3 finalWorld = vec3(aOffset.x, aOffset.y, z);
-
-                // Stretch car based on speed
-                float stretch = 1.0 + abs(aSpeed) * 0.2;
-                pos.z *= stretch;
-
-                gl_Position = projectionMatrix * viewMatrix * vec4(finalWorld + pos, 1.0);
-            }
+             gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(finalPos, 1.0);
+          }
         `,
       fragmentShader: `
-            varying vec3 vColor;
-            void main() {
-                gl_FragColor = vec4(vColor, 0.8);
-            }
+          varying vec3 vColor;
+          void main() {
+             gl_FragColor = vec4(vColor, 0.8);
+          }
         `,
     });
 
-    this.traffic = new THREE.InstancedMesh(tGeo, tMat, this.trafficCount);
-
-    // Fill Attributes
-    const aOffset = new Float32Array(this.trafficCount * 3);
-    const aSpeed = new Float32Array(this.trafficCount);
-    const aColor = new Float32Array(this.trafficCount * 3);
-
-    const colorPalette = [
-      new THREE.Color(0xff0055), // Red/Pink
-      new THREE.Color(0x00ffff), // Cyan
-      new THREE.Color(0xffcc00), // Gold
-      new THREE.Color(0xffffff), // White
-    ];
+    this.traffic = new THREE.InstancedMesh(carGeo, carMat, this.trafficCount);
+    const carOffsets = new Float32Array(this.trafficCount * 3);
+    const carColors = new Float32Array(this.trafficCount * 3);
 
     for (let i = 0; i < this.trafficCount; i++) {
-      // Random Lane (Grid aligned)
-      const laneX =
-        (Math.floor(Math.random() * 60) - 30) * 2.5 +
-        (Math.random() > 0.5 ? 0.8 : -0.8);
+      // Lanes: multiple heights, X pos
+      const lane = Math.floor(Math.random() * 10);
+      const side = Math.random() > 0.5 ? 1 : -1;
 
-      const h = -10.0 + Math.random() * 25.0; // Various altitudes
-      const startZ = Math.random() * 120.0 - 60.0;
+      carOffsets[i * 3] = (3.0 + lane * 2.0) * side; // X
+      carOffsets[i * 3 + 1] = -4.0 + Math.random() * 20.0; // Y height
+      carOffsets[i * 3 + 2] = 20.0 + Math.random() * 30.0; // Speed
 
-      aOffset[i * 3 + 0] = laneX;
-      aOffset[i * 3 + 1] = h;
-      aOffset[i * 3 + 2] = startZ;
-
-      // Speed: mix of fast and slow
-      const spd = 5.0 + Math.random() * 20.0;
-      const dir = Math.floor(laneX / 2.5) % 2 === 0 ? 1.0 : -1.0;
-      aSpeed[i] = spd * dir;
-
-      // Color
-      const c = colorPalette[Math.floor(Math.random() * colorPalette.length)];
-      aColor[i * 3 + 0] = c.r;
-      aColor[i * 3 + 1] = c.g;
-      aColor[i * 3 + 2] = c.b;
+      const c = new THREE.Color().setHSL(Math.random(), 1.0, 0.5);
+      carColors[i * 3] = c.r;
+      carColors[i * 3 + 1] = c.g;
+      carColors[i * 3 + 2] = c.b;
 
       this.traffic.setMatrixAt(i, new THREE.Matrix4());
     }
 
-    this.traffic.geometry.setAttribute(
+    carGeo.setAttribute(
       'aOffset',
-      new THREE.InstancedBufferAttribute(aOffset, 3)
+      new THREE.InstancedBufferAttribute(carOffsets, 3)
     );
-    this.traffic.geometry.setAttribute(
-      'aSpeed',
-      new THREE.InstancedBufferAttribute(aSpeed, 1)
-    );
-    this.traffic.geometry.setAttribute(
+    carGeo.setAttribute(
       'aColor',
-      new THREE.InstancedBufferAttribute(aColor, 3)
+      new THREE.InstancedBufferAttribute(carColors, 3)
     );
 
     this.city.add(this.traffic);
-    this.group.add(this.city);
-
-    // 3. Background / Atmosphere
-    if (!this.bg) this.bg = new THREE.Color(0x020205);
   }
 
-  init(_ctx: SceneRuntime) {
-    if (this.bg) this.bg = new THREE.Color(0x020205);
-  }
+  init(_ctx: SceneRuntime) {}
 
   update(ctx: SceneRuntime) {
-    // Camera Orbit
-    this.group.rotation.y = Math.sin(ctx.time * 0.1) * 0.2;
-
-    // Update Uniforms
+    const t = ctx.time;
     const bMat = this.buildings.material as THREE.ShaderMaterial;
-    if (bMat.uniforms) bMat.uniforms.uTime.value = ctx.time;
+    if (bMat.uniforms) bMat.uniforms.uTime.value = t;
 
-    const tMat = this.traffic.material as THREE.ShaderMaterial;
-    if (tMat.uniforms) tMat.uniforms.uTime.value = ctx.time;
+    const gMat = this.grid.material as THREE.ShaderMaterial;
+    if (gMat.uniforms) gMat.uniforms.uTime.value = t;
+
+    const cMat = this.traffic.material as THREE.ShaderMaterial;
+    if (cMat.uniforms) {
+      cMat.uniforms.uTime.value = t;
+    }
 
     // Camera Flyover
-    this.camera.position.z = damp(
-      this.camera.position.z,
-      this.baseDistance,
-      3,
-      ctx.dt
-    );
-    // Lift camera on press
-    this.camera.position.y = damp(
-      this.camera.position.y,
-      6 + ctx.press * 20,
-      2,
-      ctx.dt
-    );
-
-    // Look down into city
-    this.camera.lookAt(0, -5, 0);
+    // Infinite fly by moving city relative? No, shader moves grid.
+    // We just orbit slightly.
+    this.camera.position.x = Math.sin(t * 0.1) * 10.0;
+    this.camera.position.y = 15.0 + Math.cos(t * 0.1) * 5.0;
+    this.camera.lookAt(0, 0, 0);
   }
 }
 
-// --- Scene 15: Reality Collapse (Entropy) ---
+// --- Scene 15: Digital Decay (Entropy) ---
 
 class RealityCollapseScene extends SceneBase {
   private mesh: THREE.InstancedMesh;
-  private count = 3000;
+  private count = 8000; // Increased density
 
   constructor() {
     super();
     this.id = 'scene15';
     this.contentRadius = 6.0;
+    // We want camera to be able to see the void structure
+    this.baseDistance = 12.0;
 
     // Use Cubes for "Voxel" aesthetic
-    const geometry = new THREE.BoxGeometry(0.12, 0.12, 0.12);
+    const geometry = new THREE.BoxGeometry(0.15, 0.15, 0.15);
 
     const material = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
         uPress: { value: 0 },
+        uBaseColor: { value: new THREE.Color(0xffffff) },
+        uErrColor: { value: new THREE.Color(0xff0000) },
       },
       vertexShader: `
-        attribute vec3 aPos;
-        attribute float aSpeed;
+        attribute vec3 aPos;     // Initial Sphere Position
+        attribute float aSpeed;  // Random speed factor
+        attribute float aOffset; // Random offset
 
         varying vec3 vColor;
         varying float vGlitch;
 
         uniform float uTime;
         uniform float uPress;
+        uniform vec3 uBaseColor;
+        uniform vec3 uErrColor;
 
-        float hash(float n) { return fract(sin(n) * 43758.5453); }
-        float noise(in vec3 x) {
+        // 3D Noise for displacement
+        // simple hash based
+        vec3 hash33(vec3 p3) {
+	        p3 = fract(p3 * vec3(.1031, .1030, .0973));
+            p3 += dot(p3, p3.yxz+33.33);
+            return fract((p3.xxy + p3.yxx)*p3.zyx);
+        }
+
+        float noise(vec3 x) {
             vec3 p = floor(x);
             vec3 f = fract(x);
             f = f*f*(3.0-2.0*f);
-            float n = p.x + p.y*57.0 + 113.0*p.z;
-            return mix(mix(mix( hash(n+  0.0), hash(n+  1.0),f.x),
-                           mix( hash(n+ 57.0), hash(n+ 58.0),f.x),f.y),
-                       mix(mix( hash(n+113.0), hash(n+114.0),f.x),
-                           mix( hash(n+170.0), hash(n+171.0),f.x),f.y),f.z);
+            return mix(mix(mix( hash33(p).x, hash33(p+vec3(1,0,0)).x,f.x),
+                           mix( hash33(p+vec3(0,1,0)).x, hash33(p+vec3(1,1,0)).x,f.x),f.y),
+                       mix(mix( hash33(p+vec3(0,0,1)).x, hash33(p+vec3(1,0,1)).x,f.x),
+                           mix( hash33(p+vec3(0,1,1)).x, hash33(p+vec3(1,1,1)).x,f.x),f.y),f.z);
         }
 
         void main() {
-             vec3 pos = position; // Local box coord
+             vec3 pos = aPos;
 
-             // 1. Instance Orbit
-             // Rotate aPos around center
-             float t = uTime * aSpeed * 0.3;
-
-             // Quaternion-like rotation around random axis
-             // Simplified: just rotate around Y + slight wobble
+             // Orbit
+             float t = uTime * 0.2 * aSpeed;
              float c = cos(t);
              float s = sin(t);
+             // Rotate around Y
+             float nx = pos.x * c - pos.z * s;
+             float nz = pos.x * s + pos.z * c;
+             pos.x = nx;
+             pos.z = nz;
 
-             vec3 pCenter = aPos;
+             // Decay / Noise Field
+             vec3 noisePos = pos * 0.5 + vec3(0, -uTime * 0.5, 0);
+             float n = noise(noisePos);
 
-             // Rotate 'pCenter'
-             float x = pCenter.x * c - pCenter.z * s;
-             float z = pCenter.x * s + pCenter.z * c;
-             pCenter.x = x;
-             pCenter.z = z;
+             // Glitch Threshold
+             // As time passes, more cubes glitch
+             float glitchLevel = smoothstep(0.4, 0.7, n + sin(uTime * 0.5)*0.2);
 
-             // Wobble
-             pCenter.y += sin(t * 2.0 + pCenter.x) * 0.5;
+             // Explosion on Press
+             float pressExp = uPress * 5.0 * (n + 0.5);
+             pos += normalize(pos) * pressExp;
 
-             // 2. Glitch Effect
-             // Noise field
-             float n = noise(pCenter * 0.5 + uTime);
-             float glitchTrigger = smoothstep(0.6, 0.8, n); // Threshold
-
-             // Hard snap
-             if(glitchTrigger > 0.5) {
-                // Snap to grid
-                pCenter = floor(pCenter * 2.0) / 2.0;
-                // Offset randomly
-                pCenter.x += (hash(uTime) - 0.5) * 0.5;
+             // Gravity drift for glitched items
+             if(glitchLevel > 0.6) {
+                 pos.y -= (uTime * aSpeed * 0.5) * (glitchLevel - 0.5);
+                 // Quantize position (Digital snapping)
+                 pos = floor(pos * 4.0) / 4.0;
              }
 
-             // 3. Explosion (Press)
-             vec3 dir = normalize(pCenter);
-             pCenter += dir * uPress * n * 5.0; // Expand outward
-
-             // 4. Combine
-             // We manually construct world position to bypass instanceMatrix
-             // (assuming we didn't set meaningful instanceMatrices)
-             vec4 world = modelMatrix * vec4(pCenter + pos, 1.0);
+             // Instance transform
+             vec4 world = modelMatrix * vec4(pos + position, 1.0); // position is box local
              gl_Position = projectionMatrix * viewMatrix * world;
 
-             // 5. Color
-             // Normal color
-             vColor = mix(vec3(0.05, 0.05, 0.05), vec3(0.8, 0.8, 0.8), n);
-             // Glitch color
-             if(glitchTrigger > 0.5) {
-                 vColor = vec3(1.0, 0.2, 0.0); // Red
-                 vGlitch = 1.0;
+             // Color logic
+             vGlitch = glitchLevel;
+             if(glitchLevel > 0.8) {
+                 vColor = uErrColor;
+             } else if(glitchLevel > 0.6) {
+                 vColor = vec3(0.1, 0.1, 0.1); // Dead pixel
              } else {
-                 vGlitch = 0.0;
+                 // Clean white with shading
+                 vec3 light = normalize(vec3(1,1,1));
+                 float d = max(0.0, dot(normalize(pos), light));
+                 vColor = uBaseColor * (0.5 + 0.5*d);
              }
         }
       `,
       fragmentShader: `
         varying vec3 vColor;
         varying float vGlitch;
+        uniform float uTime;
 
         void main() {
             vec3 c = vColor;
-            // Scanline if glitch
-            if(vGlitch > 0.5) {
-                if(mod(gl_FragCoord.y, 4.0) < 2.0) discard;
+
+            // Screen door transparency for glitch
+            if(vGlitch > 0.8) {
+                // Flash
+                if(sin(uTime * 20.0 + gl_FragCoord.y) > 0.0) c = vec3(1.0);
             }
+
             gl_FragColor = vec4(c, 1.0);
         }
       `,
@@ -3423,9 +3402,11 @@ class RealityCollapseScene extends SceneBase {
     // Fill Attributes
     const aPos = new Float32Array(this.count * 3);
     const aSpeed = new Float32Array(this.count);
+    const aOffset = new Float32Array(this.count);
 
     for (let i = 0; i < this.count; i++) {
-      const r = 3.0 + Math.random() * 5.0;
+      // Sphere distribution
+      const r = 2.0 + Math.random() * 6.0;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
 
@@ -3438,6 +3419,7 @@ class RealityCollapseScene extends SceneBase {
       aPos[i * 3 + 2] = z;
 
       aSpeed[i] = 0.5 + Math.random();
+      aOffset[i] = Math.random() * 100.0;
 
       this.mesh.setMatrixAt(i, new THREE.Matrix4()); // Identity
     }
@@ -3450,11 +3432,17 @@ class RealityCollapseScene extends SceneBase {
       'aSpeed',
       new THREE.InstancedBufferAttribute(aSpeed, 1)
     );
+    this.mesh.geometry.setAttribute(
+      'aOffset',
+      new THREE.InstancedBufferAttribute(aOffset, 1)
+    );
 
     this.group.add(this.mesh);
   }
 
-  init(_ctx: SceneRuntime) {}
+  init(_ctx: SceneRuntime) {
+    if (this.bg) this.bg = new THREE.Color(0xaaaaaa); // White void
+  }
 
   update(ctx: SceneRuntime) {
     const mat = this.mesh.material as THREE.ShaderMaterial;
@@ -3463,7 +3451,7 @@ class RealityCollapseScene extends SceneBase {
       mat.uniforms.uPress.value = ctx.press;
     }
 
-    this.group.rotation.y = ctx.time * 0.1;
+    this.group.rotation.y = ctx.time * 0.05;
 
     this.camera.position.z = damp(
       this.camera.position.z,
