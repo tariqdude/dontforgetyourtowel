@@ -497,9 +497,9 @@ class LiquidMetalScene extends SceneBase {
 
     this.material = new THREE.MeshStandardMaterial({
       color: 0xaaaaaa,
-      metalness: 0.6,
-      roughness: 0.2,
-      envMapIntensity: 1.5,
+      metalness: 0.9, // Increased metalness
+      roughness: 0.1, // Reduced roughness for better reflection
+      envMapIntensity: 2.0, // Stronger reflections
     });
 
     // Custom Shader Injection
@@ -688,7 +688,7 @@ class LiquidMetalScene extends SceneBase {
 
 class RibbonFieldScene extends SceneBase {
   private mesh: THREE.InstancedMesh;
-  private count = 600;
+  private count = 300; // Optimized count
   private dummy = new THREE.Object3D();
 
   constructor() {
@@ -697,7 +697,7 @@ class RibbonFieldScene extends SceneBase {
     this.contentRadius = 6.0;
 
     // Use a higher resolution plane strip
-    const geo = new THREE.PlaneGeometry(0.15, 20, 2, 200);
+    const geo = new THREE.PlaneGeometry(0.15, 20, 1, 50);
 
     const mat = new THREE.ShaderMaterial({
       side: THREE.DoubleSide,
@@ -959,9 +959,9 @@ class MillionFirefliesScene extends SceneBase {
                 vec4 mv = modelViewMatrix * vec4(p, 1.0);
                 gl_Position = projectionMatrix * mv;
 
-                // Size attenuation
+                // Size attenuation (boosted for visibility)
                 float dCam = length(mv.xyz);
-                gl_PointSize = (3.0 + uPress * 2.0) * (30.0 / dCam);
+                gl_PointSize = (8.0 + uPress * 5.0) * (30.0 / dCam);
 
                 vAlpha = 0.6 + 0.4 * sin(t * 3.0 + phase);
 
@@ -1119,7 +1119,7 @@ class AuroraCurtainScene extends SceneBase {
            // Add brightness from rays
            col += vec3(0.5, 1.0, 0.8) * rays;
 
-           float finalAlpha = vAlpha * 0.4 * (0.5 + 0.5 * rays);
+           float finalAlpha = vAlpha * 0.15 * (0.5 + 0.5 * rays);
 
            gl_FragColor = vec4(col, finalAlpha);
         }
@@ -1327,16 +1327,26 @@ class EventHorizonScene extends SceneBase {
 
   update(ctx: SceneRuntime) {
     const mat = this.disk.material as THREE.ShaderMaterial;
-    mat.uniforms.uTime.value = ctx.time;
+    mat.uniforms.uTime.value = ctx.time * (1.0 + ctx.press * 3.0);
     mat.uniforms.uCamPos.value.copy(this.camera.position);
+
+    // Interactive Color Shift (Doppler effect simulation)
+    const targetColor =
+      ctx.press > 0.1 ? new THREE.Color(0x88ccff) : new THREE.Color(0xff5500);
+    mat.uniforms.uColorA.value.lerp(targetColor, 0.05);
 
     this.photonRing.lookAt(this.camera.position);
 
-    // Tilt the system
-    this.group.rotation.x = Math.PI * 0.15;
-    this.group.rotation.z = Math.PI * 0.1;
+    // Tilt the system with mouse
+    this.group.rotation.x = Math.PI * 0.15 + ctx.pointer.y * 0.2;
+    this.group.rotation.z = Math.PI * 0.1 + ctx.pointer.x * 0.2;
 
-    this.camera.position.z = damp(this.camera.position.z, 25.0, 2, ctx.dt);
+    this.camera.position.z = damp(
+      this.camera.position.z,
+      25.0 - ctx.press * 5.0,
+      2,
+      ctx.dt
+    );
     this.camera.lookAt(0, 0, 0);
   }
 }
@@ -1960,10 +1970,7 @@ class OrbitalMechanicsScene extends SceneBase {
     this.debris = new THREE.InstancedMesh(dGeo, dMat, this.count);
     this.group.add(this.debris);
 
-    // Init Physics
-    this.physics = new SimplePhysics(this.count);
-    this.physics.bounds.set(40, 40, 40); // Large bounds
-    this.physics.friction = 1.0; // No air resistance in space
+    // Physics removed
 
     // Init positions data
     for (let i = 0; i < this.count; i++) {
@@ -1984,7 +1991,7 @@ class OrbitalMechanicsScene extends SceneBase {
       const pos = new THREE.Vector3(x, y, z);
       pos.applyAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI * 0.55);
 
-      this.physics.initParticle(i, pos, 0.1);
+      // this.physics.initParticle(i, pos, 0.1);
 
       // Orbital velocity calculation
       // v = sqrt(GM/r) direction tangent
@@ -2006,10 +2013,7 @@ class OrbitalMechanicsScene extends SceneBase {
         .normalize()
         .multiplyScalar(speed);
 
-      // Set previous pos
-      this.physics.oldPositions[i * 3] = pos.x - vel.x * 0.016;
-      this.physics.oldPositions[i * 3 + 1] = pos.y - vel.y * 0.016;
-      this.physics.oldPositions[i * 3 + 2] = pos.z - vel.z * 0.016;
+      // Physics init skipped
 
       this.dummy.position.copy(pos);
       this.dummy.rotation.set(
@@ -2068,27 +2072,21 @@ class OrbitalMechanicsScene extends SceneBase {
 
   update(ctx: SceneRuntime) {
     const t = ctx.time;
-    // const dt = Math.min(ctx.dt, 1 / 30);
 
     // Planet Shader
     (this.planet.material as THREE.ShaderMaterial).uniforms.uTime.value = t;
 
-    // Simulate physics?
-    // Orbit is stable, so we can just rotate the group for performance
-    // Calculating N-body gravity for 4000 particles in JS is heavy.
-    // Let's just rotate the debris group to match the "orbital speed"
-    this.debris.rotation.x = this.rings.rotation.x;
-    // Rotate around local Y (perpendicular to ring plane)
-    // Actually InstancedMesh rotation is world.
-    // We need to rotate around the Ring Axis.
+    // Simple continuous rotation for debris ring
+    // We simply rotate the debris object around the Y axis
+    // But since it's tilted, we need to rotate around local Y?
+    // The debris object itself is not tilted, the instances are placed in a tilted ring.
+    // If we rotate the debris object around X to tilt it, then rotating Y works.
 
-    const axis = new THREE.Vector3(0, 1, 0).applyAxisAngle(
-      new THREE.Vector3(1, 0, 0),
-      this.rings.rotation.x
-    );
-    this.debris.rotateOnWorldAxis(axis, ctx.dt * 0.1);
+    // Let's reset rotation and apply tilt + spin anew
+    const tilt = Math.PI * 0.55;
+    const spin = t * 0.05;
 
-    this.pointerPos.set(ctx.pointer.x * 12.0, ctx.pointer.y * 12.0, 0);
+    this.debris.rotation.set(tilt, spin, 0);
 
     // Tilt planet slightly
     this.planet.rotation.y = t * 0.05;
@@ -2696,7 +2694,7 @@ class NeuralNetworkScene extends SceneBase {
 
 class LibraryScene extends SceneBase {
   private books: THREE.InstancedMesh;
-  private count = 2400; // Increased density
+  private count = 1000; // Reduced for mobile stability
 
   constructor() {
     super();
@@ -2892,6 +2890,7 @@ class BioluminescentScene extends SceneBase {
       'aData',
       new THREE.InstancedBufferAttribute(new Float32Array(data), 3)
     );
+    geo.instanceCount = this.count; // CRITICAL FIX: Enable instancing
 
     const mat = new THREE.ShaderMaterial({
       uniforms: {
@@ -3560,7 +3559,7 @@ class ElectricStormScene extends SceneBase {
                          -0.80, 0.36, -0.48,
                          -0.60, -0.48, 0.64);
 
-            for(int i=0; i<4; i++) {
+            for(int i=0; i<3; i++) {
                 f += amp * noise(p);
                 p = m * p * 2.02;
                 amp *= 0.5;
@@ -3621,7 +3620,7 @@ class ElectricStormScene extends SceneBase {
              t += hash(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 0.3;
 
              float maxDist = 30.0;
-             int steps = 50;
+             int steps = 25;
 
              for(int i=0; i<steps; i++) {
                  vec3 p = ro + rd * t;
@@ -3643,7 +3642,7 @@ class ElectricStormScene extends SceneBase {
                      if( T < 0.01 ) break;
                  }
 
-                 t += 0.5; // Step size
+                 t += 0.8; // Step size
                  if(t > maxDist) break;
              }
 
