@@ -1166,111 +1166,135 @@ class AuroraCurtainScene extends SceneBase {
   }
 }
 
-// --- Scene 05: Event Horizon (Cosmic Horror) ---
+// --- Scene 05: Event Horizon (Gargantua) ---
 
 class EventHorizonScene extends SceneBase {
   private disk: THREE.Mesh;
-  private glow: THREE.Mesh;
-  private jets: THREE.Mesh;
+  private hole: THREE.Mesh;
+  private photonRing: THREE.Mesh;
 
   constructor() {
     super();
     this.id = 'scene05';
     this.contentRadius = 8.0;
 
-    // 1. Accretion Disk (Volumetric Illusion)
-    const geo = new THREE.PlaneGeometry(16, 16);
-    const mat = new THREE.ShaderMaterial({
+    // 1. Schwarzschild Black Hole (The Void)
+    const holeGeo = new THREE.SphereGeometry(1.9, 64, 64);
+    const holeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    this.hole = new THREE.Mesh(holeGeo, holeMat);
+    this.group.add(this.hole);
+
+    // 2. Photon Ring (The thin glowing line at 1.5Rs)
+    const photonGeo = new THREE.RingGeometry(1.92, 2.05, 128);
+    const photonMat = new THREE.ShaderMaterial({
       side: THREE.DoubleSide,
       transparent: true,
       uniforms: {
         uTime: { value: 0 },
-        uColorA: { value: new THREE.Color(0xff3300) }, // Deep Orange
-        uColorB: { value: new THREE.Color(0xffddaa) }, // Hot White
-        uCameraPos: { value: new THREE.Vector3() },
+        uColor: { value: new THREE.Color(0xffffff) },
+      },
+      vertexShader: `
+        varying vec3 vPos;
+        void main() {
+          vPos = position;
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        uniform vec3 uColor;
+        varying vec3 vPos;
+        void main() {
+          float alpha = 0.8 + 0.2 * sin(uTime * 10.0);
+          gl_FragColor = vec4(uColor, alpha);
+        }
+      `,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.photonRing = new THREE.Mesh(photonGeo, photonMat);
+    this.group.add(this.photonRing);
+
+    // 3. Accretion Disk (Deformed by Gravity)
+    // High-res ring with shader-based noise
+    const diskGeo = new THREE.RingGeometry(2.2, 12.0, 128, 32);
+
+    const diskMat = new THREE.ShaderMaterial({
+      side: THREE.DoubleSide,
+      transparent: true,
+      uniforms: {
+        uTime: { value: 0 },
+        uColorA: { value: new THREE.Color(0xff5500) }, // Hot Orange
+        uColorB: { value: new THREE.Color(0xffddaa) }, // White/Blue hot
+        uCamPos: { value: new THREE.Vector3() },
       },
       vertexShader: `
         varying vec2 vUv;
+        varying float vDoppler;
         varying vec3 vWorldPos;
+
+        uniform float uTime;
+        uniform vec3 uCamPos;
+
         void main() {
-            vUv = uv;
-            vec4 worldPos = modelMatrix * vec4(position, 1.0);
-            vWorldPos = worldPos.xyz;
-            gl_Position = projectionMatrix * viewMatrix * worldPos;
+          vUv = uv;
+          vec3 pos = position;
+          vec4 worldPos = modelMatrix * vec4(pos, 1.0);
+          vWorldPos = worldPos.xyz;
+          gl_Position = projectionMatrix * viewMatrix * worldPos;
+
+          // Doppler calculation
+          vec3 tangent = normalize(vec3(-pos.y, pos.x, 0.0));
+          vec3 viewDirLocal = normalize(uCamPos - worldPos.xyz);
+          vDoppler = dot(tangent, viewDirLocal);
         }
       `,
       fragmentShader: `
         varying vec2 vUv;
         varying vec3 vWorldPos;
+        varying float vDoppler;
         uniform float uTime;
         uniform vec3 uColorA;
         uniform vec3 uColorB;
-        uniform vec3 uCameraPos;
 
-        // Fast Noise
-        float hash( float n ) { return fract(sin(n)*43758.5453123); }
-        float noise( in vec2 x ) {
+        // FBM Noise
+        float hash(float n) { return fract(sin(n) * 43758.5453123); }
+        float noise(vec2 x) {
             vec2 p = floor(x);
             vec2 f = fract(x);
             f = f*f*(3.0-2.0*f);
             float n = p.x + p.y*57.0;
-            return mix(mix( hash(n+  0.0), hash(n+  1.0),f.x),
-                       mix( hash(n+ 57.0), hash(n+ 58.0),f.x),f.y);
+            return mix(mix(hash(n+0.0), hash(n+1.0),f.x),
+                       mix(hash(n+57.0), hash(n+58.0),f.x),f.y);
         }
-
-        // Domain warping FBM
         float fbm(vec2 p) {
-           float f = 0.0;
-           float amp = 0.5;
-           for(int i=0; i<4; i++) {
-             f += amp * noise(p);
-             p = p * 2.1 + vec2(uTime * 0.1, 0.0);
-             amp *= 0.5;
-           }
-           return f;
+            float f = 0.0; float w = 0.5;
+            for(int i=0; i<5; i++){ f += w*noise(p); p*=2.0; w*=0.5; }
+            return f;
         }
 
         void main() {
-            vec2 centered = vUv - 0.5;
-            float r = length(centered) * 9.0; // Scaled radius
-            float ang = atan(centered.y, centered.x);
+            float r = length(vWorldPos.xz);
+            vec2 polar = vec2(atan(vWorldPos.z, vWorldPos.x), length(vWorldPos.xz));
 
-            // BH Shadow
-            if (r < 1.4) discard;
+            // Spiral motion
+            float speed = 2.0 / (polar.y + 0.1);
+            vec2 flow = vec2(polar.x * 3.0 + uTime * speed, polar.y);
 
-            // Swirl Coordinates
-            // Twist space as we get closer to event horizon
-            float twist = 8.0 / (r + 0.1);
-            vec2 flow = vec2(ang * 3.0 + twist - uTime * 2.0, r - uTime * 0.5);
+            // Noise
+            float n = fbm(flow * vec2(2.0, 0.5));
 
-            // Noise structure
-            float n = fbm(flow);
+            // Color mapping
+            vec3 col = mix(uColorA, uColorB, n * n + 0.2);
 
-            // Texture banding
-            float bands = sin(r * 10.0 - uTime * 2.0 + n * 3.0);
+            // Doppler Beaming
+            float beam = 1.0 + vDoppler * 0.5;
+            col *= beam;
 
-            // Intensity Gradient
-            float intensity = smoothstep(1.4, 3.0, r) * smoothstep(7.0, 4.0, r);
-
-            // Core Heat
-            float heat = smoothstep(0.3, 0.8, n + bands * 0.2);
-            vec3 col = mix(uColorA, uColorB, heat);
-
-            // Add relativistic beaming doppler hint (simplistic: brighter on one side)
-            float doppler = 1.0 + sin(ang - 0.5) * 0.4;
-            col *= doppler;
-
-            // Alpha falloff
-            float alpha = intensity * (0.8 + n * 0.2);
-
-            // Add a glow ring at ISCO (Innermost Stable Circular Orbit)
-            float isco = 1.0 - smoothstep(0.02, 0.0, abs(r - 2.0));
-            col += vec3(0.5, 0.8, 1.0) * isco * 2.0;
-
-            if (alpha < 0.05) discard;
-
-            // View Fade to suppress billboarding artifacts if viewed edge on?
-            // Not needed since we use a plane.
+            // Alpha: Soft edges
+            float alpha = smoothstep(2.0, 4.0, polar.y) * (1.0 - smoothstep(11.0, 12.0, polar.y));
+            alpha *= smoothstep(0.2, 0.8, n);
 
             gl_FragColor = vec4(col, alpha);
         }
@@ -1279,171 +1303,25 @@ class EventHorizonScene extends SceneBase {
       depthWrite: false,
     });
 
-    this.disk = new THREE.Mesh(geo, mat);
-    // Orient to face camera? Or flat?
-    // Gargantua is flat but usually viewed at angle.
-    this.disk.rotation.x = -Math.PI * 0.5; // Flat on XZ
+    this.disk = new THREE.Mesh(diskGeo, diskMat);
+    this.disk.rotation.x = -Math.PI * 0.5; // Lay flat on XZ
     this.group.add(this.disk);
-
-    // 2. Black Hole Center (Event Horizon)
-    const bhGeo = new THREE.SphereGeometry(1.4, 64, 64);
-    const bhMat = new THREE.ShaderMaterial({
-      uniforms: {},
-      vertexShader: `
-         varying vec3 vNormal;
-         void main() {
-           vNormal = normalize(normalMatrix * normal);
-           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-         }
-       `,
-      fragmentShader: `
-         varying vec3 vNormal;
-         void main() {
-           // Pure Void
-           gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-
-           // Thin Photon Ring
-           float view = dot(vNormal, vec3(0.0, 0.0, 1.0));
-           float ring = smoothstep(0.0, 0.1, 1.0 - abs(view));
-
-           // In classic BH rendering the photon ring is slightly outside the shadow
-           // Here we just add a tiny rim to separate it if needed, but usually it's black.
-           // Let's keep it pure black for contrast against the bright disk.
-         }
-       `,
-    });
-    // Actually, simple black basic material is best for the void itself to occlude everything behind it.
-    // But we want to ensure it sorts correctly.
-    const bh = new THREE.Mesh(
-      bhGeo,
-      new THREE.MeshBasicMaterial({ color: 0x000000 })
-    );
-    this.group.add(bh);
-
-    // 3. Relativistic Jets (Volumetric Cone)
-    const jetGeo = new THREE.CylinderGeometry(0.05, 1.5, 12, 32, 40, true);
-    jetGeo.translate(0, 6, 0);
-    const jetMat = new THREE.ShaderMaterial({
-      side: THREE.DoubleSide,
-      transparent: true,
-      uniforms: {
-        uTime: { value: 0 },
-        uColor: { value: new THREE.Color(0x88ccff) },
-      },
-      vertexShader: `
-        varying vec2 vUv;
-        varying float vPosY;
-        varying vec3 vWorldPos;
-        void main() {
-          vUv = uv;
-          vec4 worldPos = modelMatrix * vec4(position, 1.0);
-          vWorldPos = worldPos.xyz;
-          vPosY = position.y; // Local Y
-          gl_Position = projectionMatrix * viewMatrix * worldPos;
-        }
-      `,
-      fragmentShader: `
-        varying vec2 vUv;
-        varying float vPosY;
-        uniform float uTime;
-        uniform vec3 uColor;
-
-        float hash( float n ) { return fract(sin(n)*43758.5453123); }
-        float noise( vec2 x ) {
-            vec2 p = floor(x);
-            vec2 f = fract(x);
-            f = f*f*(3.0-2.0*f);
-            float n = p.x + p.y*57.0;
-            return mix(mix( hash(n+  0.0), hash(n+  1.0),f.x),
-                       mix( hash(n+ 57.0), hash(n+ 58.0),f.x),f.y);
-        }
-
-        void main() {
-            // High speed flow
-            float flow = vPosY * 0.5 - uTime * 3.0;
-            float n = noise(vec2(vUv.x * 20.0, flow));
-
-            // Energy core
-            float core = 1.0 - abs(vUv.x - 0.5) * 2.0;
-            core = pow(core, 4.0);
-
-            // Pulse along length
-            float pulse = noise(vec2(0.0, vPosY * 0.2 - uTime * 5.0));
-
-            float alpha = core * (0.5 + n * 0.5);
-            alpha *= smoothstep(0.0, 3.0, vPosY) * (1.0 - smoothstep(8.0, 12.0, vPosY)); // Fade ends
-
-            // Shockwaves
-            float shock = smoothstep(0.6, 0.8, noise(vec2(vUv.x * 5.0, vPosY - uTime * 8.0)));
-
-            vec3 col = uColor + vec3(0.5) * shock;
-
-            gl_FragColor = vec4(col, alpha * (0.5 + pulse * 0.5));
-        }
-      `,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-
-    this.jets = new THREE.Mesh(jetGeo, jetMat);
-    this.group.add(this.jets);
-
-    const jetDown = this.jets.clone();
-    jetDown.rotation.x = Math.PI;
-    this.group.add(jetDown);
-
-    // 4. Corona Glow
-    const shineGeo = new THREE.PlaneGeometry(16, 16);
-    const shineMat = new THREE.ShaderMaterial({
-      transparent: true,
-      uniforms: { uTime: { value: 0 } },
-      vertexShader: `
-            varying vec2 vUv;
-            void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
-        `,
-      fragmentShader: `
-            varying vec2 vUv;
-            void main() {
-                float d = distance(vUv, vec2(0.5));
-                float a = 1.0 / (d * 8.0) - 0.2;
-                a = clamp(a, 0.0, 1.0);
-                gl_FragColor = vec4(1.0, 0.5, 0.2, a * 0.4);
-            }
-        `,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    this.glow = new THREE.Mesh(shineGeo, shineMat);
-    this.group.add(this.glow);
   }
 
   init(_ctx: SceneRuntime) {}
 
   update(ctx: SceneRuntime) {
-    const t = ctx.time;
-    (this.disk.material as THREE.ShaderMaterial).uniforms.uTime.value = t;
-    (this.jets.material as THREE.ShaderMaterial).uniforms.uTime.value = t;
+    const mat = this.disk.material as THREE.ShaderMaterial;
+    mat.uniforms.uTime.value = ctx.time;
+    mat.uniforms.uCamPos.value.copy(this.camera.position);
 
-    // Wobble disk only, keep jet vertical relative to BH?
-    // Actually, jets should align with rotation axis.
-    // Let's rotate the whole group slightly but keep jets mostly vertical for stability in view
-    // or rotate jets with disk.
+    this.photonRing.lookAt(this.camera.position);
 
-    // To keep it simple: Disk rotates around Y (group), but wobbles on local X
-    // We want the group to rotate, so everything rotates together.
-    this.group.rotation.z = Math.sin(t * 0.1) * 0.1;
-    this.group.rotation.x = Math.sin(t * 0.15) * 0.1;
+    // Tilt the system
+    this.group.rotation.x = Math.PI * 0.15;
+    this.group.rotation.z = Math.PI * 0.1;
 
-    // Pulse the glow
-    const glowMat = this.glow.material as THREE.ShaderMaterial;
-    glowMat.uniforms.uTime.value = t;
-
-    this.camera.position.z = damp(
-      this.camera.position.z,
-      this.baseDistance,
-      3,
-      ctx.dt
-    );
+    this.camera.position.z = damp(this.camera.position.z, 25.0, 2, ctx.dt);
     this.camera.lookAt(0, 0, 0);
   }
 }
@@ -1453,6 +1331,7 @@ class EventHorizonScene extends SceneBase {
 class KaleidoGlassScene extends SceneBase {
   private shapes: THREE.InstancedMesh;
   private count = 380; // Icosahedral symmetry count approx
+
   private dummy = new THREE.Object3D();
 
   constructor() {
@@ -2551,68 +2430,57 @@ class MoireInterferenceScene extends SceneBase {
 // --- Scene 11: Neural Network (Deep Learning) ---
 
 class NeuralNetworkScene extends SceneBase {
-  private particles: THREE.InstancedMesh;
-  private connections: THREE.LineSegments; // We'll keep lines but animate them better
-
-  // Simulation params
-  private nodeCount = 500; // Increased
-  private positions: Float32Array;
-  private velocities: Float32Array;
+  private nodes: THREE.InstancedMesh;
+  private connections: THREE.InstancedMesh;
+  private nodeCount = 600;
 
   constructor() {
     super();
     this.id = 'scene11';
-    this.contentRadius = 6.0;
+    this.contentRadius = 8.0;
 
-    // 1. Synapse Nodes (Glowing Neurons)
-    const nodeGeo = new THREE.SphereGeometry(0.08, 16, 16);
-
-    // Custom Shader for Neuron Pulse
+    // 1. Nodes (Somas)
+    const nodeGeo = new THREE.SphereGeometry(0.12, 16, 16);
     const nodeMat = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
-        uColorA: { value: new THREE.Color(0x00aaff) }, // Cyan
-        uColorB: { value: new THREE.Color(0xff0088) }, // Magenta
+        uPress: { value: 0 },
+        uColorA: { value: new THREE.Color(0x0088ff) },
+        uColorB: { value: new THREE.Color(0xff0088) },
       },
       vertexShader: `
-            attribute float aPhase;
-            attribute float aSize;
-            varying float vPhase;
             varying vec3 vPos;
-
             uniform float uTime;
-
             void main() {
-                vPhase = aPhase;
+                vec3 p = position;
+                // Pulse breathing
+                float h = sin(uTime * 2.0 + instanceMatrix[3][0]*0.5);
+                p *= 1.0 + h * 0.1;
 
-                vec3 pos = position;
-                // Pulse size
-                float pulse = 1.0 + sin(uTime * 3.0 + aPhase) * 0.3;
-                pos *= pulse * aSize;
-
-                // Instance transform
-                vec4 worldPos = instanceMatrix * vec4(pos, 1.0);
-                vPos = worldPos.xyz;
-
-                gl_Position = projectionMatrix * viewMatrix * worldPos;
+                vec4 world = instanceMatrix * vec4(p, 1.0);
+                vPos = world.xyz;
+                gl_Position = projectionMatrix * viewMatrix * world;
             }
         `,
       fragmentShader: `
-            varying float vPhase;
             varying vec3 vPos;
+            uniform float uTime;
+            uniform float uPress;
             uniform vec3 uColorA;
             uniform vec3 uColorB;
-            uniform float uTime;
 
             void main() {
-                // Signal Flash
-                float signal = mod(uTime * 2.0 + vPhase, 4.0);
-                float flash = smoothstep(0.0, 0.2, signal) * smoothstep(0.4, 0.2, signal);
+                // Bio-luminescent pulse wave
+                float wave = sin(uTime * 3.0 + vPos.x * 0.5 + vPos.y * 0.5);
+                float activation = smoothstep(0.8, 1.0, wave);
 
-                vec3 col = mix(uColorA, uColorB, flash);
+                vec3 col = mix(uColorA, uColorB, activation);
 
-                // Core glow
-                col += vec3(1.0) * flash * 0.8;
+                // Core hot spot
+                col += vec3(1.0) * activation * 0.5;
+
+                // Interaction flash
+                col += vec3(1.0) * uPress;
 
                 gl_FragColor = vec4(col, 1.0);
             }
@@ -2621,172 +2489,173 @@ class NeuralNetworkScene extends SceneBase {
 
     this.nodes = new THREE.InstancedMesh(nodeGeo, nodeMat, this.nodeCount);
 
-    this.positions = new Float32Array(this.nodeCount * 3);
-    this.velocities = new Float32Array(this.nodeCount * 3);
-    const aPhase = new Float32Array(this.nodeCount);
-    const aSize = new Float32Array(this.nodeCount);
-
+    const positions: THREE.Vector3[] = [];
     const dummy = new THREE.Object3D();
 
     for (let i = 0; i < this.nodeCount; i++) {
-      // Biology-like distribution (Brain shape approximation - somewhat oval)
+      // Brain-like distribution (Ellipsoid)
       const u = Math.random();
       const v = Math.random();
       const theta = 2 * Math.PI * u;
       const phi = Math.acos(2 * v - 1);
-      const r = 4.0 * Math.cbrt(Math.random());
+      const r = 5.0 * Math.cbrt(Math.random());
 
       let x = r * Math.sin(phi) * Math.cos(theta);
       let y = r * Math.sin(phi) * Math.sin(theta);
       let z = r * Math.cos(phi);
 
-      // Squash to look brain-like? No, sphere is fine, maybe slightly flattened Y
-      y *= 0.8;
-
-      this.positions[i * 3] = x;
-      this.positions[i * 3 + 1] = y;
-      this.positions[i * 3 + 2] = z;
+      // Flatten slightly
+      y *= 0.7;
 
       dummy.position.set(x, y, z);
       dummy.updateMatrix();
       this.nodes.setMatrixAt(i, dummy.matrix);
 
-      aPhase[i] = Math.random() * 10.0;
-      aSize[i] = 0.5 + Math.random();
-
-      // Drift velocity
-      this.velocities[i * 3] = (Math.random() - 0.5) * 0.2;
-      this.velocities[i * 3 + 1] = (Math.random() - 0.5) * 0.2;
-      this.velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.2;
+      positions.push(new THREE.Vector3(x, y, z));
     }
-
-    this.nodes.geometry.setAttribute(
-      'aPhase',
-      new THREE.InstancedBufferAttribute(aPhase, 1)
-    );
-    this.nodes.geometry.setAttribute(
-      'aSize',
-      new THREE.InstancedBufferAttribute(aSize, 1)
-    );
-
     this.group.add(this.nodes);
 
-    // 2. Dynamic Connections (Only nearest neighbors computed once? Or simpler visuals?)
-    // Realtime connection update is heavy in JS. Let's do a static web but animate the signals along it.
+    // 2. Axons (Volumetric Connections)
+    // We use stretched boxes to create thick lines
+    const connGeo = new THREE.BoxGeometry(0.04, 0.04, 1.0);
+    // Translate geometry so origin is at Z=0, extending to Z=1
+    connGeo.translate(0, 0, 0.5);
 
-    const linePos = [];
-    const linePhase = []; // For signal propagation offset
-
-    for (let i = 0; i < this.nodeCount; i++) {
-      const p1 = new THREE.Vector3(
-        this.positions[i * 3],
-        this.positions[i * 3 + 1],
-        this.positions[i * 3 + 2]
-      );
-      let connectionsFound = 0;
-
-      for (let j = i + 1; j < this.nodeCount; j++) {
-        const p2 = new THREE.Vector3(
-          this.positions[j * 3],
-          this.positions[j * 3 + 1],
-          this.positions[j * 3 + 2]
-        );
-        const dist = p1.distanceTo(p2);
-
-        if (dist < 1.5 && connectionsFound < 3) {
-          linePos.push(p1.x, p1.y, p1.z);
-          linePos.push(p2.x, p2.y, p2.z);
-
-          // Random phase for this line connection
-          const ph = Math.random() * 10.0;
-          linePhase.push(ph, ph); // Same phase for both vertices of the segment
-
-          connectionsFound++;
-        }
-      }
-    }
-
-    const lineGeo = new THREE.BufferGeometry();
-    lineGeo.setAttribute(
-      'position',
-      new THREE.Float32BufferAttribute(linePos, 3)
-    );
-    lineGeo.setAttribute(
-      'aPhase',
-      new THREE.Float32BufferAttribute(linePhase, 1)
-    );
-
-    const lineMat = new THREE.ShaderMaterial({
+    const connMat = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
+        uPress: { value: 0 },
         uColor: { value: new THREE.Color(0x00aaff) },
       },
       transparent: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       vertexShader: `
+            attribute float aLength;
             attribute float aPhase;
+            varying float vLen;
             varying float vPhase;
-            varying vec3 vPos;
+            varying float vLocalZ;
+
             void main() {
+                vLen = aLength;
                 vPhase = aPhase;
-                vPos = position;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+
+                vec3 p = position;
+                // Position is already 0 to 1 in Z due to geometry translation
+                // Scale Z by length is handled by instance matrix scale?
+                // No, we handle it here or in JS.
+                // If we scaled in JS, 'position.z' goes 0..Length.
+
+                // Let's assume instance scale.z = length.
+                // Then position.z goes 0..1 in local? No.
+                // BoxGeometry default is centered. We translated it 0..1.
+                // Instance scale multiplies it.
+
+                vLocalZ = p.z; // This will vary 0..1 if we rely on matrix scale
+
+                gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(p, 1.0);
             }
         `,
       fragmentShader: `
+            varying float vPhase;
+            varying float vLocalZ;
             uniform float uTime;
             uniform vec3 uColor;
-            varying float vPhase;
-            varying vec3 vPos;
 
             void main() {
-                // Signal pulses travelling along the web
-                // We don't have UVs on lines easily, so use time + phase
-                float signal = mod(uTime * 5.0 + vPhase, 10.0);
-                float pulse = smoothstep(0.0, 1.0, signal) * smoothstep(2.0, 1.0, signal); // Short burst
+                // Signal Packet travelling down the axon
+                float speed = 2.0;
+                float packet = mod(uTime * speed + vPhase, 10.0); // 0 to 10 loop
 
-                float alpha = 0.05 + pulse * 0.8;
+                // packet is the Z position of the pulse (in scaled units? No relative to time)
+                // vLocalZ is 0..1.
+                // We want pulse to travel 0..1 really fast?
+
+                // If we want slow travel:
+                // vLocalZ is normalized length.
+                float dist = abs(vLocalZ * 10.0 - packet); // Scale Z up so pulse is small
+
+                float glow = smoothstep(1.5, 0.0, dist); // Tail
+                glow *= smoothstep(0.0, 0.2, dist); // Sharp lead?
+
+                // Make packet teardrop shape
+                float lead = step(packet, vLocalZ * 10.0); // 0 if passed?
+
+                // Simpler Beam
+                float beam = smoothstep(0.0, 1.0, 1.0 - abs(vLocalZ * 10.0 - packet));
+
+                float alpha = 0.1 + beam * 2.0;
+
                 gl_FragColor = vec4(uColor, alpha);
             }
         `,
     });
 
-    this.connections = new THREE.LineSegments(lineGeo, lineMat);
+    // Generate connections
+    const connInstances = [];
+
+    for (let i = 0; i < this.nodeCount; i++) {
+      const p1 = positions[i];
+      let found = 0;
+      // Connect to nearest 3 neighbors
+      for (let j = i + 1; j < this.nodeCount; j++) {
+        if (found >= 2) break; // Limit density
+        const p2 = positions[j];
+        const d = p1.distanceTo(p2);
+        if (d < 2.5) {
+          connInstances.push({ p1, p2, dist: d });
+          found++;
+        }
+      }
+    }
+
+    this.connections = new THREE.InstancedMesh(
+      connGeo,
+      connMat,
+      connInstances.length
+    );
+
+    const scales = new Float32Array(connInstances.length); // We won't use this if we scale matrix
+    const phases = new Float32Array(connInstances.length);
+
+    for (let i = 0; i < connInstances.length; i++) {
+      const { p1, p2, dist } = connInstances[i];
+
+      dummy.position.copy(p1);
+      dummy.lookAt(p2);
+      dummy.scale.set(1, 1, dist); // Stretch Z to match distance
+      dummy.updateMatrix();
+
+      this.connections.setMatrixAt(i, dummy.matrix);
+      phases[i] = Math.random() * 10.0;
+    }
+
+    this.connections.geometry.setAttribute(
+      'aPhase',
+      new THREE.InstancedBufferAttribute(phases, 1)
+    );
     this.group.add(this.connections);
   }
 
   init(_ctx: SceneRuntime) {}
 
   update(ctx: SceneRuntime) {
-    // Rotation
-    this.group.rotation.y = ctx.time * 0.1;
-    this.group.rotation.z = Math.sin(ctx.time * 0.1) * 0.1;
-
-    // Shader Updates
     const nMat = this.nodes.material as THREE.ShaderMaterial;
-    if (nMat.uniforms) nMat.uniforms.uTime.value = ctx.time;
+    if (nMat.uniforms) {
+      nMat.uniforms.uTime.value = ctx.time;
+      nMat.uniforms.uPress.value = ctx.press;
+    }
 
-    const lMat = this.connections.material as THREE.ShaderMaterial;
-    if (lMat.uniforms) lMat.uniforms.uTime.value = ctx.time;
+    const cMat = this.connections.material as THREE.ShaderMaterial;
+    if (cMat.uniforms) cMat.uniforms.uTime.value = ctx.time;
+
+    this.group.rotation.y = ctx.time * 0.05;
 
     this.camera.position.z = damp(
       this.camera.position.z,
       this.baseDistance,
       3,
-      ctx.dt
-    );
-    // Mouse Parallax
-    this.camera.position.x = damp(
-      this.camera.position.x,
-      ctx.pointer.x * 2.0,
-      2,
-      ctx.dt
-    );
-    this.camera.position.y = damp(
-      this.camera.position.y,
-      ctx.pointer.y * 2.0,
-      2,
       ctx.dt
     );
     this.camera.lookAt(0, 0, 0);
@@ -2797,29 +2666,33 @@ class NeuralNetworkScene extends SceneBase {
 
 class LibraryScene extends SceneBase {
   private books: THREE.InstancedMesh;
-  private count = 2000;
-  private dummy = new THREE.Object3D();
+  private count = 2400; // Increased density
 
   constructor() {
     super();
     this.id = 'scene12';
     this.contentRadius = 6.0;
-    this.baseDistance = 15.0; // Tunnel view
+    this.baseDistance = 20.0;
 
-    // Book geometry
-    const geo = new THREE.BoxGeometry(0.5, 3.0, 2.0); // Thick ancient tomes
+    // Book geometry: Vary thickness in vertex shader?
+    // No, use a standard thick book shape.
+    const geo = new THREE.BoxGeometry(0.4, 2.5, 1.8);
 
     // Shader Material for "Magical Text"
     const mat = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
-        uColor: { value: new THREE.Color(0xffd700) }, // Gold
+        uColor: { value: new THREE.Color(0xffaa00) }, // Gold
       },
       vertexShader: `
         varying vec2 vUv;
         varying vec3 vPos;
+        varying float vId;
+
         void main() {
             vUv = uv;
+            vId = instanceMatrix[3][0]; // Random seed from position?
+
             vec4 worldPos = instanceMatrix * vec4(position, 1.0);
             vPos = worldPos.xyz;
             gl_Position = projectionMatrix * viewMatrix * worldPos;
@@ -2830,30 +2703,46 @@ class LibraryScene extends SceneBase {
         uniform vec3 uColor;
         varying vec2 vUv;
         varying vec3 vPos;
+        varying float vId;
 
         float hash(float n) { return fract(sin(n) * 43758.5453123); }
 
         void main() {
             // Book Cover Base
-            vec3 col = vec3(0.1, 0.05, 0.02); // Leather brown
+            vec3 col = vec3(0.08, 0.04, 0.02); // Dark Leather
 
             // Spine Text (Procedural Runes)
-            // Assuming spine is front face or similar. Let's just project XZ
+            // Map UV to grid
+            vec2 grid = floor(vUv * vec2(3.0, 12.0));
+            float n = hash(dot(grid, vec2(12.7, 31.1)) + floor(vPos.z)); // Random per book
 
-            vec2 runeGrid = floor(vUv * vec2(4.0, 10.0));
-            float rune = hash(dot(runeGrid, vec2(12.9898, 78.233)) + floor(vPos.x));
+            // Text characters
+            // Simple block shapes
+            vec2 local = fract(vUv * vec2(3.0, 12.0));
+            float char = step(0.2, local.x) * step(local.x, 0.8) * step(0.2, local.y) * step(local.y, 0.8);
 
-            float isText = step(0.5, rune);
+            // Randomly hide some chars
+            char *= step(0.4, n);
 
-            // Trim/Border
-            float border = step(0.1, vUv.x) * step(vUv.x, 0.9) * step(0.1, vUv.y) * step(vUv.y, 0.9);
+            // Flashing Runes
+            float flash = sin(uTime * 3.0 + vPos.z * 0.5 + n * 6.0);
+            float glow = smoothstep(0.8, 1.0, flash);
 
-            // Glowing Symbols
-            float glow = abs(sin(uTime * 2.0 + vPos.y + vPos.x));
+            // Spine Mask (assuming spine is front face X?)
+            // Box mapping is uniform UV. Let's assume we want text on all sides for effect.
 
-            if(isText > 0.5 && border > 0.5) {
-                col = mix(col, uColor, glow);
+            if(char > 0.5) {
+                // Gold Runes
+                col = mix(col, uColor, 0.5 + glow * 0.5);
+                col += vec3(1.0) * glow;
             }
+
+            // Edges (Pages)
+            // No easy way to distinguish face in standard UV.
+
+            // Volumetric Fog Fade
+            float dist = length(vPos);
+            float fog = smoothstep(30.0, 10.0, dist);
 
             gl_FragColor = vec4(col, 1.0);
         }
@@ -2862,30 +2751,34 @@ class LibraryScene extends SceneBase {
 
     this.books = new THREE.InstancedMesh(geo, mat, this.count);
 
-    // Spiral Tunnel Layout
-    const radius = 6.0;
+    const dummy = new THREE.Object3D();
+    const radius = 8.0;
 
     for (let i = 0; i < this.count; i++) {
-      const angle = i * 0.3;
-      const z = i * 0.5 - this.count * 0.25; // Long Z tunnel
+      // Spiral Tunnel
+      const t = i / this.count;
+      const angle = t * Math.PI * 40.0; // Many turns
+      const z = (t - 0.5) * 60.0; // Long tunnel
 
-      const x = Math.cos(angle) * radius;
-      const y = Math.sin(angle) * radius;
+      const r = radius + Math.random() * 1.0;
 
-      this.dummy.position.set(x, y, z);
+      const x = Math.cos(angle) * r;
+      const y = Math.sin(angle) * r;
 
-      // Look at center line, then rotate 90 deg to face camera
-      this.dummy.lookAt(0, 0, z);
-      this.dummy.rotateY(Math.PI / 2); // Spine facing out? Or in?
+      dummy.position.set(x, y, z);
+
+      // Orient book
+      dummy.lookAt(0, 0, z); // Face center
+      dummy.rotateY(Math.PI / 2); // Spine out
       // Random tilt
-      this.dummy.rotateZ((Math.random() - 0.5) * 0.2);
+      dummy.rotateZ((Math.random() - 0.5) * 0.3);
+      dummy.rotateX((Math.random() - 0.5) * 0.1);
 
       // Scale variation
-      const s = 1.0 + Math.random() * 0.5;
-      this.dummy.scale.set(1, s, 1);
+      dummy.scale.set(1.0, 1.0 + Math.random() * 0.5, 1.0);
 
-      this.dummy.updateMatrix();
-      this.books.setMatrixAt(i, this.dummy.matrix);
+      dummy.updateMatrix();
+      this.books.setMatrixAt(i, dummy.matrix);
     }
 
     this.group.add(this.books);
@@ -2895,58 +2788,60 @@ class LibraryScene extends SceneBase {
 
   update(ctx: SceneRuntime) {
     const t = ctx.time;
-
     const mat = this.books.material as THREE.ShaderMaterial;
     mat.uniforms.uTime.value = t;
 
-    // Infinite Fly-through effect
-    // We move the camera? Or the tunnel?
-    // Let's move the tunnel group and wrap it? Instanced mesh manipulation is faster on GPU shader usually
-    // But for 2000 instances, recalculating matrix on CPU is fine
+    // Endless Flight
+    const speed = 4.0;
+    const loopLength = 40.0;
 
-    // Actually, just loop the camera Z position
-    // No, we need to wrap the books.
+    // We move the camera relative to the tunnel?
+    // Or move the tunnel?
+    // Moving tunnel is easier for shaders usually
 
-    // Simple: Move group Z.
-    this.group.position.z = (t * 5.0) % 50.0;
-    // Rotate tunnel
     this.group.rotation.z = t * 0.1;
 
-    this.camera.lookAt(0, 0, -100); // Look down tunnel
+    // We want infinite loop.
+    // The books are distributed Z: -30 to 30.
+    // We can move camera Z from 30 to -30 and Wrap?
+    // SceneRuntime doesn't support camera warp easily.
+    // We oscillate.
+
+    this.camera.position.z = 20.0 * Math.sin(t * 0.1);
+    this.camera.lookAt(0, 0, this.camera.position.z - 10.0);
   }
 }
 
-// --- Scene 13: Deep Abyss (Underworld) ---
+// --- Scene 13: Abyss (Bioluminescent Flow) ---
 
 class BioluminescentScene extends SceneBase {
   private strands: THREE.Mesh;
   private spores: THREE.InstancedMesh;
-  private count = 4000;
-  private sporeCount = 2000;
+  private count = 8000;
+  private sporeCount = 4000;
 
   constructor() {
     super();
     this.id = 'scene13';
     this.contentRadius = 6.0;
-    this.baseDistance = 15.0; // Further back
+    this.baseDistance = 14.0;
 
-    // 1. "Anemone" Strands
-    // We increase density and improve the shader
-    const segs = 32; // smoother
-    const strandGeo = new THREE.PlaneGeometry(0.08, 6.0, 1, segs);
-    strandGeo.translate(0, 3.0, 0); // Pivot at bottom
+    // 1. Sea Anemone Strands
+    // High density instanced planes
+    const strandH = 6.0;
+    const strandGeo = new THREE.PlaneGeometry(0.06, strandH, 1, 32);
+    strandGeo.translate(0, strandH * 0.5, 0); // Pivot at bottom
 
     const geo = new THREE.InstancedBufferGeometry();
     geo.index = strandGeo.index;
     geo.attributes.position = strandGeo.attributes.position;
     geo.attributes.uv = strandGeo.attributes.uv;
 
-    // Instanced attributes
-    const offsets = new Float32Array(this.count * 3);
-    const data = new Float32Array(this.count * 3); // phase, length, bend
+    const offsets: number[] = [];
+    const data: number[] = []; // phase, length, bend
 
     for (let i = 0; i < this.count; i++) {
-      // Base sphere distribution with varied density (clusters)
+      // Sphere distribution
       const r = 2.0;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
@@ -2955,167 +2850,153 @@ class BioluminescentScene extends SceneBase {
       const y = r * Math.sin(phi) * Math.sin(theta);
       const z = r * Math.cos(phi);
 
-      offsets[i * 3] = x;
-      offsets[i * 3 + 1] = y;
-      offsets[i * 3 + 2] = z;
-
-      data[i * 3] = Math.random() * 100.0; // Phase
-      data[i * 3 + 1] = 0.5 + Math.random() * 0.8; // Length multiplier
-      data[i * 3 + 2] = 0.5 + Math.random(); // Bend flexibility
+      offsets.push(x, y, z);
+      data.push(Math.random() * 10.0, 0.5 + Math.random(), Math.random());
     }
 
-    geo.setAttribute('aOffset', new THREE.InstancedBufferAttribute(offsets, 3));
-    geo.setAttribute('aData', new THREE.InstancedBufferAttribute(data, 3));
+    geo.setAttribute(
+      'aOffset',
+      new THREE.InstancedBufferAttribute(new Float32Array(offsets), 3)
+    );
+    geo.setAttribute(
+      'aData',
+      new THREE.InstancedBufferAttribute(new Float32Array(data), 3)
+    );
 
     const mat = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
         uPress: { value: 0 },
-        uColor: { value: new THREE.Color(0x00ffaa) },
-        uColorB: { value: new THREE.Color(0x8800ff) },
+        uColorA: { value: new THREE.Color(0x00ffaa) }, // Cyan
+        uColorB: { value: new THREE.Color(0xaa00ff) }, // Purple
       },
       side: THREE.DoubleSide,
       transparent: true,
       blending: THREE.AdditiveBlending,
       vertexShader: `
-            uniform float uTime;
-            uniform float uPress;
-            attribute vec3 aOffset;
-            attribute vec3 aData;
+         attribute vec3 aOffset;
+         attribute vec3 aData; // phase, scale, bend
+         varying float vH;
+         varying vec3 vPos;
+         uniform float uTime;
+         uniform float uPress;
 
-            varying float vProgress;
-            varying float vAlpha;
-            varying vec3 vPos;
+         void main() {
+           vH = uv.y;
 
-            // Simple noise
-            float hash(float n) { return fract(sin(n) * 43758.5453123); }
+           vec3 normal = normalize(aOffset);
+           vec3 p = position;
+           p.y *= aData.y; // Length variation
 
-            void main() {
-                vProgress = uv.y;
+           // Current Position (Base + Height)
+           vec3 current = aOffset + normal * p.y;
 
-                // Base position on sphere
-                vec3 basePos = aOffset;
-                vec3 normal = normalize(basePos);
+           // Curl Noise / Sway
+           // Simple sine waves for cheap swaying
+           float sway = sin(uTime + current.x) * 0.2 + cos(uTime * 1.5 + current.z) * 0.2;
+           sway *= vH; // More at tip
 
-                // Rotate local position
-                vec3 localPos = position;
-                // Extend length
-                localPos.y *= aData.y;
+           // Apply sway perpendicular to normal?
+           // Just add to position loosely
+           current.x += sway * aData.z;
+           current.z += sway * aData.z;
 
-                // Bioluminescent Pulse (moves up the strand)
-                float pulseSpeed = 1.0;
-                float pulse = mod(uTime * pulseSpeed + aData.x, 10.0);
-                // Widen pulse on press
-                float w = 2.0 + uPress * 5.0;
+           // Interaction Shockwave
+           // If uPress > 0, strands blow outward
+           float blow = smoothstep(0.0, 1.0, uPress) * vH * 3.0;
+           current += normal * blow;
 
-                // Swaying movement
-                float sway = sin(uTime * 1.0 + basePos.x + localPos.y * 0.5) * 0.2;
-                sway += sin(uTime * 2.5 + basePos.z) * 0.1 * localPos.y; // whip tip
-
-                // Apply bend
-                vec3 tip = basePos + normal * localPos.y;
-                tip += vec3(sway, sway * 0.5, sway * 0.8) * aData.z;
-
-                // Explode out on press
-                tip += normal * uPress * 4.0 * vProgress;
-
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(tip, 1.0);
-                vPos = tip;
-
-                // Alpha fade at bottom and top
-                vAlpha = smoothstep(0.0, 0.1, vProgress) * (1.0 - vProgress);
-                // Pulse brightness
-                float pDist = abs(vProgress * 10.0 - pulse);
-                float pGlow = smoothstep(w, 0.0, pDist);
-                vAlpha += pGlow * 2.0;
-            }
-        `,
+           gl_Position = projectionMatrix * modelViewMatrix * vec4(current, 1.0);
+           vPos = current;
+         }
+       `,
       fragmentShader: `
-            uniform vec3 uColor;
-            uniform vec3 uColorB;
-            varying float vProgress;
-            varying float vAlpha;
-            varying vec3 vPos;
+         varying float vH;
+         varying vec3 vPos;
+         uniform float uTime;
+         uniform vec3 uColorA;
+         uniform vec3 uColorB;
+         uniform float uPress;
 
-            void main() {
-                vec3 c = mix(uColor, uColorB, vProgress);
-                // Add white core
-                c += vec3(1.0) * smoothstep(0.5, 1.0, vAlpha - 0.5);
-                gl_FragColor = vec4(c, min(1.0, vAlpha));
-            }
-        `,
+         void main() {
+            // Bio-Luminescence
+            // Pulse moves up
+            float pulse = mod(uTime * 2.0 - vPos.y, 8.0);
+            float glow = smoothstep(0.8, 1.0, 1.0 - abs(pulse - vH * 8.0));
+
+            vec3 col = mix(uColorA, uColorB, vH);
+
+            // Tip glow
+            col += vec3(1.0) * glow;
+
+            // Add sparkle
+            float sparkle = step(0.98, fract(vH * 20.0 + uTime));
+            col += sparkle * 0.5;
+
+            float alpha = smoothstep(0.0, 0.2, vH) * (1.0 - vH) + glow;
+
+            gl_FragColor = vec4(col, alpha);
+         }
+       `,
     });
-
     this.strands = new THREE.Mesh(geo, mat);
     this.group.add(this.strands);
 
-    // 2. Floating Spores (Particles)
-    const sporeGeo = new THREE.IcosahedronGeometry(0.02, 1);
-    const sporeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    // Actually use shader for twinkle
-    const sporeShader = new THREE.ShaderMaterial({
-      uniforms: {
-        uTime: { value: 0 },
-        uColor: { value: new THREE.Color(0xccffaa) },
-      },
+    // 2. Spores (Boids-like particles)
+    const sporeGeo = new THREE.IcosahedronGeometry(0.04, 0);
+    const sporeMat = new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 } },
       vertexShader: `
-            attribute float aPhase;
-            varying float vAlpha;
-            uniform float uTime;
-            void main() {
-                vec3 pos = position;
-                vec4 worldPos = instanceMatrix * vec4(pos, 1.0);
+          attribute vec3 aOffset;
+          varying float vAlpha;
+          uniform float uTime;
+          void main() {
+            // Orbiting math
+            float t = uTime * 0.5 + aOffset.z; // Speed
+            float r = 5.0 + sin(t*0.5)*2.0;
 
-                // Rise up
-                float rise = mod(uTime * 0.5 + aPhase, 10.0);
-                worldPos.y += rise;
+            vec3 p = vec3(
+              sin(t * aOffset.x) * r,
+              cos(t * aOffset.y) * r,
+              sin(t) * cos(t) * r
+            );
 
-                gl_Position = projectionMatrix * viewMatrix * worldPos;
+            vec4 mv = modelViewMatrix * vec4(p, 1.0);
+            gl_Position = projectionMatrix * mv;
 
-                // Twinkle
-                float twinkle = sin(uTime * 5.0 + aPhase * 10.0);
-                vAlpha = smoothstep(-0.5, 1.0, twinkle);
-            }
+            vAlpha = 0.5 + 0.5 * sin(t * 5.0);
+          }
         `,
       fragmentShader: `
-            uniform vec3 uColor;
-            varying float vAlpha;
-            void main() {
-                gl_FragColor = vec4(uColor, vAlpha);
-            }
+          varying float vAlpha;
+          void main() {
+             gl_FragColor = vec4(1.0, 1.0, 0.8, vAlpha);
+          }
         `,
       transparent: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
 
-    this.spores = new THREE.InstancedMesh(
-      sporeGeo,
-      sporeShader,
-      this.sporeCount
-    );
+    this.spores = new THREE.InstancedMesh(sporeGeo, sporeMat, this.sporeCount);
 
-    // Distribute spores around the sphere
-    const dummy = new THREE.Object3D();
-    const phases = new Float32Array(this.sporeCount);
+    // Init spores with random params
+    const sDummy = new THREE.Object3D();
+    const sOffsets = new Float32Array(this.sporeCount * 3);
 
     for (let i = 0; i < this.sporeCount; i++) {
-      const r = 2.0 + Math.random() * 4.0;
-      const theta = Math.random() * 6.28;
-      const phi = Math.random() * 3.14;
+      sOffsets[i * 3] = Math.random() * 0.5 + 0.5; // speed x
+      sOffsets[i * 3 + 1] = Math.random() * 0.5 + 0.5; // speed y
+      sOffsets[i * 3 + 2] = Math.random() * 100.0; // Phase
 
-      dummy.position.setFromSphericalCoords(r, phi, theta);
-      dummy.position.y -= 5.0; // Start lower
-      dummy.scale.setScalar(0.5 + Math.random());
-      dummy.updateMatrix();
-      this.spores.setMatrixAt(i, dummy.matrix);
-
-      phases[i] = Math.random() * 10.0;
+      sDummy.position.set(0, 0, 0);
+      sDummy.updateMatrix();
+      this.spores.setMatrixAt(i, sDummy.matrix);
     }
 
     sporeGeo.setAttribute(
-      'aPhase',
-      new THREE.InstancedBufferAttribute(phases, 1)
+      'aOffset',
+      new THREE.InstancedBufferAttribute(sOffsets, 3)
     );
     this.group.add(this.spores);
   }
@@ -3127,10 +3008,10 @@ class BioluminescentScene extends SceneBase {
     mat.uniforms.uTime.value = ctx.time;
     mat.uniforms.uPress.value = ctx.press;
 
-    const sporeMat = this.spores.material as THREE.ShaderMaterial;
-    sporeMat.uniforms.uTime.value = ctx.time;
+    const sMat = this.spores.material as THREE.ShaderMaterial;
+    sMat.uniforms.uTime.value = ctx.time;
 
-    this.group.rotation.y = ctx.time * 0.05;
+    this.group.rotation.y = ctx.time * 0.1;
 
     this.camera.position.z = damp(
       this.camera.position.z,
