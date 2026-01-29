@@ -236,7 +236,99 @@ createAstroMount(ROOT_SELECTOR, () => {
     root.querySelectorAll<HTMLButtonElement>('[data-csr-swatch]')
   );
 
+  const selectedPartEl = root.querySelector<HTMLElement>(
+    '[data-csr-selected-part]'
+  );
+  const qualitySel =
+    root.querySelector<HTMLSelectElement>('[data-csr-quality]');
+  const shotScaleSel = root.querySelector<HTMLSelectElement>(
+    '[data-csr-shot-scale]'
+  );
+  const shotTransparentChk = root.querySelector<HTMLInputElement>(
+    '[data-csr-shot-transparent]'
+  );
+
+  // --- Panel tabs (mobile-friendly)
+  const TAB_STORAGE_KEY = 'csr-active-tab-v1';
+  const tabButtons = Array.from(
+    root.querySelectorAll<HTMLButtonElement>('[data-csr-tab-btn]')
+  );
+  const tabPanels = Array.from(
+    root.querySelectorAll<HTMLElement>('[data-csr-tab-panel]')
+  );
+
+  const getTabId = (el: Element) =>
+    (el.getAttribute('data-csr-tab-btn') || '').trim();
+  const getPanelId = (el: Element) =>
+    (el.getAttribute('data-csr-tab-panel') || '').trim();
+
+  const setActiveTab = (tabId: string) => {
+    if (!tabId) return;
+    let matched = false;
+
+    for (const btn of tabButtons) {
+      const id = getTabId(btn);
+      const active = id === tabId;
+      if (active) matched = true;
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+      btn.tabIndex = active ? 0 : -1;
+    }
+
+    for (const panelEl of tabPanels) {
+      const id = getPanelId(panelEl);
+      panelEl.hidden = id !== tabId;
+    }
+
+    if (matched) {
+      try {
+        localStorage.setItem(TAB_STORAGE_KEY, tabId);
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  const initTabs = () => {
+    if (tabButtons.length === 0 || tabPanels.length === 0) return;
+
+    const saved = (() => {
+      try {
+        return (localStorage.getItem(TAB_STORAGE_KEY) || '').trim();
+      } catch {
+        return '';
+      }
+    })();
+
+    const fallback = getTabId(tabButtons[0]);
+    const initial = saved || fallback;
+    setActiveTab(initial);
+
+    for (const btn of tabButtons) {
+      btn.addEventListener('click', () => {
+        const id = getTabId(btn);
+        setActiveTab(id);
+      });
+
+      btn.addEventListener('keydown', e => {
+        const key = e.key;
+        if (key !== 'ArrowLeft' && key !== 'ArrowRight') return;
+        if (tabButtons.length < 2) return;
+        e.preventDefault();
+
+        const currentIndex = tabButtons.indexOf(btn);
+        const dir = key === 'ArrowRight' ? 1 : -1;
+        const nextIndex =
+          (currentIndex + dir + tabButtons.length) % tabButtons.length;
+        const nextBtn = tabButtons[nextIndex];
+        nextBtn.focus();
+        setActiveTab(getTabId(nextBtn));
+      });
+    }
+  };
+
   let currentObjectUrl: string | null = null;
+
+  initTabs();
 
   const showToast = (message: string) => {
     root.dataset.carShowroomLoadError = message;
@@ -425,6 +517,7 @@ createAstroMount(ROOT_SELECTOR, () => {
   };
 
   const PRESET_DATASET_KEYS: Array<keyof DOMStringMap> = [
+    'carShowroomQuality',
     'carShowroomModel',
     'carShowroomMode',
     'carShowroomColor',
@@ -488,6 +581,16 @@ createAstroMount(ROOT_SELECTOR, () => {
 
   const syncInputsFromDataset = () => {
     const ds = root.dataset;
+
+    if (selectedPartEl) {
+      const part = (ds.carShowroomSelectedPart || '').trim();
+      selectedPartEl.textContent = part
+        ? `Selected: ${part}`
+        : 'Tap/click the car to select';
+    }
+
+    if (qualitySel && ds.carShowroomQuality)
+      qualitySel.value = ds.carShowroomQuality;
     const model = (ds.carShowroomModel || '').trim();
     if (modelUrlInp) modelUrlInp.value = model;
     if (modelSel && model) {
@@ -1212,6 +1315,20 @@ createAstroMount(ROOT_SELECTOR, () => {
   showroom.setEnvironment(scene);
   scene.add(showroom.group);
 
+  const applyQuality = () => {
+    const q = (root.dataset.carShowroomQuality || 'balanced') as
+      | 'performance'
+      | 'balanced'
+      | 'ultra';
+    showroom.setQuality(q);
+  };
+
+  // default
+  if (!root.dataset.carShowroomQuality) {
+    root.dataset.carShowroomQuality = 'balanced';
+  }
+  applyQuality();
+
   const composer = new EffectComposer(renderer);
   const renderPass = new RenderPass(scene, showroom.camera);
   composer.addPass(renderPass);
@@ -1287,7 +1404,33 @@ createAstroMount(ROOT_SELECTOR, () => {
 
   downloadScreenshot = () => {
     try {
+      const scaleRaw = (shotScaleSel?.value || '1').trim();
+      const scale = clamp(Number.parseFloat(scaleRaw) || 1, 1, 4);
+      const transparent = Boolean(shotTransparentChk?.checked);
+
+      // Temporarily render at higher res for export.
+      const prevBg = scene.background;
+      if (transparent) scene.background = null;
+
+      const exportW = Math.max(1, Math.floor(size.width * scale));
+      const exportH = Math.max(1, Math.floor(size.height * scale));
+
+      const prevDpr = size.dpr;
+      renderer.setPixelRatio(1);
+      renderer.setSize(exportW, exportH, false);
+      composer.setPixelRatio(1);
+      composer.setSize(exportW, exportH);
+      showroom.resize(exportW, exportH);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (fxaa.material.uniforms as any)['resolution'].value.set(
+        1 / exportW,
+        1 / exportH
+      );
+      bloom.setSize(exportW, exportH);
+
       composer.render();
+
       canvas.toBlob(blob => {
         if (!blob) {
           showToast('Screenshot failed (no image data).');
@@ -1303,6 +1446,20 @@ createAstroMount(ROOT_SELECTOR, () => {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         showToast('Screenshot downloaded.');
+
+        // Restore view sizing
+        scene.background = prevBg;
+        renderer.setPixelRatio(prevDpr);
+        renderer.setSize(size.width, size.height, false);
+        composer.setPixelRatio(prevDpr);
+        composer.setSize(size.width, size.height);
+        showroom.resize(size.width, size.height);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (fxaa.material.uniforms as any)['resolution'].value.set(
+          1 / (size.width * prevDpr),
+          1 / (size.height * prevDpr)
+        );
+        bloom.setSize(size.width, size.height);
       }, 'image/png');
     } catch {
       showToast('Screenshot failed.');
@@ -1310,11 +1467,12 @@ createAstroMount(ROOT_SELECTOR, () => {
   };
 
   const size = { width: 1, height: 1, dpr: 1 };
+  let qualityDprCap = caps.maxDpr;
   const resize = () => {
     const rect = canvas.getBoundingClientRect();
     size.width = Math.max(1, Math.floor(rect.width));
     size.height = Math.max(1, Math.floor(rect.height));
-    size.dpr = Math.min(caps.devicePixelRatio, caps.maxDpr);
+    size.dpr = Math.min(caps.devicePixelRatio, qualityDprCap);
 
     renderer.setPixelRatio(size.dpr);
     renderer.setSize(size.width, size.height, false);
@@ -1333,6 +1491,43 @@ createAstroMount(ROOT_SELECTOR, () => {
   };
 
   resize();
+
+  qualitySel?.addEventListener('change', () => {
+    const v = (qualitySel.value || 'balanced').trim();
+    root.dataset.carShowroomQuality = v;
+    if (v === 'performance') qualityDprCap = 1;
+    else if (v === 'ultra') qualityDprCap = caps.maxDpr;
+    else qualityDprCap = Math.min(caps.maxDpr, 1.75);
+    applyQuality();
+    resize();
+    bumpRevision();
+  });
+
+  // Sensible defaults for export options
+  if (shotScaleSel && !shotScaleSel.value) shotScaleSel.value = '2';
+  if (shotScaleSel && (shotScaleSel.value || '').trim() === '1') {
+    // leave as-is
+  }
+
+  // Tap/click part picking
+  const raycaster = new THREE.Raycaster();
+  const pickNdc = new THREE.Vector2();
+  const pickPartAt = (clientX: number, clientY: number) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (clientX - rect.left) / Math.max(1, rect.width);
+    const y = (clientY - rect.top) / Math.max(1, rect.height);
+    pickNdc.set(x * 2 - 1, -(y * 2 - 1));
+    const part = showroom.pickPart(pickNdc, raycaster);
+    if (!part) return;
+    root.dataset.carShowroomSelectedPart = part;
+    if (selectedPartEl) selectedPartEl.textContent = `Selected: ${part}`;
+  };
+
+  canvas.addEventListener('pointerup', e => {
+    // Avoid picking while dragging/rotating.
+    if (press > 0.55) return;
+    pickPartAt(e.clientX, e.clientY);
+  });
 
   // Deterministic test breadcrumb.
   document.documentElement.dataset.carShowroomBoot = '1';

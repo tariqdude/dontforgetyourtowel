@@ -13,6 +13,7 @@ type TrimFinish = 'black' | 'chrome' | 'brushed';
 type CameraPreset = 'hero' | 'front' | 'rear' | 'side' | 'top' | 'detail';
 type FloorPreset = 'auto' | 'asphalt' | 'matte' | 'polished' | 'glass';
 type WrapPattern = 'solid' | 'stripes' | 'carbon' | 'camo';
+type QualityPreset = 'performance' | 'balanced' | 'ultra';
 
 type UiState = {
   modelUrl: string;
@@ -429,6 +430,40 @@ export class CarShowroomScene {
     this.pmrem = new THREE.PMREMGenerator(renderer);
     const env = new RoomEnvironment();
     this.envTex = this.pmrem.fromScene(env, 0.04).texture;
+  }
+
+  setQuality(preset: QualityPreset) {
+    if (preset === 'performance') {
+      this.keyLight.shadow.mapSize.set(1024, 1024);
+      this.keyLight.shadow.normalBias = 0.03;
+      this.keyLight.shadow.bias = -0.00025;
+      return;
+    }
+
+    if (preset === 'ultra') {
+      this.keyLight.shadow.mapSize.set(4096, 4096);
+      this.keyLight.shadow.normalBias = 0.015;
+      this.keyLight.shadow.bias = -0.0001;
+      return;
+    }
+
+    // balanced
+    this.keyLight.shadow.mapSize.set(2048, 2048);
+    this.keyLight.shadow.normalBias = 0.02;
+    this.keyLight.shadow.bias = -0.00015;
+  }
+
+  pickPart(
+    ndc: THREE.Vector2,
+    raycaster: THREE.Raycaster
+  ): 'glass' | 'tire' | 'wheel' | 'trim' | 'light' | 'body' | 'other' | null {
+    if (!this.loaded) return null;
+    raycaster.setFromCamera(ndc, this.camera);
+    const hits = raycaster.intersectObject(this.loaded, true);
+    const hit = hits.find(h => (h.object as THREE.Mesh)?.isMesh);
+    if (!hit) return null;
+    const mesh = hit.object as THREE.Mesh;
+    return this.classifyMesh(mesh);
   }
 
   dispose() {

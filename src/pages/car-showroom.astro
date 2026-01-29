@@ -78,467 +78,633 @@ const description =
       </div>
 
       <div class="car-showroom__panel" data-csr-panel hidden>
-        <div class="csr-grid">
-          <label class="csr-field">
-            <span>Model</span>
-            <select data-csr-model>
-              <option value="/models/porsche-911-gt3rs.glb"
-                >Porsche 911 GT3 RS</option
-              >
-            </select>
-          </label>
-
-          <label class="csr-field csr-field--wide">
-            <span>Model URL</span>
-            <div class="csr-inline">
-              <input
-                class="csr-text"
-                type="text"
-                inputmode="url"
-                spellcheck="false"
-                autocomplete="off"
-                placeholder="/models/your-car.glb or https://…/car.glb"
-                data-csr-model-url
-              />
-              <button type="button" class="csr-btn" data-csr-load-model>
-                Load
-              </button>
-            </div>
-          </label>
-
-          <label class="csr-field">
-            <span>Mode</span>
-            <select data-csr-mode>
-              <option value="paint">Paint</option>
-              <option value="wrap">Wrap</option>
-              <option value="glass">Glass</option>
-              <option value="wireframe">Wireframe</option>
-            </select>
-          </label>
-
-          <label class="csr-field">
-            <span>Camera</span>
-            <select data-csr-camera>
-              <option value="hero">Hero</option>
-              <option value="front">Front 3/4</option>
-              <option value="rear">Rear 3/4</option>
-              <option value="side">Side</option>
-              <option value="top">Top</option>
-              <option value="detail">Detail</option>
-            </select>
-          </label>
-
-          <label class="csr-field">
-            <span>Camera mode</span>
-            <select data-csr-camera-mode>
-              <option value="preset">Preset</option>
-              <option value="manual">Manual</option>
-            </select>
-          </label>
-
-          <label class="csr-field csr-field--wide">
-            <span>Yaw</span>
-            <input
-              type="range"
-              min="-180"
-              max="180"
-              step="1"
-              value="17"
-              data-csr-cam-yaw
-            />
-          </label>
-
-          <label class="csr-field csr-field--wide">
-            <span>Pitch</span>
-            <input
-              type="range"
-              min="-5"
-              max="60"
-              step="1"
-              value="7"
-              data-csr-cam-pitch
-            />
-          </label>
-
-          <label class="csr-field csr-field--wide">
-            <span>Distance</span>
-            <input
-              type="range"
-              min="2.5"
-              max="14"
-              step="0.05"
-              value="9.8"
-              data-csr-cam-distance
-            />
-          </label>
-
-          <label class="csr-field csr-field--wide">
-            <span>FOV</span>
-            <input
-              type="range"
-              min="35"
-              max="85"
-              step="1"
-              value="55"
-              data-csr-fov
-            />
-          </label>
-
-          <div class="csr-row">
-            <button type="button" class="csr-btn" data-csr-frame>
-              Frame model
+        <div class="csr-panel-head">
+          <div
+            class="csr-tabs"
+            role="tablist"
+            aria-label="Configurator sections"
+          >
+            <button
+              type="button"
+              class="csr-tab-btn"
+              role="tab"
+              aria-selected="true"
+              aria-controls="csr-tab-look"
+              data-csr-tab-btn="look"
+            >
+              Look
             </button>
             <button
               type="button"
-              class="csr-btn csr-btn--ghost"
-              data-csr-reset-view
+              class="csr-tab-btn"
+              role="tab"
+              aria-selected="false"
+              aria-controls="csr-tab-env"
+              data-csr-tab-btn="env"
+              tabindex="-1"
             >
-              Reset view
+              Environment
             </button>
-            <p class="csr-hint">Manual lets you get close fast</p>
+            <button
+              type="button"
+              class="csr-tab-btn"
+              role="tab"
+              aria-selected="false"
+              aria-controls="csr-tab-camera"
+              data-csr-tab-btn="camera"
+              tabindex="-1"
+            >
+              Camera
+            </button>
+            <button
+              type="button"
+              class="csr-tab-btn"
+              role="tab"
+              aria-selected="false"
+              aria-controls="csr-tab-post"
+              data-csr-tab-btn="post"
+              tabindex="-1"
+            >
+              Post
+            </button>
+            <button
+              type="button"
+              class="csr-tab-btn"
+              role="tab"
+              aria-selected="false"
+              aria-controls="csr-tab-motion"
+              data-csr-tab-btn="motion"
+              tabindex="-1"
+            >
+              Motion
+            </button>
+            <button
+              type="button"
+              class="csr-tab-btn"
+              role="tab"
+              aria-selected="false"
+              aria-controls="csr-tab-setup"
+              data-csr-tab-btn="setup"
+              tabindex="-1"
+            >
+              Setup
+            </button>
           </div>
+        </div>
 
-          <label class="csr-field">
-            <span>Body color</span>
-            <input type="color" value="#00d1b2" data-csr-color />
-          </label>
+        <div class="csr-tab-panels">
+          <div
+            id="csr-tab-look"
+            class="csr-tab"
+            role="tabpanel"
+            data-csr-tab-panel="look"
+          >
+            <div class="csr-grid">
+              <div class="csr-field csr-field--wide">
+                <span>Selected part</span>
+                <div class="csr-readout" data-csr-selected-part>
+                  Tap/click the car to select
+                </div>
+              </div>
 
-          <label class="csr-field">
-            <span>Wrap color</span>
-            <input type="color" value="#00d1b2" data-csr-wrap-color />
-          </label>
+              <label class="csr-field">
+                <span>Mode</span>
+                <select data-csr-mode>
+                  <option value="paint">Paint</option>
+                  <option value="wrap">Wrap</option>
+                  <option value="glass">Glass</option>
+                  <option value="wireframe">Wireframe</option>
+                </select>
+              </label>
 
-          <label class="csr-field">
-            <span>Wrap pattern</span>
-            <select data-csr-wrap-pattern>
-              <option value="solid">Solid</option>
-              <option value="stripes">Stripes</option>
-              <option value="carbon">Carbon</option>
-              <option value="camo">Camo</option>
-            </select>
-          </label>
+              <label class="csr-field">
+                <span>Body color</span>
+                <input type="color" value="#00d1b2" data-csr-color />
+              </label>
 
-          <label class="csr-field csr-field--wide">
-            <span>Wrap scale</span>
-            <input
-              type="range"
-              min="0.2"
-              max="6"
-              step="0.01"
-              value="1.6"
-              data-csr-wrap-scale
-            />
-          </label>
+              <label class="csr-field">
+                <span>Wrap color</span>
+                <input type="color" value="#00d1b2" data-csr-wrap-color />
+              </label>
 
-          <div class="csr-field csr-field--wide">
-            <span>Color presets</span>
-            <div class="csr-swatches" role="list">
-              <button
-                type="button"
-                class="csr-swatch"
-                style="--swatch:#00d1b2"
-                data-csr-swatch="#00d1b2"
-                aria-label="Teal"></button>
-              <button
-                type="button"
-                class="csr-swatch"
-                style="--swatch:#60a5fa"
-                data-csr-swatch="#60a5fa"
-                aria-label="Blue"></button>
-              <button
-                type="button"
-                class="csr-swatch"
-                style="--swatch:#f472b6"
-                data-csr-swatch="#f472b6"
-                aria-label="Pink"></button>
-              <button
-                type="button"
-                class="csr-swatch"
-                style="--swatch:#fbbf24"
-                data-csr-swatch="#fbbf24"
-                aria-label="Gold"></button>
-              <button
-                type="button"
-                class="csr-swatch"
-                style="--swatch:#f87171"
-                data-csr-swatch="#f87171"
-                aria-label="Red"></button>
-              <button
-                type="button"
-                class="csr-swatch"
-                style="--swatch:#e5e7eb"
-                data-csr-swatch="#e5e7eb"
-                aria-label="Silver"></button>
-            </div>
-          </div>
+              <label class="csr-field">
+                <span>Wrap pattern</span>
+                <select data-csr-wrap-pattern>
+                  <option value="solid">Solid</option>
+                  <option value="stripes">Stripes</option>
+                  <option value="carbon">Carbon</option>
+                  <option value="camo">Camo</option>
+                </select>
+              </label>
 
-          <label class="csr-field">
-            <span>Body finish</span>
-            <select data-csr-finish>
-              <option value="gloss">Gloss</option>
-              <option value="satin">Satin</option>
-              <option value="matte">Matte</option>
-            </select>
-          </label>
+              <label class="csr-field csr-field--wide">
+                <span>Wrap scale</span>
+                <input
+                  type="range"
+                  min="0.2"
+                  max="6"
+                  step="0.01"
+                  value="1.6"
+                  data-csr-wrap-scale
+                />
+              </label>
 
-          <label class="csr-field">
-            <span>Wheel finish</span>
-            <select data-csr-wheel-finish>
-              <option value="graphite">Graphite</option>
-              <option value="chrome">Chrome</option>
-              <option value="black">Black</option>
-            </select>
-          </label>
+              <div class="csr-field csr-field--wide">
+                <span>Color presets</span>
+                <div class="csr-swatches" role="list">
+                  <button
+                    type="button"
+                    class="csr-swatch"
+                    style="--swatch:#00d1b2"
+                    data-csr-swatch="#00d1b2"
+                    aria-label="Teal"></button>
+                  <button
+                    type="button"
+                    class="csr-swatch"
+                    style="--swatch:#60a5fa"
+                    data-csr-swatch="#60a5fa"
+                    aria-label="Blue"></button>
+                  <button
+                    type="button"
+                    class="csr-swatch"
+                    style="--swatch:#f472b6"
+                    data-csr-swatch="#f472b6"
+                    aria-label="Pink"></button>
+                  <button
+                    type="button"
+                    class="csr-swatch"
+                    style="--swatch:#fbbf24"
+                    data-csr-swatch="#fbbf24"
+                    aria-label="Gold"></button>
+                  <button
+                    type="button"
+                    class="csr-swatch"
+                    style="--swatch:#f87171"
+                    data-csr-swatch="#f87171"
+                    aria-label="Red"></button>
+                  <button
+                    type="button"
+                    class="csr-swatch"
+                    style="--swatch:#e5e7eb"
+                    data-csr-swatch="#e5e7eb"
+                    aria-label="Silver"></button>
+                </div>
+              </div>
 
-          <label class="csr-field">
-            <span>Trim finish</span>
-            <select data-csr-trim-finish>
-              <option value="black">Black</option>
-              <option value="chrome">Chrome</option>
-              <option value="brushed">Brushed</option>
-            </select>
-          </label>
+              <label class="csr-field">
+                <span>Body finish</span>
+                <select data-csr-finish>
+                  <option value="gloss">Gloss</option>
+                  <option value="satin">Satin</option>
+                  <option value="matte">Matte</option>
+                </select>
+              </label>
 
-          <label class="csr-field csr-field--wide">
-            <span>Glass tint</span>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value="0.15"
-              data-csr-glass-tint
-            />
-          </label>
+              <label class="csr-field">
+                <span>Wheel finish</span>
+                <select data-csr-wheel-finish>
+                  <option value="graphite">Graphite</option>
+                  <option value="chrome">Chrome</option>
+                  <option value="black">Black</option>
+                </select>
+              </label>
 
-          <label class="csr-field csr-field--wide">
-            <span>Background</span>
-            <select data-csr-background>
-              <option value="studio">Studio</option>
-              <option value="day">Day</option>
-              <option value="sunset">Sunset</option>
-              <option value="night">Night</option>
-              <option value="grid">Grid</option>
-            </select>
-          </label>
+              <label class="csr-field">
+                <span>Trim finish</span>
+                <select data-csr-trim-finish>
+                  <option value="black">Black</option>
+                  <option value="chrome">Chrome</option>
+                  <option value="brushed">Brushed</option>
+                </select>
+              </label>
 
-          <label class="csr-field csr-field--wide">
-            <span>Environment reflections</span>
-            <input
-              type="range"
-              min="0"
-              max="3"
-              step="0.01"
-              value="1"
-              data-csr-env-intensity
-            />
-          </label>
-
-          <label class="csr-field csr-field--wide">
-            <span>Lighting intensity</span>
-            <input
-              type="range"
-              min="0.2"
-              max="2.5"
-              step="0.01"
-              value="1"
-              data-csr-light-intensity
-            />
-          </label>
-
-          <label class="csr-field csr-field--wide">
-            <span>Floor preset</span>
-            <select data-csr-floor-preset>
-              <option value="auto">Auto (match scene)</option>
-              <option value="asphalt">Asphalt</option>
-              <option value="matte">Matte studio</option>
-              <option value="polished">Polished studio</option>
-              <option value="glass">Glass (transparent)</option>
-            </select>
-          </label>
-
-          <label class="csr-field">
-            <span>Floor color</span>
-            <input type="color" value="#05070d" data-csr-floor-color />
-          </label>
-
-          <label class="csr-field csr-field--wide">
-            <span>Floor roughness</span>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value="0.55"
-              data-csr-floor-roughness
-            />
-          </label>
-
-          <label class="csr-field csr-field--wide">
-            <span>Floor metalness</span>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value="0.02"
-              data-csr-floor-metalness
-            />
-          </label>
-
-          <label class="csr-field csr-field--wide">
-            <span>Floor opacity</span>
-            <input
-              type="range"
-              min="0.05"
-              max="1"
-              step="0.01"
-              value="1"
-              data-csr-floor-opacity
-            />
-          </label>
-
-          <label class="csr-field csr-field--wide">
-            <span>Exposure</span>
-            <input
-              type="range"
-              min="0.1"
-              max="3"
-              step="0.01"
-              value="1"
-              data-csr-exposure
-            />
-          </label>
-
-          <label class="csr-field csr-field--wide">
-            <span>Bloom</span>
-            <input
-              type="range"
-              min="0"
-              max="3"
-              step="0.01"
-              value="0.35"
-              data-csr-bloom
-            />
-          </label>
-
-          <label class="csr-field csr-field--wide">
-            <span>Bloom threshold</span>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value="0.88"
-              data-csr-bloom-threshold
-            />
-          </label>
-
-          <label class="csr-field csr-field--wide">
-            <span>Bloom radius</span>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value="0.35"
-              data-csr-bloom-radius
-            />
-          </label>
-
-          <label class="csr-field">
-            <span>Auto-rotate</span>
-            <input type="checkbox" data-csr-autorotate />
-          </label>
-
-          <label class="csr-field csr-field--wide">
-            <span>Spin speed</span>
-            <input
-              type="range"
-              min="0"
-              max="2"
-              step="0.01"
-              value="0.65"
-              data-csr-spinspeed
-            />
-          </label>
-
-          <label class="csr-field csr-field--wide">
-            <span>Zoom</span>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value="0"
-              data-csr-zoom
-            />
-          </label>
-
-          <div class="csr-row">
-            <button
-              type="button"
-              class="csr-btn csr-btn--ghost"
-              data-csr-zoom-wide
-            >
-              Wide
-            </button>
-            <button
-              type="button"
-              class="csr-btn csr-btn--ghost"
-              data-csr-zoom-mid
-            >
-              Mid
-            </button>
-            <button
-              type="button"
-              class="csr-btn"
-              data-csr-zoom-close
-              title="Quick close-up"
-            >
-              Close
-            </button>
-            <p class="csr-hint">Quick zoom</p>
-          </div>
-
-          <div class="csr-field csr-field--wide">
-            <span>Presets</span>
-            <div class="csr-inline">
-              <select data-csr-preset>
-                <option value="">No saved presets</option>
-              </select>
-              <button type="button" class="csr-btn" data-csr-preset-load>
-                Load
-              </button>
+              <label class="csr-field csr-field--wide">
+                <span>Glass tint</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.15"
+                  data-csr-glass-tint
+                />
+              </label>
             </div>
           </div>
 
-          <div class="csr-row">
-            <button type="button" class="csr-btn" data-csr-preset-save>
-              Save preset
-            </button>
-            <button
-              type="button"
-              class="csr-btn csr-btn--ghost"
-              data-csr-preset-delete
-            >
-              Delete
-            </button>
-            <p class="csr-hint">Saved to this browser</p>
+          <div
+            id="csr-tab-env"
+            class="csr-tab"
+            role="tabpanel"
+            data-csr-tab-panel="env"
+            hidden
+          >
+            <div class="csr-grid">
+              <label class="csr-field csr-field--wide">
+                <span>Background</span>
+                <select data-csr-background>
+                  <option value="studio">Studio</option>
+                  <option value="day">Day</option>
+                  <option value="sunset">Sunset</option>
+                  <option value="night">Night</option>
+                  <option value="grid">Grid</option>
+                </select>
+              </label>
+
+              <label class="csr-field csr-field--wide">
+                <span>Environment reflections</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="3"
+                  step="0.01"
+                  value="1"
+                  data-csr-env-intensity
+                />
+              </label>
+
+              <label class="csr-field csr-field--wide">
+                <span>Lighting intensity</span>
+                <input
+                  type="range"
+                  min="0.2"
+                  max="2.5"
+                  step="0.01"
+                  value="1"
+                  data-csr-light-intensity
+                />
+              </label>
+
+              <label class="csr-field csr-field--wide">
+                <span>Floor preset</span>
+                <select data-csr-floor-preset>
+                  <option value="auto">Auto (match scene)</option>
+                  <option value="asphalt">Asphalt</option>
+                  <option value="matte">Matte studio</option>
+                  <option value="polished">Polished studio</option>
+                  <option value="glass">Glass (transparent)</option>
+                </select>
+              </label>
+
+              <label class="csr-field">
+                <span>Floor color</span>
+                <input type="color" value="#05070d" data-csr-floor-color />
+              </label>
+
+              <label class="csr-field csr-field--wide">
+                <span>Floor roughness</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.55"
+                  data-csr-floor-roughness
+                />
+              </label>
+
+              <label class="csr-field csr-field--wide">
+                <span>Floor metalness</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.02"
+                  data-csr-floor-metalness
+                />
+              </label>
+
+              <label class="csr-field csr-field--wide">
+                <span>Floor opacity</span>
+                <input
+                  type="range"
+                  min="0.05"
+                  max="1"
+                  step="0.01"
+                  value="1"
+                  data-csr-floor-opacity
+                />
+              </label>
+            </div>
           </div>
 
-          <div class="csr-row">
-            <button type="button" class="csr-btn" data-csr-reset>Reset</button>
-            <button
-              type="button"
-              class="csr-btn csr-btn--ghost"
-              data-csr-reset-camera
-            >
-              Reset camera
-            </button>
-            <p class="csr-hint">
-              Drag orbit • Wheel/pinch zoom • O options • S screenshot • P save
-            </p>
+          <div
+            id="csr-tab-camera"
+            class="csr-tab"
+            role="tabpanel"
+            data-csr-tab-panel="camera"
+            hidden
+          >
+            <div class="csr-grid">
+              <label class="csr-field">
+                <span>Camera</span>
+                <select data-csr-camera>
+                  <option value="hero">Hero</option>
+                  <option value="front">Front 3/4</option>
+                  <option value="rear">Rear 3/4</option>
+                  <option value="side">Side</option>
+                  <option value="top">Top</option>
+                  <option value="detail">Detail</option>
+                </select>
+              </label>
+
+              <label class="csr-field">
+                <span>Camera mode</span>
+                <select data-csr-camera-mode>
+                  <option value="preset">Preset</option>
+                  <option value="manual">Manual</option>
+                </select>
+              </label>
+
+              <label class="csr-field csr-field--wide">
+                <span>Yaw</span>
+                <input
+                  type="range"
+                  min="-180"
+                  max="180"
+                  step="1"
+                  value="17"
+                  data-csr-cam-yaw
+                />
+              </label>
+
+              <label class="csr-field csr-field--wide">
+                <span>Pitch</span>
+                <input
+                  type="range"
+                  min="-5"
+                  max="60"
+                  step="1"
+                  value="7"
+                  data-csr-cam-pitch
+                />
+              </label>
+
+              <label class="csr-field csr-field--wide">
+                <span>Distance</span>
+                <input
+                  type="range"
+                  min="2.5"
+                  max="14"
+                  step="0.05"
+                  value="9.8"
+                  data-csr-cam-distance
+                />
+              </label>
+
+              <label class="csr-field csr-field--wide">
+                <span>FOV</span>
+                <input
+                  type="range"
+                  min="35"
+                  max="85"
+                  step="1"
+                  value="55"
+                  data-csr-fov
+                />
+              </label>
+
+              <div class="csr-row">
+                <button type="button" class="csr-btn" data-csr-frame>
+                  Frame model
+                </button>
+                <button
+                  type="button"
+                  class="csr-btn csr-btn--ghost"
+                  data-csr-reset-view
+                >
+                  Reset view
+                </button>
+                <p class="csr-hint">Manual lets you get close fast</p>
+              </div>
+            </div>
+          </div>
+
+          <div
+            id="csr-tab-post"
+            class="csr-tab"
+            role="tabpanel"
+            data-csr-tab-panel="post"
+            hidden
+          >
+            <div class="csr-grid">
+              <label class="csr-field csr-field--wide">
+                <span>Exposure</span>
+                <input
+                  type="range"
+                  min="0.1"
+                  max="3"
+                  step="0.01"
+                  value="1"
+                  data-csr-exposure
+                />
+              </label>
+
+              <label class="csr-field csr-field--wide">
+                <span>Bloom</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="3"
+                  step="0.01"
+                  value="0.35"
+                  data-csr-bloom
+                />
+              </label>
+
+              <label class="csr-field csr-field--wide">
+                <span>Bloom threshold</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.88"
+                  data-csr-bloom-threshold
+                />
+              </label>
+
+              <label class="csr-field csr-field--wide">
+                <span>Bloom radius</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.35"
+                  data-csr-bloom-radius
+                />
+              </label>
+            </div>
+          </div>
+
+          <div
+            id="csr-tab-motion"
+            class="csr-tab"
+            role="tabpanel"
+            data-csr-tab-panel="motion"
+            hidden
+          >
+            <div class="csr-grid">
+              <label class="csr-field">
+                <span>Auto-rotate</span>
+                <input type="checkbox" data-csr-autorotate />
+              </label>
+
+              <label class="csr-field csr-field--wide">
+                <span>Spin speed</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="2"
+                  step="0.01"
+                  value="0.65"
+                  data-csr-spinspeed
+                />
+              </label>
+
+              <label class="csr-field csr-field--wide">
+                <span>Zoom</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0"
+                  data-csr-zoom
+                />
+              </label>
+
+              <div class="csr-row">
+                <button
+                  type="button"
+                  class="csr-btn csr-btn--ghost"
+                  data-csr-zoom-wide
+                >
+                  Wide
+                </button>
+                <button
+                  type="button"
+                  class="csr-btn csr-btn--ghost"
+                  data-csr-zoom-mid
+                >
+                  Mid
+                </button>
+                <button
+                  type="button"
+                  class="csr-btn"
+                  data-csr-zoom-close
+                  title="Quick close-up"
+                >
+                  Close
+                </button>
+                <p class="csr-hint">Quick zoom</p>
+              </div>
+            </div>
+          </div>
+
+          <div
+            id="csr-tab-setup"
+            class="csr-tab"
+            role="tabpanel"
+            data-csr-tab-panel="setup"
+            hidden
+          >
+            <div class="csr-grid">
+              <label class="csr-field">
+                <span>Quality</span>
+                <select data-csr-quality>
+                  <option value="balanced">Balanced</option>
+                  <option value="performance">Performance</option>
+                  <option value="ultra">Ultra</option>
+                </select>
+              </label>
+
+              <label class="csr-field">
+                <span>Screenshot scale</span>
+                <select data-csr-shot-scale>
+                  <option value="1">1×</option>
+                  <option value="2">2×</option>
+                  <option value="4">4×</option>
+                </select>
+              </label>
+
+              <label class="csr-field csr-field--wide">
+                <span>Transparent screenshot background</span>
+                <input type="checkbox" data-csr-shot-transparent />
+              </label>
+
+              <label class="csr-field">
+                <span>Model</span>
+                <select data-csr-model>
+                  <option value="/models/porsche-911-gt3rs.glb"
+                    >Porsche 911 GT3 RS</option
+                  >
+                </select>
+              </label>
+
+              <label class="csr-field csr-field--wide">
+                <span>Model URL</span>
+                <div class="csr-inline">
+                  <input
+                    class="csr-text"
+                    type="text"
+                    inputmode="url"
+                    spellcheck="false"
+                    autocomplete="off"
+                    placeholder="/models/your-car.glb or https://…/car.glb"
+                    data-csr-model-url
+                  />
+                  <button type="button" class="csr-btn" data-csr-load-model>
+                    Load
+                  </button>
+                </div>
+              </label>
+
+              <div class="csr-field csr-field--wide">
+                <span>Presets</span>
+                <div class="csr-inline">
+                  <select data-csr-preset>
+                    <option value="">No saved presets</option>
+                  </select>
+                  <button type="button" class="csr-btn" data-csr-preset-load>
+                    Load
+                  </button>
+                </div>
+              </div>
+
+              <div class="csr-row">
+                <button type="button" class="csr-btn" data-csr-preset-save>
+                  Save preset
+                </button>
+                <button
+                  type="button"
+                  class="csr-btn csr-btn--ghost"
+                  data-csr-preset-delete
+                >
+                  Delete
+                </button>
+                <p class="csr-hint">Saved to this browser</p>
+              </div>
+
+              <div class="csr-row">
+                <button type="button" class="csr-btn" data-csr-reset>
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  class="csr-btn csr-btn--ghost"
+                  data-csr-reset-camera
+                >
+                  Reset camera
+                </button>
+                <p class="csr-hint">
+                  Drag orbit • Wheel/pinch zoom • O options • S screenshot • P
+                  save
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -644,11 +810,63 @@ const description =
       right: 18px;
       top: 64px;
       width: min(520px, calc(100vw - 36px));
+      max-height: min(78svh, calc(100svh - 120px));
       border-radius: 16px;
       border: 1px solid rgba(255, 255, 255, 0.12);
       background: rgba(0, 0, 0, 0.5);
       backdrop-filter: blur(18px);
       padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .csr-panel-head {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      padding-bottom: 10px;
+      background: linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0.7),
+        rgba(0, 0, 0, 0)
+      );
+    }
+
+    .csr-tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .csr-tab-btn {
+      pointer-events: auto;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.06);
+      color: rgba(255, 255, 255, 0.88);
+      padding: 8px 10px;
+      font-size: 12px;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+
+    .csr-tab-btn[aria-selected='true'] {
+      background: rgba(34, 211, 238, 0.16);
+      border-color: rgba(34, 211, 238, 0.35);
+      color: rgba(255, 255, 255, 0.95);
+    }
+
+    .csr-tab-panels {
+      overflow: auto;
+      padding-right: 6px;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .csr-tab {
+      padding-bottom: 6px;
     }
 
     .csr-grid {
@@ -679,6 +897,15 @@ const description =
     .csr-field input[type='color'],
     .csr-text {
       width: 100%;
+    }
+
+    .csr-readout {
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.05);
+      color: rgba(255, 255, 255, 0.9);
+      padding: 10px 12px;
+      font-size: 13px;
     }
 
     .csr-swatches {
@@ -833,6 +1060,17 @@ const description =
         left: 18px;
         width: auto;
         top: 74px;
+        max-height: calc(100svh - 140px);
+      }
+
+      .csr-tabs {
+        flex-wrap: nowrap;
+        overflow: auto;
+        padding-bottom: 2px;
+      }
+
+      .csr-tab-btn {
+        flex: 0 0 auto;
       }
 
       .car-showroom__actions {
