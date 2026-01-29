@@ -77,8 +77,27 @@ const description =
         </div>
       </div>
 
+      <button
+        type="button"
+        class="car-showroom__backdrop"
+        data-csr-panel-backdrop
+        aria-label="Close options"
+        hidden></button>
+
       <div class="car-showroom__panel" data-csr-panel hidden>
         <div class="csr-panel-head">
+          <div class="csr-panel-head__row">
+            <strong class="csr-panel-head__title">Options</strong>
+            <button
+              type="button"
+              class="csr-btn csr-btn--ghost csr-btn--icon"
+              data-csr-close-panel
+              aria-label="Close options"
+              title="Close"
+            >
+              ✕
+            </button>
+          </div>
           <div
             class="csr-tabs"
             role="tablist"
@@ -871,13 +890,45 @@ const description =
       display: flex;
       flex-direction: column;
       gap: 12px;
+      z-index: 20;
+    }
+
+    .car-showroom__backdrop {
+      pointer-events: auto;
+      position: absolute;
+      inset: 0;
+      border: 0;
+      padding: 0;
+      margin: 0;
+      background: rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(6px);
+      z-index: 15;
+    }
+
+    .csr-panel-head__row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 10px;
+    }
+
+    .csr-panel-head__title {
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    .csr-btn--icon {
+      padding: 8px 10px;
+      border-radius: 12px;
+      line-height: 1;
     }
 
     .csr-panel-head {
       position: sticky;
       top: 0;
       z-index: 2;
-      padding-bottom: 10px;
       background: linear-gradient(
         to bottom,
         rgba(0, 0, 0, 0.7),

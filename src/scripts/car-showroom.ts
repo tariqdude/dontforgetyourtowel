@@ -109,10 +109,16 @@ createAstroMount(ROOT_SELECTOR, () => {
   };
 
   const panel = root.querySelector<HTMLElement>('[data-csr-panel]');
+  const panelBackdrop = root.querySelector<HTMLButtonElement>(
+    '[data-csr-panel-backdrop]'
+  );
   const loadingEl = root.querySelector<HTMLElement>('[data-csr-loading]');
   const errorEl = root.querySelector<HTMLElement>('[data-csr-error]');
   const togglePanelBtn = root.querySelector<HTMLButtonElement>(
     '[data-csr-toggle-panel]'
+  );
+  const closePanelBtn = root.querySelector<HTMLButtonElement>(
+    '[data-csr-close-panel]'
   );
   const copyLinkBtn = root.querySelector<HTMLButtonElement>(
     '[data-csr-copy-link]'
@@ -802,10 +808,24 @@ createAstroMount(ROOT_SELECTOR, () => {
   const setPanelOpen = (open: boolean) => {
     if (!panel) return;
     panel.hidden = !open;
+
+    if (panelBackdrop) panelBackdrop.hidden = !open;
+
+    // Avoid the page scrolling underneath the overlay on mobile.
+    if (open) document.documentElement.style.overflow = 'hidden';
+    else document.documentElement.style.overflow = '';
   };
 
   togglePanelBtn?.addEventListener('click', () => {
     setPanelOpen(Boolean(panel?.hidden));
+  });
+
+  closePanelBtn?.addEventListener('click', () => {
+    setPanelOpen(false);
+  });
+
+  panelBackdrop?.addEventListener('click', () => {
+    setPanelOpen(false);
   });
 
   // Defaults
