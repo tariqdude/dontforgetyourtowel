@@ -196,6 +196,9 @@ createAstroMount(ROOT_SELECTOR, () => {
   const panelBackdrop = root.querySelector<HTMLButtonElement>(
     '[data-csr-panel-backdrop]'
   );
+  const sheetHandle = root.querySelector<HTMLButtonElement>(
+    '[data-csr-sheet-handle]'
+  );
   const loadingEl = root.querySelector<HTMLElement>('[data-csr-loading]');
   const errorEl = root.querySelector<HTMLElement>('[data-csr-error]');
   const togglePanelBtn = root.querySelector<HTMLButtonElement>(
@@ -988,6 +991,118 @@ createAstroMount(ROOT_SELECTOR, () => {
     }
   };
 
+  // --- Mobile bottom-sheet sizing (draggable)
+  const SHEET_HEIGHT_STORAGE_KEY = 'csr-sheet-height-v1';
+  const isMobileSheet = () => window.matchMedia('(max-width: 520px)').matches;
+
+  const getSheetMaxHeightPx = () => {
+    // Mirror CSS: 12px top + 12px bottom + safe areas.
+    const safeTop =
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).visualViewport?.offsetTop != null ? 0 : 0;
+    const safeAreaTop = 0;
+    const safeAreaBottom = 0;
+    const top = 24 + safeTop + safeAreaTop;
+    const bottom = 0 + safeAreaBottom;
+
+    // Prefer visualViewport height when keyboard is up.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const vv = (window as any).visualViewport as { height: number } | undefined;
+    const h =
+      vv?.height && Number.isFinite(vv.height) ? vv.height : window.innerHeight;
+    return Math.max(240, Math.floor(h - top - bottom));
+  };
+
+  const clampSheetHeightPx = (px: number) => {
+    const max = getSheetMaxHeightPx();
+    return clamp(Math.floor(px), 240, max);
+  };
+
+  const applySheetHeightPx = (px: number, persist: boolean) => {
+    if (!panel) return;
+    if (!isMobileSheet()) return;
+    const clamped = clampSheetHeightPx(px);
+    panel.style.setProperty('--csr-sheet-height', `${clamped}px`);
+    if (persist) {
+      try {
+        localStorage.setItem(SHEET_HEIGHT_STORAGE_KEY, String(clamped));
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  const initSheetHeight = () => {
+    if (!panel) return;
+    if (!isMobileSheet()) {
+      panel.style.removeProperty('--csr-sheet-height');
+      return;
+    }
+
+    const saved = (() => {
+      try {
+        const raw = (
+          localStorage.getItem(SHEET_HEIGHT_STORAGE_KEY) || ''
+        ).trim();
+        const n = Number.parseInt(raw, 10);
+        return Number.isFinite(n) ? n : null;
+      } catch {
+        return null;
+      }
+    })();
+
+    if (saved != null) {
+      applySheetHeightPx(saved, false);
+      return;
+    }
+
+    // Default: leave a good chunk of the car visible above.
+    const base = Math.floor(window.innerHeight * 0.56);
+    applySheetHeightPx(base, false);
+  };
+
+  initSheetHeight();
+
+  const startSheetDrag = (startClientY: number) => {
+    if (!panel) return;
+    const rect = panel.getBoundingClientRect();
+    const startHeight = rect.height;
+    const startY = startClientY;
+
+    const onMove = (e: PointerEvent) => {
+      const dy = e.clientY - startY;
+      // Dragging up should increase height.
+      applySheetHeightPx(startHeight - dy, false);
+    };
+
+    const onUp = (e: PointerEvent) => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      const rectNow = panel.getBoundingClientRect();
+      applySheetHeightPx(rectNow.height, true);
+      try {
+        sheetHandle?.releasePointerCapture?.(e.pointerId);
+      } catch {
+        // ignore
+      }
+    };
+
+    window.addEventListener('pointermove', onMove, { passive: true });
+    window.addEventListener('pointerup', onUp, { passive: true, once: true });
+  };
+
+  sheetHandle?.addEventListener('pointerdown', e => {
+    if (!isMobileSheet()) return;
+    // Only allow resizing when the panel is open.
+    if (!panel || panel.hidden) return;
+    try {
+      sheetHandle.setPointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+    startSheetDrag(e.clientY);
+  });
+
   togglePanelBtn?.addEventListener('click', () => {
     setPanelOpen(Boolean(panel?.hidden));
   });
@@ -1011,6 +1126,23 @@ createAstroMount(ROOT_SELECTOR, () => {
       if (togglePanelBtn) togglePanelBtn.setAttribute('aria-expanded', 'false');
       panelBackdrop.hidden = true;
     }
+
+    // Keep bottom-sheet height within the new viewport.
+    if (panel && isMobileSheet()) {
+      const rect = panel.getBoundingClientRect();
+      applySheetHeightPx(rect.height, false);
+    }
+  });
+
+  // Keyboard open/close on mobile can resize visualViewport without firing a normal resize.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const vv = (window as any).visualViewport as
+    | { addEventListener: (t: string, cb: () => void) => void }
+    | undefined;
+  vv?.addEventListener?.('resize', () => {
+    if (!panel || !isMobileSheet()) return;
+    const rect = panel.getBoundingClientRect();
+    applySheetHeightPx(rect.height, false);
   });
 
   // Defaults
