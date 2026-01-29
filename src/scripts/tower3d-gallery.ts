@@ -71,7 +71,6 @@ const SCENE_IDS = [
   'scene15',
   'scene16',
   'scene17',
-  'scene18',
 ] as const;
 
 const SCENE_NAMES = [
@@ -92,8 +91,7 @@ const SCENE_NAMES = [
   'Neon Metropolis',
   'Digital Decay',
   'Ethereal Storm',
-  'Cyber Porsche',
-  'Wrap Showroom',
+  'Porsche Showroom',
 ];
 
 // Scene descriptions for info tooltips
@@ -115,8 +113,7 @@ const SCENE_DESCRIPTIONS = [
   'A neon metropolis built from pure information',
   'A voxel world: controlled collapse, deliberate decay',
   'Volumetric storm cells and charged light sheets',
-  'A high-fidelity hero asset chapter—drops in an optional GLB if present',
-  'A studio car showcase—tap to cycle materials',
+  'A studio car showcase—wheel/pinch to zoom; tap cycles materials',
 ];
 
 // Auto-play dwell time per scene (ms). Heavier/"slower" chapters linger longer.
@@ -138,8 +135,7 @@ const SCENE_DWELL_MS = [
   8500, // 14 Neon Metropolis
   9000, // 15 Digital Decay
   8500, // 16 Ethereal Storm
-  10000, // 17 Cyber Porsche
-  11000, // 18 Wrap Showroom
+  11000, // 17 Porsche Showroom
 ];
 
 interface GalleryState {

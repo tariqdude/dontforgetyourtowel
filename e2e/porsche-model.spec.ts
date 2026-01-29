@@ -9,8 +9,10 @@ type ModelFetchInfo = {
   error?: string;
 };
 
-test.describe('Porsche model (scene17)', () => {
-  test('should load the external GLB when present', async ({ page }) => {
+test.describe('Porsche Showroom (scene17)', () => {
+  test('should load the external GLB and report showroom breadcrumbs', async ({
+    page,
+  }) => {
     const consoleErrors: string[] = [];
 
     page.on('console', msg => {
@@ -44,10 +46,10 @@ test.describe('Porsche model (scene17)', () => {
       window.__galleryAutoPlay?.stop?.();
     });
 
-    // Switch to Porsche scene using the gallery's debug hook.
+    // Switch to the showroom scene using the gallery's debug hooks.
     await expect
       .poll(
-        async () => page.evaluate(() => typeof window.__goToSceneOriginal),
+        async () => page.evaluate(() => typeof window.__goToSceneImmediate),
         {
           timeout: 10_000,
         }
@@ -55,7 +57,9 @@ test.describe('Porsche model (scene17)', () => {
       .toBe('function');
 
     await page.evaluate(() => {
-      window.__goToSceneOriginal?.(17);
+      window.__goToSceneImmediate?.(17);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__TOWER__?.jumpToSceneIndex?.(17);
     });
 
     // Sanity-check that the model URL is actually reachable (helps pinpoint base-path issues).
@@ -102,12 +106,12 @@ test.describe('Porsche model (scene17)', () => {
       )
       .toBe('scene17');
 
-    // Ensure the Porsche scene lifecycle hook ran (some builds may init scenes lazily).
+    // Ensure the showroom scene lifecycle hook ran (some builds may init scenes lazily).
     await expect
       .poll(
         async () =>
           page.evaluate(
-            () => document.documentElement.dataset.porscheSceneInit ?? '0'
+            () => document.documentElement.dataset.wrapShowroomSceneInit ?? '0'
           ),
         { timeout: 15_000 }
       )
@@ -118,9 +122,9 @@ test.describe('Porsche model (scene17)', () => {
       () => {
         const ds = document.documentElement.dataset;
         return (
-          ds.porscheModelLoaded === '1' ||
-          ds.porscheModelError === '1' ||
-          ds.porscheModelMissing === '1'
+          ds.wrapShowroomModelLoaded === '1' ||
+          ds.wrapShowroomModelError === '1' ||
+          ds.wrapShowroomModelMissing === '1'
         );
       },
       null,
@@ -128,27 +132,31 @@ test.describe('Porsche model (scene17)', () => {
     );
 
     const breadcrumbs = await page.evaluate(() => ({
-      requested: document.documentElement.dataset.porscheModelRequested ?? '0',
-      url: document.documentElement.dataset.porscheModelUrl ?? '',
-      loaded: document.documentElement.dataset.porscheModelLoaded ?? '0',
-      error: document.documentElement.dataset.porscheModelError ?? '0',
+      requested:
+        document.documentElement.dataset.wrapShowroomModelRequested ?? '0',
+      url: document.documentElement.dataset.wrapShowroomModelUrl ?? '',
+      loaded: document.documentElement.dataset.wrapShowroomModelLoaded ?? '0',
+      error: document.documentElement.dataset.wrapShowroomModelError ?? '0',
       errorMessage:
-        document.documentElement.dataset.porscheModelErrorMessage ?? '',
-      missing: document.documentElement.dataset.porscheModelMissing ?? '0',
+        document.documentElement.dataset.wrapShowroomModelErrorMessage ?? '',
+      missing: document.documentElement.dataset.wrapShowroomModelMissing ?? '0',
+      mode: document.documentElement.dataset.wrapShowroomMode ?? '',
     }));
 
     expect(
       breadcrumbs.error,
-      `Porsche model parse/load error breadcrumb set: ${JSON.stringify(breadcrumbs)}`
+      `Showroom model parse/load error breadcrumb set: ${JSON.stringify(breadcrumbs)}`
     ).not.toBe('1');
     expect(
       breadcrumbs.missing,
-      `Porsche model was reported missing: ${JSON.stringify(breadcrumbs)}`
+      `Showroom model was reported missing: ${JSON.stringify(breadcrumbs)}`
     ).not.toBe('1');
     expect(
       breadcrumbs.loaded,
-      `Porsche model never reported as loaded: ${JSON.stringify(breadcrumbs)}`
+      `Showroom model never reported as loaded: ${JSON.stringify(breadcrumbs)}`
     ).toBe('1');
+
+    expect(breadcrumbs.mode).toBeTruthy();
 
     // Should not show the error overlay.
     await expect(page.locator('.tower3d-error-overlay')).toHaveCount(0);

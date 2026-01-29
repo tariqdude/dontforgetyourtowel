@@ -100,13 +100,15 @@ const createContactShadowTexture = (size = 256): THREE.CanvasTexture => {
 };
 
 /**
- * Scene 18: Wrap Showroom
+ * Car Showroom (Scene 17)
  *
- * This chapter is meant to showcase a realistic GLB car model with a clean
- * studio rig, contact shadow, and interactive material presentation modes.
+ * A realistic GLB car model in a clean studio rig with contact shadow and
+ * interactive material presentation modes.
  *
- * By default, it reuses the Porsche GLB used in the previous chapter.
- * You can override via query string:
+ * Defaults to the Porsche GLB:
+ * - /public/models/porsche-911-gt3rs.glb
+ *
+ * Override via query string:
  * - ?wrapModel=/models/your-model.glb
  */
 export class WrapShowroomScene extends SceneBase {
@@ -166,7 +168,8 @@ export class WrapShowroomScene extends SceneBase {
 
   constructor() {
     super();
-    this.id = 'scene18';
+    // Repurposed as the single merged car chapter.
+    this.id = 'scene17';
     this.contentRadius = 6.5;
     this.baseDistance = 10.0;
 
@@ -889,8 +892,11 @@ export class WrapShowroomScene extends SceneBase {
     this.orbitYaw = damp(this.orbitYaw, this.orbitYawTarget, 6.5, ctx.dt);
     this.orbitPitch = damp(this.orbitPitch, this.orbitPitchTarget, 6.5, ctx.dt);
 
-    const zoom = 1 - 0.18 * clamp(ctx.press, 0, 1);
-    this.orbitRadiusTarget = this.baseDistance * zoom;
+    // Combined zoom: wheel/pinch (ctx.zoom) for fine tuning + press for a small cinematic push-in.
+    const zoom01 = clamp(ctx.zoom ?? 0, 0, 1);
+    const wheelFactor = 1.05 - 0.6 * zoom01; // 0 -> wider, 1 -> tighter
+    const pressFactor = 1 - 0.18 * clamp(ctx.press, 0, 1);
+    this.orbitRadiusTarget = this.baseDistance * wheelFactor * pressFactor;
     this.orbitRadius = damp(
       this.orbitRadius,
       this.orbitRadiusTarget,

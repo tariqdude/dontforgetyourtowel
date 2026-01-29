@@ -144,10 +144,7 @@ export class SceneDirector {
       case 'scene16': // Ethereal Storm
         mult = 1.08;
         break;
-      case 'scene17': // Porsche
-        mult = 1.05;
-        break;
-      case 'scene18': // Wrap Showroom
+      case 'scene17': // Car Showroom
         mult = 1.06;
         break;
       default:
@@ -217,6 +214,15 @@ export class SceneDirector {
   private gyro = new THREE.Vector3();
   private gyroTarget = new THREE.Vector3();
   private gyroActive = false;
+
+  // Zoom (wheel + pinch) signal, exposed to scenes via SceneRuntime.
+  private zoomTarget = 0; // 0..1
+  private zoom = 0; // 0..1
+  private zoomDelta = 0;
+  private lastZoom = 0;
+  private pinchActive = false;
+  private pinchStartDist = 0;
+  private pinchStartZoom = 0;
 
   private lastTime = performance.now() / 1000;
   private lastScrollTime = performance.now();
@@ -731,6 +737,8 @@ export class SceneDirector {
       pointerVelocity: this.runtimePointerVelocity,
       tap: this.runtimeTap,
       press: this.runtimePress,
+      zoom: this.zoom,
+      zoomDelta: this.zoomDelta,
       scrollVelocity: this.scrollVelocity,
       sceneId: this.activeScene.id,
       sceneIndex: this.sceneIndex,
@@ -744,6 +752,12 @@ export class SceneDirector {
         high: this.audio.high,
       },
     };
+  }
+
+  private updateRuntimeZoom(dt: number): void {
+    this.zoom = damp(this.zoom, this.zoomTarget, 10, dt);
+    this.zoomDelta = this.zoom - this.lastZoom;
+    this.lastZoom = this.zoom;
   }
 
   private getInteractionProfile(sceneId: string): {
@@ -789,13 +803,7 @@ export class SceneDirector {
         pointerGamma -= 0.02;
         pressGain *= 1.05;
         break;
-      case 'scene17': // Porsche: keep camera/lighting readable
-        pointerGain *= 0.9;
-        pressGain *= 0.9;
-        tapGain *= 0.9;
-        gyroGain *= 0.85;
-        break;
-      case 'scene18': // Wrap Showroom: tap cycles modes; keep stable
+      case 'scene17': // Showroom: tap cycles modes; keep stable
         pointerGain *= 0.92;
         pressGain *= 0.92;
         tapGain *= 1.05;
@@ -899,14 +907,79 @@ export class SceneDirector {
     );
 
     const onTouchMove = (event: TouchEvent) => {
-      const touch = event.touches[0];
-      if (!touch) return;
+      const touches = event.touches;
+      if (!touches || touches.length === 0) return;
+
+      // Pinch zoom.
+      if (touches.length >= 2) {
+        const a = touches[0];
+        const b = touches[1];
+        const dx = a.clientX - b.clientX;
+        const dy = a.clientY - b.clientY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (!this.pinchActive) {
+          this.pinchActive = true;
+          this.pinchStartDist = Math.max(1, dist);
+          this.pinchStartZoom = this.zoomTarget;
+        } else {
+          const ratio = dist / Math.max(1, this.pinchStartDist);
+          // ratio > 1 means pinch-out -> zoom in.
+          const delta = Math.log(ratio) * 0.6;
+          this.zoomTarget = clamp(this.pinchStartZoom + delta, 0, 1);
+        }
+
+        // Track pointer at midpoint so orbit still feels responsive.
+        const mx = (a.clientX + b.clientX) / 2;
+        const my = (a.clientY + b.clientY) / 2;
+        this.setPointerTarget(mx, my);
+
+        // Avoid browser pinch-to-zoom / scroll while interacting with the 3D view.
+        event.preventDefault();
+        return;
+      }
+
+      // Single-finger move.
+      this.pinchActive = false;
+      const touch = touches[0];
       this.setPointerTarget(touch.clientX, touch.clientY);
     };
-    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
     this.cleanups.push(() =>
       window.removeEventListener('touchmove', onTouchMove)
     );
+
+    const onTouchEnd = () => {
+      this.pinchActive = false;
+    };
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    this.cleanups.push(() =>
+      window.removeEventListener('touchend', onTouchEnd)
+    );
+    this.cleanups.push(() =>
+      window.removeEventListener('touchcancel', onTouchEnd)
+    );
+
+    const onWheel = (event: WheelEvent) => {
+      // Ignore browser-native trackpad pinch zoom.
+      if (event.ctrlKey) return;
+
+      // Normalize: wheel down should zoom out.
+      const delta = clamp(event.deltaY / 900, -0.25, 0.25);
+      this.zoomTarget = clamp(this.zoomTarget - delta, 0, 1);
+
+      // In gallery mode, wheel is often used for scene navigation/scroll.
+      // Only prevent default when the pointer is over the 3D root.
+      if (this.galleryMode) {
+        const target = event.target as Element | null;
+        if (target && this.root.contains(target)) {
+          event.preventDefault();
+        }
+      }
+    };
+    window.addEventListener('wheel', onWheel, { passive: false });
+    this.cleanups.push(() => window.removeEventListener('wheel', onWheel));
 
     // Gyroscope support for mobile parallax
     this.initGyroscope();
@@ -1400,26 +1473,12 @@ export class SceneDirector {
       },
       scene17: {
         bloom: {
-          strength: this.caps.coarsePointer ? 0.45 : 0.54,
-          threshold: 0.865,
-          radius: 0.36,
+          // Lower glow by default for a cleaner studio read.
+          strength: this.caps.coarsePointer ? 0.32 : 0.38,
+          threshold: 0.885,
+          radius: 0.3,
         },
-        // Porsche: keep the silhouette crisp; DOF is very subtle.
-        bokeh: { aperture: 0.000105, maxblur: 0.0095 },
-        final: {
-          chromatic: 0.0024,
-          grain: this.caps.coarsePointer ? 0.028 : 0.038,
-          vignette: 0.1,
-        },
-        clear: 0x02040a,
-      },
-      scene18: {
-        bloom: {
-          strength: this.caps.coarsePointer ? 0.4 : 0.48,
-          threshold: 0.872,
-          radius: 0.32,
-        },
-        // Showroom: slightly sharper than Porsche; subtle DOF.
+        // Showroom: slightly sharper; subtle DOF.
         bokeh: { aperture: 0.000085, maxblur: 0.0085 },
         final: {
           chromatic: this.caps.coarsePointer ? 0.0018 : 0.002,
@@ -1582,6 +1641,9 @@ export class SceneDirector {
 
     // Shape runtime interaction signals (consistent feel across chapters)
     this.updateRuntimeInteraction();
+
+    // Update zoom signal after interaction shaping so scenes get a stable value.
+    this.updateRuntimeZoom(realDt);
 
     // Only apply auto-ramped look while settling in, so UI overrides remain usable.
     const settle = this.getSceneSettle(this._simTime);

@@ -18,6 +18,13 @@ export interface SceneRuntime {
   bgTheme: string; // 'dark' | 'glass'
   press: number; // 0 to 1
   tap: number; // transient 0->1 signal
+  /**
+   * Optional zoom signal (0..1). Scenes may interpret this as "zoom in" amount.
+   * Provided by wheel/pinch in addition to other inputs.
+   */
+  zoom?: number;
+  /** Optional per-frame zoom delta, useful for momentum-like behaviors. */
+  zoomDelta?: number;
   sceneId: string;
   sceneIndex: number;
   audio: { level: number; low: number; mid: number; high: number };
@@ -143,14 +150,8 @@ export const sceneMeta: SceneMeta[] = [
   },
   {
     id: 'scene17',
-    title: 'Cyber Porsche',
-    subtitle: 'GT3 RS Study',
+    title: 'Porsche Showroom',
+    subtitle: 'Studio Turntable',
     index: 17,
-  },
-  {
-    id: 'scene18',
-    title: 'Wrap Showroom',
-    subtitle: 'Interactive Material Study',
-    index: 18,
   },
 ];
