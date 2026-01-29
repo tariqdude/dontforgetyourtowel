@@ -78,6 +78,8 @@ export default [
       'coverage',
       'playwright-report',
       'test-results',
+      // Vendored third-party decoder assets (minified)
+      'public/draco/**',
       // Legacy/demo routes kept only for compatibility or archives
       'src/pages/blog/**',
       'src/pages/components.astro',

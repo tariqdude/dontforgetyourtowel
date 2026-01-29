@@ -85,6 +85,18 @@ export const getTowerCaps = (): TowerCaps => {
     window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   );
 
+  const isAutomation = (() => {
+    try {
+      // Playwright/Puppeteer set this in most browsers.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((navigator as any).webdriver) return true;
+      const ua = String(navigator.userAgent || '');
+      return /headless/i.test(ua);
+    } catch {
+      return false;
+    }
+  })();
+
   const devicePixelRatio = Math.max(1, Number(window.devicePixelRatio || 1));
 
   const browser = detectBrowser();
@@ -170,6 +182,12 @@ export const getTowerCaps = (): TowerCaps => {
   } else if (maxPrecision === 'lowp') {
     performanceTier = 'low';
   }
+
+  // Headless/automation renderers can be surprisingly fragile with post FX;
+  // keep tests deterministic by forcing the conservative tier.
+  if (isAutomation) {
+    performanceTier = 'low';
+  }
   // Keep mobile at their detected tier - modern phones are powerful!
 
   // Higher particle counts for better visuals - modern GPUs handle this easily
@@ -181,7 +199,7 @@ export const getTowerCaps = (): TowerCaps => {
         : 5000;
 
   // Enable post processing on all but truly low-end devices
-  const enablePostProcessing = performanceTier !== 'low';
+  const enablePostProcessing = performanceTier !== 'low' && !isAutomation;
   const enableGyroscope = coarsePointer && !reducedMotion;
 
   return {

@@ -1642,7 +1642,11 @@ export class SceneDirector {
 
     try {
       this.resetViewport();
-      this.composer.render();
+      if (this.caps.enablePostProcessing && !this.root.dataset.renderError) {
+        this.composer.render();
+      } else {
+        this.renderer.render(this.renderPass.scene, this.renderPass.camera);
+      }
     } catch (e) {
       // Fatal render error fallback
       if (!this.root.dataset.renderError) {
@@ -1666,6 +1670,24 @@ export class SceneDirector {
 
   private reportError(context: string, error: unknown) {
     console.error(`[Tower3D] Error in ${context}:`, error);
+
+    const errorObj = error instanceof Error ? error : null;
+    const errorMessage =
+      errorObj?.message ??
+      (error === undefined
+        ? 'undefined'
+        : error === null
+          ? 'null'
+          : String(error));
+    const errorStack = errorObj?.stack ? String(errorObj.stack) : '';
+
+    // Store last error for automation/debugging (Playwright can read dataset).
+    this.root.dataset.towerLastErrorContext = context;
+    this.root.dataset.towerLastErrorMessage = errorMessage;
+    if (errorStack) {
+      // Keep it reasonably small for DOM/dataset.
+      this.root.dataset.towerLastErrorStack = errorStack.slice(0, 3000);
+    }
 
     // Create visible error overlay if it doesn't exist
     let overlay = this.root.querySelector('.tower3d-error-overlay');
@@ -1691,8 +1713,15 @@ export class SceneDirector {
 
     // Append error
     const msg = document.createElement('div');
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    msg.innerText = `[${new Date().toLocaleTimeString()}] ${context}: ${errorMessage}`;
+    const timestamp = new Date().toLocaleTimeString();
+    msg.innerText = `[${timestamp}] ${context}: ${errorMessage}`;
+    if (errorStack) {
+      const stackEl = document.createElement('div');
+      stackEl.style.whiteSpace = 'pre-wrap';
+      stackEl.style.marginTop = '0.5rem';
+      stackEl.innerText = errorStack;
+      msg.appendChild(stackEl);
+    }
     overlay.appendChild(msg);
 
     // Prevent overlay from growing infinitely

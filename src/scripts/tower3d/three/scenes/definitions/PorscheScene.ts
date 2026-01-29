@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { SceneBase } from './SceneBase';
 import type { SceneRuntime } from './types';
 import { damp } from './SceneUtils';
@@ -25,6 +27,7 @@ export class PorscheScene extends SceneBase {
     '/models/porsche-911-gt3rs.glb'
   );
   private loggedModelMissingHint = false;
+  private loggedModelLoadError = false;
   private modelOrbitRadius = 10.5;
   private modelCamY = 2.0;
   private modelLookAt = new THREE.Vector3(0, 0.9, 0);
@@ -418,6 +421,7 @@ export class PorscheScene extends SceneBase {
           opacity: 0.55,
           depthWrite: false,
           blending: THREE.MultiplyBlending,
+          premultipliedAlpha: true,
         });
         const blobGeo = new THREE.PlaneGeometry(1, 1);
         this.contactShadow = new THREE.Mesh(blobGeo, blobMat);
@@ -469,6 +473,9 @@ export class PorscheScene extends SceneBase {
   }
 
   init(_ctx: SceneRuntime) {
+    if (typeof document !== 'undefined') {
+      document.documentElement.dataset.porscheSceneInit = '1';
+    }
     // Attempt to load a realistic external model if present.
     this.requestExternalModel();
   }
@@ -506,9 +513,15 @@ export class PorscheScene extends SceneBase {
     }
 
     const loader = new GLTFLoader();
+    // Support common compression extensions seen in real-world assets.
+    // Draco needs decoder files under /public/draco/gltf/.
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath(withBasePath('/draco/gltf/'));
+    loader.setDRACOLoader(dracoLoader);
+    loader.setMeshoptDecoder(MeshoptDecoder);
     const base = THREE.LoaderUtils.extractUrlBase(url);
 
-    return await new Promise(resolve => {
+    return await new Promise((resolve, reject) => {
       loader.parse(
         buffer,
         base,
@@ -518,7 +531,7 @@ export class PorscheScene extends SceneBase {
             (gltf as unknown as { scene: THREE.Object3D | undefined })?.scene;
           resolve(root ?? null);
         },
-        () => resolve(null)
+        err => reject(err)
       );
     });
   }
@@ -530,10 +543,20 @@ export class PorscheScene extends SceneBase {
     const loadToken = ++this.modelLoadToken;
 
     const url = this.resolveModelUrl();
+
+    if (typeof document !== 'undefined') {
+      const ds = document.documentElement.dataset;
+      ds.porscheModelRequested = '1';
+      ds.porscheModelUrl = url;
+    }
+
     void this.loadGltfViaFetch(url)
       .then(root => {
         if (loadToken !== this.modelLoadToken) return;
         if (!root) {
+          if (typeof document !== 'undefined') {
+            document.documentElement.dataset.porscheModelMissing = '1';
+          }
           if (!this.loggedModelMissingHint) {
             this.loggedModelMissingHint = true;
             // Intentionally use info (not error) so it doesn't look like a hard failure.
@@ -561,6 +584,21 @@ export class PorscheScene extends SceneBase {
               ? obj.material
               : [obj.material];
             for (const mat of mats) {
+              // Some third-party assets ship with material shader patches that are brittle
+              // across WebGL implementations. Strip them for stability.
+              // IMPORTANT: Three.js calls material.customProgramCacheKey() which defaults
+              // to `onBeforeCompile.toString()`. Setting onBeforeCompile to undefined can
+              // crash rendering in some contexts (notably headless).
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (mat as any).onBeforeCompile = () => {};
+
+              if (
+                mat.blending === THREE.MultiplyBlending &&
+                !mat.premultipliedAlpha
+              ) {
+                mat.premultipliedAlpha = true;
+              }
+
               if (
                 mat instanceof THREE.MeshStandardMaterial ||
                 mat instanceof THREE.MeshPhysicalMaterial
@@ -756,8 +794,24 @@ export class PorscheScene extends SceneBase {
           document.documentElement.dataset.porscheModelLoaded = '1';
         }
       })
-      .catch(() => {
-        // Model missing or failed to load; keep procedural fallback.
+      .catch(err => {
+        // Model exists but failed to parse/load; keep procedural fallback.
+        if (!this.loggedModelLoadError) {
+          this.loggedModelLoadError = true;
+          console.warn(
+            `[PorscheScene] Failed to load/parse external model: ${url}`,
+            err
+          );
+        }
+        if (typeof document !== 'undefined') {
+          document.documentElement.dataset.porscheModelError = '1';
+          document.documentElement.dataset.porscheModelErrorMessage =
+            err instanceof Error
+              ? err.message
+              : typeof err === 'string'
+                ? err
+                : 'unknown';
+        }
       });
   }
 
@@ -823,93 +877,91 @@ export class PorscheScene extends SceneBase {
       this.keyLight.position.x = 6 + Math.sin(this.time * 0.2) * 0.5;
       this.keyLight.position.z = 5 + Math.cos(this.time * 0.2) * 0.5;
 
-      return;
-    }
+      // Input Handling
+      const throttle = ctx.press; // 0..1
+      const steer = -ctx.pointer.x; // -1..1
 
-    // Input Handling
-    const throttle = ctx.press; // 0..1
-    const steer = -ctx.pointer.x; // -1..1
+      // Dynamics
+      const targetSpeed = 10.0 + throttle * 40.0; // 10 to 50 m/s
+      this.speed = damp(this.speed, targetSpeed, 2.0, ctx.dt);
 
-    // Dynamics
-    const targetSpeed = 10.0 + throttle * 40.0; // 10 to 50 m/s
-    this.speed = damp(this.speed, targetSpeed, 2.0, ctx.dt);
-
-    // Move Grid (kept subtle for fallback only)
-    if (this.grid.visible) {
-      this.grid.position.z = (this.time * this.speed) % 1.0;
-    }
-
-    // Wheels Rotation
-    const wheelSpin = this.speed * ctx.dt * 2.0;
-    this.wheels.forEach((w, i) => {
-      w.children[0].rotateX(wheelSpin); // Tire
-      w.children[1].rotateX(wheelSpin); // Rim
-
-      // Front Wheel Steering (Indices 0 and 1)
-      if (i < 2) {
-        w.rotation.y = steer * 0.4;
+      // Move Grid (kept subtle for fallback only)
+      if (this.grid.visible) {
+        this.grid.position.z = (this.time * this.speed) % 1.0;
       }
-    });
 
-    // Body Physics
-    // Roll (Lean into corner, or out? Sport cars lean out slightly, or stay flat)
-    const rollAngle = steer * 0.15; // rad
-    // Pitch (Squat)
-    const pitchAngle = throttle * 0.05; // Lift nose/squat rear
+      // Wheels Rotation
+      const wheelSpin = this.speed * ctx.dt * 2.0;
+      this.wheels.forEach((w, i) => {
+        w.children[0].rotateX(wheelSpin); // Tire
+        w.children[1].rotateX(wheelSpin); // Rim
 
-    this.carGroup.rotation.z = damp(
-      this.carGroup.rotation.z,
-      rollAngle,
-      4.0,
-      ctx.dt
-    );
-    this.carGroup.rotation.x = damp(
-      this.carGroup.rotation.x,
-      -pitchAngle,
-      2.0,
-      ctx.dt
-    );
-    this.carGroup.rotation.y = damp(
-      this.carGroup.rotation.y,
-      steer * 0.1,
-      4.0,
-      ctx.dt
-    ); // Yaw slightly
+        // Front Wheel Steering (Indices 0 and 1)
+        if (i < 2) {
+          w.rotation.y = steer * 0.4;
+        }
+      });
 
-    // Position Drift
-    const driftX = steer * 2.5;
-    this.carGroup.position.x = damp(
-      this.carGroup.position.x,
-      driftX,
-      1.5,
-      ctx.dt
-    );
+      // Body Physics
+      // Roll (Lean into corner, or out? Sport cars lean out slightly, or stay flat)
+      const rollAngle = steer * 0.15; // rad
+      // Pitch (Squat)
+      const pitchAngle = throttle * 0.05; // Lift nose/squat rear
 
-    // Camera Chase (fallback)
-    // Camera should be behind and slightly above
-    const camTargetX = this.carGroup.position.x * 0.8; // Lag slightly
-    const camTargetZ = 6.0 + (this.speed / 50.0) * 2.0; // Pull back at speed
-    const camTargetY = 2.0 + (this.speed / 50.0) * 0.5;
+      this.carGroup.rotation.z = damp(
+        this.carGroup.rotation.z,
+        rollAngle,
+        4.0,
+        ctx.dt
+      );
+      this.carGroup.rotation.x = damp(
+        this.carGroup.rotation.x,
+        -pitchAngle,
+        2.0,
+        ctx.dt
+      );
+      this.carGroup.rotation.y = damp(
+        this.carGroup.rotation.y,
+        steer * 0.1,
+        4.0,
+        ctx.dt
+      ); // Yaw slightly
 
-    this.camera.position.x = damp(
-      this.camera.position.x,
-      camTargetX,
-      3.0,
-      ctx.dt
-    );
-    this.camera.position.z = damp(
-      this.camera.position.z,
-      camTargetZ,
-      3.0,
-      ctx.dt
-    );
-    this.camera.position.y = damp(
-      this.camera.position.y,
-      camTargetY,
-      3.0,
-      ctx.dt
-    );
+      // Position Drift
+      const driftX = steer * 2.5;
+      this.carGroup.position.x = damp(
+        this.carGroup.position.x,
+        driftX,
+        1.5,
+        ctx.dt
+      );
 
-    this.camera.lookAt(this.carGroup.position.x, 0.8, 0);
+      // Camera Chase (fallback)
+      // Camera should be behind and slightly above
+      const camTargetX = this.carGroup.position.x * 0.8; // Lag slightly
+      const camTargetZ = 6.0 + (this.speed / 50.0) * 2.0; // Pull back at speed
+      const camTargetY = 2.0 + (this.speed / 50.0) * 0.5;
+
+      this.camera.position.x = damp(
+        this.camera.position.x,
+        camTargetX,
+        3.0,
+        ctx.dt
+      );
+      this.camera.position.z = damp(
+        this.camera.position.z,
+        camTargetZ,
+        3.0,
+        ctx.dt
+      );
+      this.camera.position.y = damp(
+        this.camera.position.y,
+        camTargetY,
+        3.0,
+        ctx.dt
+      );
+
+      this.camera.lookAt(this.carGroup.position.x, 0.8, 0);
+    }
   }
 }

@@ -6,7 +6,6 @@
 import { createAstroMount } from './tower3d/core/astro-mount';
 import { getTowerCaps } from './tower3d/core/caps';
 import { SceneDirector } from './tower3d/three/scene-director';
-import { parseQuery } from '../utils/url';
 
 type GalleryAutoPlayController = {
   start: () => void;
@@ -162,37 +161,42 @@ const state: GalleryState = {
   showingInfo: false,
 };
 
-function applyInitialSceneFromQuery(): void {
-  if (typeof window === 'undefined') return;
+function getInitialSceneIndexFromQuery(): number | null {
+  if (typeof window === 'undefined') return null;
 
-  const q = parseQuery(window.location.search);
-  const raw = (q.sceneId || q.scene || q.sceneIndex || '').trim();
-  if (!raw) return;
-
-  let index: number | null = null;
+  const params = new URLSearchParams(window.location.search);
+  const raw = (
+    params.get('sceneId') ||
+    params.get('scene') ||
+    params.get('sceneIndex') ||
+    ''
+  ).trim();
+  if (!raw) return null;
 
   // scene=scene17
   if (raw.startsWith('scene')) {
     const found = SCENE_IDS.indexOf(raw as (typeof SCENE_IDS)[number]);
-    if (found >= 0) index = found;
+    return found >= 0 ? found : null;
   }
 
   // scene=17 or sceneIndex=17 (supports 0-based or 1-based)
-  if (index === null) {
-    const parsed = Number.parseInt(raw, 10);
-    if (Number.isFinite(parsed)) {
-      if (parsed >= 0 && parsed <= SCENE_IDS.length - 1) {
-        index = parsed;
-      } else if (parsed >= 1 && parsed <= SCENE_IDS.length) {
-        index = parsed - 1;
-      }
-    }
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed)) return null;
+  if (parsed >= 0 && parsed <= SCENE_IDS.length - 1) return parsed;
+  if (parsed >= 1 && parsed <= SCENE_IDS.length) return parsed - 1;
+
+  return null;
+}
+
+function applyInitialSceneIndex(index: number): void {
+  const clamped = Math.max(0, Math.min(SCENE_IDS.length - 1, index));
+  state.currentScene = clamped;
+  state.targetProgress = clamped / (SCENE_IDS.length - 1);
+
+  // Debug/test breadcrumb.
+  if (typeof document !== 'undefined') {
+    document.documentElement.dataset.galleryInitialScene = SCENE_IDS[clamped];
   }
-
-  if (index === null) return;
-
-  state.currentScene = index;
-  state.targetProgress = index / (SCENE_IDS.length - 1);
 }
 
 let galleryCaps: ReturnType<typeof getTowerCaps> | null = null;
@@ -278,6 +282,11 @@ createAstroMount(ROOT_SELECTOR, () => {
   root.dataset.galleryBoot = '1';
   document.documentElement.dataset.galleryBoot = '1';
 
+  // Debug/test breadcrumb: capture the query string at mount time.
+  document.documentElement.dataset.gallerySearch = window.location.search;
+
+  let deepLinkApplied = false;
+
   const canvas = root.querySelector<HTMLCanvasElement>(
     'canvas[data-tower3d-canvas]'
   );
@@ -358,6 +367,14 @@ createAstroMount(ROOT_SELECTOR, () => {
     };
   }
 
+  // Apply deep-linking before the director boots so initial scene/progress is consistent.
+  const initialIndex = getInitialSceneIndexFromQuery();
+  if (initialIndex !== null) {
+    applyInitialSceneIndex(initialIndex);
+    // Hint the director's initial scene selection too.
+    root.dataset.towerScene = SCENE_IDS[state.currentScene];
+  }
+
   // Create director with gallery mode enabled
   let director: SceneDirector;
   try {
@@ -374,6 +391,27 @@ createAstroMount(ROOT_SELECTOR, () => {
     };
   }
   state.director = director;
+
+  const applyDeepLinkIfNeeded = () => {
+    if (deepLinkApplied) return;
+    const idx = getInitialSceneIndexFromQuery();
+    if (idx === null) return;
+
+    applyInitialSceneIndex(idx);
+    root.dataset.towerScene = SCENE_IDS[state.currentScene];
+    director.setProgress?.(state.targetProgress);
+    updateUI();
+    deepLinkApplied = true;
+  };
+
+  // Seed gallery progress so computeScroll() starts on the intended scene.
+  if (initialIndex !== null) {
+    director.setProgress?.(state.targetProgress);
+    deepLinkApplied = true;
+  } else {
+    // Some environments may mutate the URL shortly after mount; re-check once now.
+    applyDeepLinkIfNeeded();
+  }
 
   // If we reached this point, WebGL + director initialization succeeded.
   // Ensure the loader can't remain stuck even if later UI wiring throws.
@@ -433,9 +471,6 @@ createAstroMount(ROOT_SELECTOR, () => {
   setupFullscreen();
   setupInfoPanel();
   setupIdleDetection();
-
-  // Allow deep-linking to a specific scene (e.g. ?scene=scene17).
-  applyInitialSceneFromQuery();
   updateUI();
 
   console.log('[Gallery] Initialized with', SCENE_IDS.length, 'scenes');
@@ -459,6 +494,9 @@ createAstroMount(ROOT_SELECTOR, () => {
   };
 
   const tick = (timestamp: number) => {
+    // Apply deep-link as soon as the URL contains it.
+    applyDeepLinkIfNeeded();
+
     // Track FPS for adaptive performance
     frameCount++;
     if (timestamp - lastTime >= 1000) {
