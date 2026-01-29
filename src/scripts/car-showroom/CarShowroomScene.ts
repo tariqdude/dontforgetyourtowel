@@ -8,13 +8,20 @@ import { withBasePath } from '../../utils/helpers';
 type ShowroomMode = 'paint' | 'wrap' | 'glass' | 'wireframe';
 type ShowroomFinish = 'gloss' | 'satin' | 'matte';
 type ShowroomBackground = 'studio' | 'day' | 'sunset' | 'night' | 'grid';
+type WheelFinish = 'graphite' | 'chrome' | 'black';
+type TrimFinish = 'black' | 'chrome' | 'brushed';
+type CameraPreset = 'hero' | 'front' | 'rear' | 'side' | 'top' | 'detail';
 
 type UiState = {
   modelUrl: string;
   mode: ShowroomMode;
   color: THREE.Color;
   finish: ShowroomFinish;
+  wheelFinish: WheelFinish;
+  trimFinish: TrimFinish;
+  glassTint: number;
   background: ShowroomBackground;
+  cameraPreset: CameraPreset;
   autoRotate: boolean;
   spinSpeed: number;
   zoom: number;
@@ -35,6 +42,28 @@ const parseColor = (value: string | null, fallback: THREE.Color) => {
   } catch {
     return fallback;
   }
+};
+
+const parseNumber01 = (value: string | null, fallback: number) => {
+  if (!value) return fallback;
+  const v = Number.parseFloat(value);
+  if (!Number.isFinite(v)) return fallback;
+  return clamp(v, 0, 1);
+};
+
+const resolveModelUrl = (raw: string): string => {
+  const v = raw.trim();
+  if (!v) return withBasePath('/models/porsche-911-gt3rs.glb');
+  if (
+    v.startsWith('http://') ||
+    v.startsWith('https://') ||
+    v.startsWith('data:') ||
+    v.startsWith('blob:')
+  )
+    return v;
+
+  const normalized = v.startsWith('/') ? v : `/${v}`;
+  return withBasePath(normalized);
 };
 
 const createContactShadowTexture = (size = 256): THREE.CanvasTexture => {
@@ -113,6 +142,10 @@ export class CarShowroomScene {
   private bodyMat: THREE.MeshPhysicalMaterial;
   private wrapMat: THREE.MeshPhysicalMaterial;
   private glassMat: THREE.MeshPhysicalMaterial;
+  private trimMat: THREE.MeshPhysicalMaterial;
+  private wheelMat: THREE.MeshPhysicalMaterial;
+  private tireMat: THREE.MeshStandardMaterial;
+  private lightMat: THREE.MeshStandardMaterial;
   private wireframeMat: THREE.MeshStandardMaterial;
 
   private orbitYaw = 0;
@@ -122,6 +155,8 @@ export class CarShowroomScene {
   private orbitRadius = 9.8;
   private orbitRadiusTarget = 9.8;
   private lookAt = new THREE.Vector3(0, 0.85, 0);
+
+  private lastCameraPreset: string | null = null;
 
   private time = 0;
 
@@ -221,6 +256,36 @@ export class CarShowroomScene {
       opacity: 1,
     });
 
+    this.trimMat = new THREE.MeshPhysicalMaterial({
+      color: 0x0b0f1a,
+      roughness: 0.25,
+      metalness: 1.0,
+      clearcoat: 0.35,
+      clearcoatRoughness: 0.35,
+    });
+
+    this.wheelMat = new THREE.MeshPhysicalMaterial({
+      color: 0x111827,
+      roughness: 0.35,
+      metalness: 1.0,
+      clearcoat: 0.2,
+      clearcoatRoughness: 0.4,
+    });
+
+    this.tireMat = new THREE.MeshStandardMaterial({
+      color: 0x0b0f1a,
+      roughness: 1.0,
+      metalness: 0.0,
+    });
+
+    this.lightMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.25,
+      metalness: 0.0,
+      emissive: new THREE.Color('#dbeafe'),
+      emissiveIntensity: 1.25,
+    });
+
     this.wireframeMat = new THREE.MeshStandardMaterial({
       color: 0x94a3b8,
       roughness: 1,
@@ -244,6 +309,10 @@ export class CarShowroomScene {
     this.bodyMat.dispose();
     this.wrapMat.dispose();
     this.glassMat.dispose();
+    this.trimMat.dispose();
+    this.wheelMat.dispose();
+    this.tireMat.dispose();
+    this.lightMat.dispose();
     this.wireframeMat.dispose();
     (this.contactShadow.material as THREE.Material).dispose();
     (this.contactShadow.geometry as THREE.BufferGeometry).dispose();
@@ -269,14 +338,33 @@ export class CarShowroomScene {
   private disposeLoaded() {
     if (!this.loaded) return;
 
+    const isSharedMaterial = (mat: THREE.Material | null | undefined) => {
+      if (!mat) return false;
+      return (
+        mat === this.bodyMat ||
+        mat === this.wrapMat ||
+        mat === this.glassMat ||
+        mat === this.trimMat ||
+        mat === this.wheelMat ||
+        mat === this.tireMat ||
+        mat === this.lightMat ||
+        mat === this.wireframeMat
+      );
+    };
+
     this.loaded.traverse(obj => {
       const mesh = obj as THREE.Mesh;
       if (!mesh.isMesh) return;
 
       mesh.geometry?.dispose?.();
       const mat = mesh.material;
-      if (Array.isArray(mat)) mat.forEach(m => m.dispose());
-      else mat?.dispose?.();
+      if (Array.isArray(mat)) {
+        mat.forEach(m => {
+          if (!isSharedMaterial(m)) m.dispose();
+        });
+      } else {
+        if (!isSharedMaterial(mat)) mat?.dispose?.();
+      }
     });
 
     this.modelGroup.remove(this.loaded);
@@ -290,8 +378,14 @@ export class CarShowroomScene {
     ).trim();
     const mode = (ds.carShowroomMode || 'paint') as ShowroomMode;
     const finish = (ds.carShowroomFinish || 'gloss') as ShowroomFinish;
+    const wheelFinish = (ds.carShowroomWheelFinish ||
+      'graphite') as WheelFinish;
+    const trimFinish = (ds.carShowroomTrimFinish || 'black') as TrimFinish;
+    const glassTint = parseNumber01(ds.carShowroomGlassTint || '0.15', 0.15);
     const background = (ds.carShowroomBackground ||
       'studio') as ShowroomBackground;
+
+    const cameraPreset = (ds.carShowroomCameraPreset || 'hero') as CameraPreset;
 
     const spinSpeed = clamp(
       Number.parseFloat(ds.carShowroomSpinSpeed || '0.65') || 0.65,
@@ -311,11 +405,195 @@ export class CarShowroomScene {
       mode,
       color,
       finish,
+      wheelFinish,
+      trimFinish,
+      glassTint,
       background,
+      cameraPreset,
       autoRotate,
       spinSpeed,
       zoom,
     };
+  }
+
+  private applyWheelPreset(finish: WheelFinish) {
+    if (finish === 'chrome') {
+      this.wheelMat.color.set('#e5e7eb');
+      this.wheelMat.roughness = 0.12;
+      this.wheelMat.metalness = 1.0;
+      this.wheelMat.clearcoat = 0.5;
+      this.wheelMat.clearcoatRoughness = 0.12;
+      return;
+    }
+    if (finish === 'black') {
+      this.wheelMat.color.set('#0b0f1a');
+      this.wheelMat.roughness = 0.55;
+      this.wheelMat.metalness = 0.85;
+      this.wheelMat.clearcoat = 0.15;
+      this.wheelMat.clearcoatRoughness = 0.6;
+      return;
+    }
+    // graphite
+    this.wheelMat.color.set('#1f2937');
+    this.wheelMat.roughness = 0.35;
+    this.wheelMat.metalness = 1.0;
+    this.wheelMat.clearcoat = 0.2;
+    this.wheelMat.clearcoatRoughness = 0.4;
+  }
+
+  private applyTrimPreset(finish: TrimFinish) {
+    if (finish === 'chrome') {
+      this.trimMat.color.set('#e5e7eb');
+      this.trimMat.roughness = 0.16;
+      this.trimMat.metalness = 1.0;
+      this.trimMat.clearcoat = 0.45;
+      this.trimMat.clearcoatRoughness = 0.16;
+      return;
+    }
+    if (finish === 'brushed') {
+      this.trimMat.color.set('#9ca3af');
+      this.trimMat.roughness = 0.32;
+      this.trimMat.metalness = 1.0;
+      this.trimMat.clearcoat = 0.25;
+      this.trimMat.clearcoatRoughness = 0.38;
+      return;
+    }
+    // black
+    this.trimMat.color.set('#0b0f1a');
+    this.trimMat.roughness = 0.42;
+    this.trimMat.metalness = 0.75;
+    this.trimMat.clearcoat = 0.18;
+    this.trimMat.clearcoatRoughness = 0.55;
+  }
+
+  private applyGlassTint(t: number) {
+    const tint = clamp(t, 0, 1);
+    const clear = new THREE.Color('#ffffff');
+    const smoke = new THREE.Color('#0b1220');
+    const c = clear.clone().lerp(smoke, tint);
+    this.glassMat.color.copy(c);
+    this.glassMat.roughness = lerp(0.05, 0.22, tint);
+    this.glassMat.transmission = lerp(1.0, 0.65, tint);
+  }
+
+  private applyCameraPreset(ui: UiState) {
+    const preset = ui.cameraPreset;
+    const map: Record<
+      CameraPreset,
+      {
+        yaw: number;
+        pitch: number;
+        radius: number;
+        lookAt: THREE.Vector3;
+      }
+    > = {
+      hero: {
+        yaw: 0.3,
+        pitch: 0.12,
+        radius: 9.8,
+        lookAt: new THREE.Vector3(0, 0.85, 0),
+      },
+      front: {
+        yaw: 0.65,
+        pitch: 0.1,
+        radius: 8.8,
+        lookAt: new THREE.Vector3(0, 0.85, 0),
+      },
+      rear: {
+        yaw: -2.35,
+        pitch: 0.11,
+        radius: 8.8,
+        lookAt: new THREE.Vector3(0, 0.85, 0),
+      },
+      side: {
+        yaw: 1.57,
+        pitch: 0.08,
+        radius: 9.4,
+        lookAt: new THREE.Vector3(0, 0.85, 0),
+      },
+      top: {
+        yaw: 0.2,
+        pitch: 0.42,
+        radius: 11.0,
+        lookAt: new THREE.Vector3(0, 0.9, 0),
+      },
+      detail: {
+        yaw: 0.85,
+        pitch: 0.12,
+        radius: 6.8,
+        lookAt: new THREE.Vector3(0, 1.05, 0),
+      },
+    };
+
+    const p = map[preset] ?? map.hero;
+    this.orbitYaw = p.yaw;
+    this.orbitYawTarget = p.yaw;
+    this.orbitPitch = p.pitch;
+    this.orbitPitchTarget = p.pitch;
+    this.orbitRadius = p.radius;
+    this.orbitRadiusTarget = p.radius;
+    this.lookAt.copy(p.lookAt);
+  }
+
+  private classifyMesh(
+    mesh: THREE.Mesh
+  ): 'glass' | 'tire' | 'wheel' | 'trim' | 'light' | 'body' | 'other' {
+    const name = `${mesh.name || ''}`.toLowerCase();
+    const matName = Array.isArray(mesh.material)
+      ? (mesh.material[0]?.name || '').toLowerCase()
+      : (mesh.material?.name || '').toLowerCase();
+
+    const text = `${name} ${matName}`;
+
+    const isGlass =
+      text.includes('glass') ||
+      text.includes('window') ||
+      text.includes('windscreen') ||
+      text.includes('windshield');
+    if (isGlass) return 'glass';
+
+    const isLight =
+      text.includes('headlight') ||
+      text.includes('taillight') ||
+      (text.includes('light') && !text.includes('highlight')) ||
+      text.includes('lamp');
+    if (isLight) return 'light';
+
+    const isTire =
+      text.includes('tire') || text.includes('tyre') || text.includes('rubber');
+    if (isTire) return 'tire';
+
+    const isWheel =
+      text.includes('wheel') ||
+      text.includes('rim') ||
+      text.includes('alloy') ||
+      text.includes('spoke');
+    if (isWheel) return 'wheel';
+
+    const isTrim =
+      text.includes('trim') ||
+      text.includes('chrome') ||
+      text.includes('badge') ||
+      text.includes('logo') ||
+      text.includes('grill') ||
+      text.includes('grille') ||
+      text.includes('exhaust') ||
+      text.includes('mirror') ||
+      text.includes('caliper') ||
+      text.includes('metal');
+    if (isTrim) return 'trim';
+
+    const isBody =
+      text.includes('body') ||
+      text.includes('paint') ||
+      text.includes('panel') ||
+      text.includes('hood') ||
+      text.includes('bonnet') ||
+      text.includes('door') ||
+      text.includes('bumper');
+    if (isBody) return 'body';
+
+    return 'other';
   }
 
   private applyFinishPreset(
@@ -395,6 +673,10 @@ export class CarShowroomScene {
     this.applyFinishPreset(this.bodyMat, ui.finish);
     this.applyFinishPreset(this.wrapMat, ui.finish);
 
+    this.applyWheelPreset(ui.wheelFinish);
+    this.applyTrimPreset(ui.trimFinish);
+    this.applyGlassTint(ui.glassTint);
+
     const mode = ui.mode;
 
     loaded.traverse(obj => {
@@ -404,16 +686,7 @@ export class CarShowroomScene {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
 
-      const name = `${mesh.name || ''}`.toLowerCase();
-      const matName = Array.isArray(mesh.material)
-        ? (mesh.material[0]?.name || '').toLowerCase()
-        : (mesh.material?.name || '').toLowerCase();
-
-      const isGlass =
-        name.includes('glass') ||
-        name.includes('window') ||
-        matName.includes('glass') ||
-        matName.includes('window');
+      const part = this.classifyMesh(mesh);
 
       if (mode === 'wireframe') {
         mesh.material = this.wireframeMat;
@@ -421,12 +694,32 @@ export class CarShowroomScene {
       }
 
       if (mode === 'glass') {
-        mesh.material = isGlass ? this.glassMat : this.glassMat;
+        mesh.material = this.glassMat;
         return;
       }
 
-      if (isGlass) {
+      if (part === 'light') {
+        mesh.material = this.lightMat;
+        return;
+      }
+
+      if (part === 'glass') {
         mesh.material = this.glassMat;
+        return;
+      }
+
+      if (part === 'tire') {
+        mesh.material = this.tireMat;
+        return;
+      }
+
+      if (part === 'wheel') {
+        mesh.material = this.wheelMat;
+        return;
+      }
+
+      if (part === 'trim') {
+        mesh.material = this.trimMat;
         return;
       }
 
@@ -435,10 +728,12 @@ export class CarShowroomScene {
   }
 
   private async loadModel(url: string) {
-    const normalized = withBasePath(url);
+    const normalized = resolveModelUrl(url);
     this.loadingUrl = normalized;
 
     this.root.dataset.carShowroomReady = '0';
+    this.root.dataset.carShowroomLoading = '1';
+    this.root.dataset.carShowroomLoadError = '';
 
     try {
       const res = await fetch(normalized);
@@ -486,10 +781,24 @@ export class CarShowroomScene {
       this.loaded = gltf;
       this.modelGroup.add(gltf);
 
+      const ui = this.getUiState();
+      this.applyCameraPreset(ui);
+      this.lastCameraPreset = ui.cameraPreset;
+      this.applyMaterials(gltf, ui);
+
       this.root.dataset.carShowroomReady = '1';
+      this.root.dataset.carShowroomLoading = '0';
     } catch (e) {
       console.error('[CarShowroom] Failed to load model', normalized, e);
       this.root.dataset.carShowroomReady = '0';
+      this.root.dataset.carShowroomLoading = '0';
+      const message =
+        e instanceof Error
+          ? e.message
+          : typeof e === 'string'
+            ? e
+            : 'Unknown error';
+      this.root.dataset.carShowroomLoadError = `Failed to load model: ${message}`;
     }
   }
 
@@ -501,11 +810,16 @@ export class CarShowroomScene {
 
     const ui = this.getUiState();
 
+    if (this.lastCameraPreset !== ui.cameraPreset) {
+      this.applyCameraPreset(ui);
+      this.lastCameraPreset = ui.cameraPreset;
+    }
+
     // Background
     this.setBackground(scene, ui.background);
 
     // Model
-    if (ui.modelUrl && withBasePath(ui.modelUrl) !== this.loadingUrl) {
+    if (ui.modelUrl && resolveModelUrl(ui.modelUrl) !== this.loadingUrl) {
       void this.loadModel(ui.modelUrl);
     }
 

@@ -38,13 +38,31 @@ createAstroMount(ROOT_SELECTOR, () => {
   };
 
   const panel = root.querySelector<HTMLElement>('[data-csr-panel]');
+  const loadingEl = root.querySelector<HTMLElement>('[data-csr-loading]');
+  const errorEl = root.querySelector<HTMLElement>('[data-csr-error]');
   const togglePanelBtn = root.querySelector<HTMLButtonElement>(
     '[data-csr-toggle-panel]'
   );
   const modelSel = root.querySelector<HTMLSelectElement>('[data-csr-model]');
+  const modelUrlInp = root.querySelector<HTMLInputElement>(
+    '[data-csr-model-url]'
+  );
+  const loadModelBtn = root.querySelector<HTMLButtonElement>(
+    '[data-csr-load-model]'
+  );
   const modeSel = root.querySelector<HTMLSelectElement>('[data-csr-mode]');
+  const cameraSel = root.querySelector<HTMLSelectElement>('[data-csr-camera]');
   const colorInp = root.querySelector<HTMLInputElement>('[data-csr-color]');
   const finishSel = root.querySelector<HTMLSelectElement>('[data-csr-finish]');
+  const wheelFinishSel = root.querySelector<HTMLSelectElement>(
+    '[data-csr-wheel-finish]'
+  );
+  const trimFinishSel = root.querySelector<HTMLSelectElement>(
+    '[data-csr-trim-finish]'
+  );
+  const glassTintRange = root.querySelector<HTMLInputElement>(
+    '[data-csr-glass-tint]'
+  );
   const bgSel = root.querySelector<HTMLSelectElement>('[data-csr-background]');
   const autoRotateChk = root.querySelector<HTMLInputElement>(
     '[data-csr-autorotate]'
@@ -54,6 +72,27 @@ createAstroMount(ROOT_SELECTOR, () => {
   );
   const zoomRange = root.querySelector<HTMLInputElement>('[data-csr-zoom]');
   const resetBtn = root.querySelector<HTMLButtonElement>('[data-csr-reset]');
+  const resetCameraBtn = root.querySelector<HTMLButtonElement>(
+    '[data-csr-reset-camera]'
+  );
+
+  const syncStatus = () => {
+    const ds = root.dataset;
+    const isLoading = ds.carShowroomLoading === '1';
+    const error = (ds.carShowroomLoadError || '').trim();
+
+    if (loadingEl) loadingEl.hidden = !isLoading;
+    if (errorEl) {
+      errorEl.hidden = error.length === 0;
+      errorEl.textContent = error;
+    }
+  };
+
+  const statusObserver = new MutationObserver(() => syncStatus());
+  statusObserver.observe(root, { attributes: true });
+  addEventListener('beforeunload', () => statusObserver.disconnect(), {
+    once: true,
+  });
 
   const setPanelOpen = (open: boolean) => {
     if (!panel) return;
@@ -67,21 +106,60 @@ createAstroMount(ROOT_SELECTOR, () => {
   // Defaults
   root.dataset.carShowroomModel ||=
     modelSel?.value || '/models/porsche-911-gt3rs.glb';
+  root.dataset.carShowroomCameraPreset ||= cameraSel?.value || 'hero';
   root.dataset.carShowroomMode ||= modeSel?.value || 'paint';
   root.dataset.carShowroomColor ||= colorInp?.value || '#00d1b2';
   root.dataset.carShowroomFinish ||= finishSel?.value || 'gloss';
+  root.dataset.carShowroomWheelFinish ||= wheelFinishSel?.value || 'graphite';
+  root.dataset.carShowroomTrimFinish ||= trimFinishSel?.value || 'black';
+  root.dataset.carShowroomGlassTint ||= glassTintRange?.value || '0.15';
   root.dataset.carShowroomBackground ||= bgSel?.value || 'studio';
   root.dataset.carShowroomAutoRotate ||=
     autoRotateChk?.checked === false ? 'false' : 'true';
   root.dataset.carShowroomSpinSpeed ||= spinSpeedRange?.value || '0.65';
   root.dataset.carShowroomZoom ||= zoomRange?.value || '0';
+  root.dataset.carShowroomReady ||= '0';
+  root.dataset.carShowroomLoading ||= '0';
+  root.dataset.carShowroomLoadError ||= '';
+
+  if (modelUrlInp) modelUrlInp.value = root.dataset.carShowroomModel;
+
   bumpRevision();
+  syncStatus();
+
+  // Keep the URL input in sync with the select.
+  modelSel?.addEventListener('change', () => {
+    if (!modelUrlInp) return;
+    modelUrlInp.value = modelSel.value;
+  });
+
+  const applyModelUrl = () => {
+    const raw = (modelUrlInp?.value || '').trim();
+    if (!raw) return;
+    root.dataset.carShowroomModel = raw;
+    bumpRevision();
+  };
+
+  loadModelBtn?.addEventListener('click', () => {
+    applyModelUrl();
+  });
+
+  modelUrlInp?.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    applyModelUrl();
+  });
 
   const syncFromInputs = () => {
     if (modelSel) root.dataset.carShowroomModel = modelSel.value;
+    if (cameraSel) root.dataset.carShowroomCameraPreset = cameraSel.value;
     if (modeSel) root.dataset.carShowroomMode = modeSel.value;
     if (colorInp) root.dataset.carShowroomColor = colorInp.value;
     if (finishSel) root.dataset.carShowroomFinish = finishSel.value;
+    if (wheelFinishSel)
+      root.dataset.carShowroomWheelFinish = wheelFinishSel.value;
+    if (trimFinishSel) root.dataset.carShowroomTrimFinish = trimFinishSel.value;
+    if (glassTintRange)
+      root.dataset.carShowroomGlassTint = glassTintRange.value;
     if (bgSel) root.dataset.carShowroomBackground = bgSel.value;
     if (autoRotateChk)
       root.dataset.carShowroomAutoRotate = autoRotateChk.checked
@@ -95,9 +173,13 @@ createAstroMount(ROOT_SELECTOR, () => {
 
   [
     modelSel,
+    cameraSel,
     modeSel,
     colorInp,
     finishSel,
+    wheelFinishSel,
+    trimFinishSel,
+    glassTintRange,
     bgSel,
     autoRotateChk,
     spinSpeedRange,
@@ -110,14 +192,25 @@ createAstroMount(ROOT_SELECTOR, () => {
 
   resetBtn?.addEventListener('click', () => {
     if (modelSel) modelSel.value = '/models/porsche-911-gt3rs.glb';
+    if (modelUrlInp) modelUrlInp.value = '/models/porsche-911-gt3rs.glb';
+    if (cameraSel) cameraSel.value = 'hero';
     if (modeSel) modeSel.value = 'paint';
     if (colorInp) colorInp.value = '#00d1b2';
     if (finishSel) finishSel.value = 'gloss';
+    if (wheelFinishSel) wheelFinishSel.value = 'graphite';
+    if (trimFinishSel) trimFinishSel.value = 'black';
+    if (glassTintRange) glassTintRange.value = '0.15';
     if (bgSel) bgSel.value = 'studio';
     if (autoRotateChk) autoRotateChk.checked = true;
     if (spinSpeedRange) spinSpeedRange.value = '0.65';
     if (zoomRange) zoomRange.value = '0';
     syncFromInputs();
+  });
+
+  resetCameraBtn?.addEventListener('click', () => {
+    if (cameraSel) cameraSel.value = 'hero';
+    root.dataset.carShowroomCameraPreset = 'hero';
+    bumpRevision();
   });
 
   // --- Three.js runtime
@@ -324,6 +417,7 @@ createAstroMount(ROOT_SELECTOR, () => {
       running = false;
       cancelAnimationFrame(raf);
       io.disconnect();
+      statusObserver.disconnect();
       window.removeEventListener('resize', onResize);
       if (!caps.reducedMotion) {
         canvas.removeEventListener('pointermove', onPointerMove);
