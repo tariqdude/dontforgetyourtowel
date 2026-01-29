@@ -254,6 +254,12 @@ createAstroMount(ROOT_SELECTOR, () => {
   const selectedPartEl = root.querySelector<HTMLElement>(
     '[data-csr-selected-part]'
   );
+  const selectedMeshEl = root.querySelector<HTMLElement>(
+    '[data-csr-selected-mesh]'
+  );
+  const selectedMaterialEl = root.querySelector<HTMLElement>(
+    '[data-csr-selected-material]'
+  );
   const qualitySel =
     root.querySelector<HTMLSelectElement>('[data-csr-quality]');
   const shotScaleSel = root.querySelector<HTMLSelectElement>(
@@ -639,6 +645,18 @@ createAstroMount(ROOT_SELECTOR, () => {
       selectedPartEl.textContent = part
         ? `Selected: ${part}`
         : 'Tap/click the car to select';
+    }
+
+    if (selectedMeshEl) {
+      const name = (ds.carShowroomSelectedMeshName || '').trim();
+      selectedMeshEl.hidden = name.length === 0;
+      selectedMeshEl.textContent = name ? `Mesh: ${name}` : '';
+    }
+
+    if (selectedMaterialEl) {
+      const name = (ds.carShowroomSelectedMaterialName || '').trim();
+      selectedMaterialEl.hidden = name.length === 0;
+      selectedMaterialEl.textContent = name ? `Material: ${name}` : '';
     }
 
     if (qualitySel && ds.carShowroomQuality)
@@ -1716,8 +1734,30 @@ createAstroMount(ROOT_SELECTOR, () => {
     const hit = showroom.pickMesh(pickNdc, raycaster);
     if (!hit) return;
     root.dataset.carShowroomSelectedPart = hit.part;
+    root.dataset.carShowroomSelectedMeshName = (hit.mesh?.name || '').trim();
+    root.dataset.carShowroomSelectedMaterialName = (() => {
+      const readName = (v: unknown): string => {
+        if (!v) return '';
+        const obj = v as { name?: unknown };
+        return typeof obj.name === 'string' ? obj.name : '';
+      };
+
+      const mat = hit.mesh?.material as unknown;
+      if (Array.isArray(mat)) return readName(mat[0]).trim();
+      return readName(mat).trim();
+    })();
     showroom.setSelectedMesh(hit.mesh);
     if (selectedPartEl) selectedPartEl.textContent = `Selected: ${hit.part}`;
+    if (selectedMeshEl) {
+      const name = (root.dataset.carShowroomSelectedMeshName || '').trim();
+      selectedMeshEl.hidden = name.length === 0;
+      selectedMeshEl.textContent = name ? `Mesh: ${name}` : '';
+    }
+    if (selectedMaterialEl) {
+      const name = (root.dataset.carShowroomSelectedMaterialName || '').trim();
+      selectedMaterialEl.hidden = name.length === 0;
+      selectedMaterialEl.textContent = name ? `Material: ${name}` : '';
+    }
   };
 
   canvas.addEventListener('pointerup', e => {
@@ -1728,9 +1768,19 @@ createAstroMount(ROOT_SELECTOR, () => {
 
   clearSelectionBtn?.addEventListener('click', () => {
     root.dataset.carShowroomSelectedPart = '';
+    root.dataset.carShowroomSelectedMeshName = '';
+    root.dataset.carShowroomSelectedMaterialName = '';
     showroom.clearSelection();
     if (selectedPartEl)
       selectedPartEl.textContent = 'Tap/click the car to select';
+    if (selectedMeshEl) {
+      selectedMeshEl.hidden = true;
+      selectedMeshEl.textContent = '';
+    }
+    if (selectedMaterialEl) {
+      selectedMaterialEl.hidden = true;
+      selectedMaterialEl.textContent = '';
+    }
   });
 
   // Deterministic test breadcrumb.

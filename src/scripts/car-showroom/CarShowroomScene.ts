@@ -1011,12 +1011,30 @@ export class CarShowroomScene {
 
     const isLight =
       text.includes('headlight') ||
+      text.includes('head_light') ||
       text.includes('taillight') ||
+      text.includes('tail_light') ||
+      text.includes('brakelight') ||
+      text.includes('brake_light') ||
+      text.includes('turnsignal') ||
+      text.includes('turn_signal') ||
+      text.includes('indicator') ||
       (text.includes('light') && !text.includes('highlight')) ||
-      text.includes('lamp');
+      text.includes('lamp') ||
+      text.includes('emissive') ||
+      text.includes('led');
     if (isLight) return 'light';
 
-    const isCaliper = text.includes('caliper') || text.includes('brakecaliper');
+    const isCaliper =
+      text.includes('caliper') ||
+      text.includes('brakecaliper') ||
+      text.includes('brake_caliper') ||
+      text.includes('brembo') ||
+      (text.includes('brake') &&
+        !text.includes('disc') &&
+        !text.includes('disk') &&
+        !text.includes('rotor') &&
+        !text.includes('pad'));
     if (isCaliper) return 'caliper';
 
     const isTire =
@@ -1026,8 +1044,11 @@ export class CarShowroomScene {
     const isWheel =
       text.includes('wheel') ||
       text.includes('rim') ||
+      text.includes('rims') ||
       text.includes('alloy') ||
-      text.includes('spoke');
+      text.includes('spoke') ||
+      text.includes('hub') ||
+      text.includes('hubcap');
     if (isWheel) return 'wheel';
 
     const isTrim =

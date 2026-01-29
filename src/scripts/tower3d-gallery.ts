@@ -7,12 +7,6 @@ import { createAstroMount } from './tower3d/core/astro-mount';
 import { getTowerCaps } from './tower3d/core/caps';
 import { SceneDirector } from './tower3d/three/scene-director';
 
-type GalleryAutoPlayController = {
-  start: () => void;
-  stop: () => void;
-  toggle: () => void;
-};
-
 type Cleanup = () => void;
 
 let galleryCleanups: Cleanup[] = [];
@@ -33,7 +27,11 @@ const runGalleryCleanups = () => {
 
 declare global {
   interface Window {
-    __galleryAutoPlay?: GalleryAutoPlayController;
+    __galleryAutoPlay?: {
+      start: () => void;
+      stop: () => void;
+      toggle: () => void;
+    };
     __goToSceneOriginal?: (index: number) => void;
     __goToSceneImmediate?: (index: number) => void;
     __galleryGetTargetProgress?: () => number;

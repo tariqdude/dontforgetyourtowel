@@ -9,8 +9,8 @@ type ModelFetchInfo = {
   error?: string;
 };
 
-test.describe('Porsche Showroom (scene17)', () => {
-  test('should load the external GLB and report showroom breadcrumbs', async ({
+test.describe('Wrap Showroom (scene18)', () => {
+  test('should load the Porsche GLB and report breadcrumbs', async ({
     page,
   }) => {
     const consoleErrors: string[] = [];
@@ -26,7 +26,6 @@ test.describe('Porsche Showroom (scene17)', () => {
 
     await page.goto('./gallery/', { waitUntil: 'domcontentloaded' });
 
-    // Wait for the gallery boot module to run and UI wiring to be attached.
     await expect
       .poll(
         async () =>
@@ -41,13 +40,22 @@ test.describe('Porsche Showroom (scene17)', () => {
       timeout: 15_000,
     });
 
-    // Ensure auto-play can't fight the test.
+    // Confirm the director registered the expected scene set.
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(
+            () => document.documentElement.dataset.towerSceneLastId ?? ''
+          ),
+        { timeout: 15_000 }
+      )
+      .toBe('scene18');
+
     await page.evaluate(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).__galleryAutoPlay?.stop?.();
     });
 
-    // Switch to the showroom scene using the gallery's debug hooks.
     await expect
       .poll(
         async () =>
@@ -55,20 +63,54 @@ test.describe('Porsche Showroom (scene17)', () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             () => typeof (window as any).__goToSceneImmediate
           ),
-        {
-          timeout: 10_000,
-        }
+        { timeout: 10_000 }
       )
       .toBe('function');
 
+    // Deterministic jump for automation.
     await page.evaluate(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (window as any).__goToSceneImmediate?.(17);
+      (window as any).__goToSceneImmediate?.(18);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (window as any).__TOWER__?.jumpToSceneIndex?.(17);
+      (window as any).__TOWER__?.jumpToSceneIndex?.(18);
     });
 
-    // Sanity-check that the model URL is actually reachable (helps pinpoint base-path issues).
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            () => (window as any).__galleryGetCurrentScene?.() ?? -1
+          ),
+        { timeout: 10_000 }
+      )
+      .toBe(18);
+
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            () => (window as any).__galleryGetTargetProgress?.() ?? -1
+          ),
+        { timeout: 10_000 }
+      )
+      .toBe(1);
+
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(
+            () =>
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              ((window as any).__TOWER__?.getCurrentSceneIndex?.() as
+                | number
+                | undefined) ?? -1
+          ),
+        { timeout: 20_000 }
+      )
+      .toBe(18);
+
     const modelFetchInfo: ModelFetchInfo = await page.evaluate(async () => {
       const pathname = window.location.pathname;
       const idx = pathname.indexOf('/gallery');
@@ -94,12 +136,12 @@ test.describe('Porsche Showroom (scene17)', () => {
         };
       }
     });
+
     expect(
       modelFetchInfo.ok,
       `Expected Porsche GLB to be fetchable. Info: ${JSON.stringify(modelFetchInfo)}`
     ).toBeTruthy();
 
-    // Confirm director switched scenes.
     await expect
       .poll(
         async () =>
@@ -110,9 +152,8 @@ test.describe('Porsche Showroom (scene17)', () => {
           ),
         { timeout: 20_000 }
       )
-      .toBe('scene17');
+      .toBe('scene18');
 
-    // Ensure the showroom scene lifecycle hook ran (some builds may init scenes lazily).
     await expect
       .poll(
         async () =>
@@ -123,7 +164,6 @@ test.describe('Porsche Showroom (scene17)', () => {
       )
       .toBe('1');
 
-    // Confirm the external model actually loaded (or fail fast on parse/load error).
     await page.waitForFunction(
       () => {
         const ds = document.documentElement.dataset;
@@ -147,24 +187,25 @@ test.describe('Porsche Showroom (scene17)', () => {
         document.documentElement.dataset.wrapShowroomModelErrorMessage ?? '',
       missing: document.documentElement.dataset.wrapShowroomModelMissing ?? '0',
       mode: document.documentElement.dataset.wrapShowroomMode ?? '',
+      wrapColor: document.documentElement.dataset.wrapShowroomWrapColor ?? '',
     }));
 
     expect(
       breadcrumbs.error,
-      `Showroom model parse/load error breadcrumb set: ${JSON.stringify(breadcrumbs)}`
+      `Wrap Showroom model parse/load error breadcrumb set: ${JSON.stringify(breadcrumbs)}`
     ).not.toBe('1');
     expect(
       breadcrumbs.missing,
-      `Showroom model was reported missing: ${JSON.stringify(breadcrumbs)}`
+      `Wrap Showroom model was reported missing: ${JSON.stringify(breadcrumbs)}`
     ).not.toBe('1');
     expect(
       breadcrumbs.loaded,
-      `Showroom model never reported as loaded: ${JSON.stringify(breadcrumbs)}`
+      `Wrap Showroom model never reported as loaded: ${JSON.stringify(breadcrumbs)}`
     ).toBe('1');
 
-    expect(breadcrumbs.mode).toBeTruthy();
+    expect(breadcrumbs.mode).toBe('wrap');
+    expect(breadcrumbs.wrapColor).toMatch(/^#[0-9a-fA-F]{6}$/);
 
-    // Should not show the error overlay.
     await expect(page.locator('.tower3d-error-overlay')).toHaveCount(0);
 
     expect(consoleErrors, consoleErrors.join('\n')).toEqual([]);
