@@ -58,6 +58,14 @@ const description =
           <button
             type="button"
             class="csr-btn csr-btn--ghost"
+            data-csr-screenshot
+            title="Download a PNG screenshot"
+          >
+            Screenshot
+          </button>
+          <button
+            type="button"
+            class="csr-btn csr-btn--ghost"
             data-csr-import
             title="Load a local .glb file"
           >
@@ -246,6 +254,32 @@ const description =
             />
           </label>
 
+          <div class="csr-field csr-field--wide">
+            <span>Presets</span>
+            <div class="csr-inline">
+              <select data-csr-preset>
+                <option value="">No saved presets</option>
+              </select>
+              <button type="button" class="csr-btn" data-csr-preset-load>
+                Load
+              </button>
+            </div>
+          </div>
+
+          <div class="csr-row">
+            <button type="button" class="csr-btn" data-csr-preset-save>
+              Save preset
+            </button>
+            <button
+              type="button"
+              class="csr-btn csr-btn--ghost"
+              data-csr-preset-delete
+            >
+              Delete
+            </button>
+            <p class="csr-hint">Saved to this browser</p>
+          </div>
+
           <div class="csr-row">
             <button type="button" class="csr-btn" data-csr-reset>Reset</button>
             <button
@@ -255,7 +289,9 @@ const description =
             >
               Reset camera
             </button>
-            <p class="csr-hint">Drag orbit • Wheel/pinch zoom • O options</p>
+            <p class="csr-hint">
+              Drag orbit • Wheel/pinch zoom • O options • S screenshot • P save
+            </p>
           </div>
         </div>
       </div>

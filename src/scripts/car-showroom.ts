@@ -61,6 +61,34 @@ const copyToClipboard = async (text: string): Promise<boolean> => {
   }
 };
 
+type SavedPreset = {
+  id: string;
+  name: string;
+  state: Record<string, string>;
+};
+
+const PRESETS_STORAGE_KEY = 'csr-presets-v1';
+
+const safeParseJson = <T>(raw: string | null): T | null => {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+};
+
+const createPresetId = (): string => {
+  try {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+  } catch {
+    // fall through
+  }
+  return String(Date.now());
+};
+
 createAstroMount(ROOT_SELECTOR, () => {
   const root = document.querySelector<HTMLElement>(ROOT_SELECTOR);
   if (!root) return null;
@@ -88,6 +116,9 @@ createAstroMount(ROOT_SELECTOR, () => {
   );
   const copyLinkBtn = root.querySelector<HTMLButtonElement>(
     '[data-csr-copy-link]'
+  );
+  const screenshotBtn = root.querySelector<HTMLButtonElement>(
+    '[data-csr-screenshot]'
   );
   const importBtn = root.querySelector<HTMLButtonElement>('[data-csr-import]');
   const fileInp = root.querySelector<HTMLInputElement>('[data-csr-file]');
@@ -122,6 +153,17 @@ createAstroMount(ROOT_SELECTOR, () => {
   const resetBtn = root.querySelector<HTMLButtonElement>('[data-csr-reset]');
   const resetCameraBtn = root.querySelector<HTMLButtonElement>(
     '[data-csr-reset-camera]'
+  );
+
+  const presetSel = root.querySelector<HTMLSelectElement>('[data-csr-preset]');
+  const presetSaveBtn = root.querySelector<HTMLButtonElement>(
+    '[data-csr-preset-save]'
+  );
+  const presetLoadBtn = root.querySelector<HTMLButtonElement>(
+    '[data-csr-preset-load]'
+  );
+  const presetDeleteBtn = root.querySelector<HTMLButtonElement>(
+    '[data-csr-preset-delete]'
   );
 
   const swatches = Array.from(
@@ -200,6 +242,133 @@ createAstroMount(ROOT_SELECTOR, () => {
     }
   };
 
+  const PRESET_DATASET_KEYS: Array<keyof DOMStringMap> = [
+    'carShowroomModel',
+    'carShowroomMode',
+    'carShowroomColor',
+    'carShowroomFinish',
+    'carShowroomWheelFinish',
+    'carShowroomTrimFinish',
+    'carShowroomGlassTint',
+    'carShowroomBackground',
+    'carShowroomCameraPreset',
+    'carShowroomSpinSpeed',
+    'carShowroomZoom',
+    'carShowroomAutoRotate',
+  ];
+
+  const loadSavedPresets = (): SavedPreset[] => {
+    try {
+      const raw = localStorage.getItem(PRESETS_STORAGE_KEY);
+      const parsed = safeParseJson<SavedPreset[]>(raw);
+      if (!parsed || !Array.isArray(parsed)) return [];
+      return parsed
+        .map(p => ({
+          id: String(p?.id || ''),
+          name: String(p?.name || 'Preset'),
+          state: (p?.state || {}) as Record<string, string>,
+        }))
+        .filter(p => p.id.length > 0);
+    } catch {
+      return [];
+    }
+  };
+
+  const saveSavedPresets = (presets: SavedPreset[]) => {
+    try {
+      localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(presets));
+    } catch {
+      // ignore
+    }
+  };
+
+  const syncInputsFromDataset = () => {
+    const ds = root.dataset;
+    const model = (ds.carShowroomModel || '').trim();
+    if (modelUrlInp) modelUrlInp.value = model;
+    if (modelSel && model) {
+      if (Array.from(modelSel.options).some(o => o.value === model)) {
+        modelSel.value = model;
+      }
+    }
+
+    if (modeSel && ds.carShowroomMode) modeSel.value = ds.carShowroomMode;
+    if (cameraSel && ds.carShowroomCameraPreset)
+      cameraSel.value = ds.carShowroomCameraPreset;
+    if (colorInp && ds.carShowroomColor) colorInp.value = ds.carShowroomColor;
+    if (finishSel && ds.carShowroomFinish)
+      finishSel.value = ds.carShowroomFinish;
+    if (wheelFinishSel && ds.carShowroomWheelFinish)
+      wheelFinishSel.value = ds.carShowroomWheelFinish;
+    if (trimFinishSel && ds.carShowroomTrimFinish)
+      trimFinishSel.value = ds.carShowroomTrimFinish;
+    if (glassTintRange && ds.carShowroomGlassTint)
+      glassTintRange.value = ds.carShowroomGlassTint;
+    if (bgSel && ds.carShowroomBackground)
+      bgSel.value = ds.carShowroomBackground;
+    if (autoRotateChk)
+      autoRotateChk.checked = ds.carShowroomAutoRotate !== 'false';
+    if (spinSpeedRange && ds.carShowroomSpinSpeed)
+      spinSpeedRange.value = ds.carShowroomSpinSpeed;
+    if (zoomRange && ds.carShowroomZoom) zoomRange.value = ds.carShowroomZoom;
+  };
+
+  let savedPresets: SavedPreset[] = loadSavedPresets();
+
+  const renderPresetOptions = () => {
+    if (!presetSel) return;
+
+    presetSel.innerHTML = '';
+
+    if (savedPresets.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'No saved presets';
+      presetSel.appendChild(opt);
+      presetSel.disabled = true;
+      if (presetLoadBtn) presetLoadBtn.disabled = true;
+      if (presetDeleteBtn) presetDeleteBtn.disabled = true;
+      return;
+    }
+
+    presetSel.disabled = false;
+    if (presetLoadBtn) presetLoadBtn.disabled = false;
+    if (presetDeleteBtn) presetDeleteBtn.disabled = false;
+
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Choose a preset…';
+    presetSel.appendChild(placeholder);
+
+    for (const p of savedPresets) {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name;
+      presetSel.appendChild(opt);
+    }
+  };
+
+  const captureStateForPreset = (): Record<string, string> => {
+    const ds = root.dataset;
+    const state: Record<string, string> = {};
+    for (const key of PRESET_DATASET_KEYS) {
+      const value = String(ds[key] || '').trim();
+      if (value.length > 0) state[String(key)] = value;
+    }
+    return state;
+  };
+
+  const applyPresetState = (state: Record<string, string>) => {
+    for (const key of PRESET_DATASET_KEYS) {
+      const v = state[String(key)];
+      if (typeof v === 'string') {
+        root.dataset[key] = v;
+      }
+    }
+    syncInputsFromDataset();
+    bumpRevision();
+  };
+
   const statusObserver = new MutationObserver(() => syncStatus());
   statusObserver.observe(root, { attributes: true });
   addEventListener('beforeunload', () => statusObserver.disconnect(), {
@@ -265,6 +434,8 @@ createAstroMount(ROOT_SELECTOR, () => {
     spinSpeedRange.value = root.dataset.carShowroomSpinSpeed;
   if (zoomRange && root.dataset.carShowroomZoom)
     zoomRange.value = root.dataset.carShowroomZoom;
+
+  renderPresetOptions();
 
   bumpRevision();
   syncStatus();
@@ -404,6 +575,74 @@ createAstroMount(ROOT_SELECTOR, () => {
     void copyShareLink();
   });
 
+  presetSaveBtn?.addEventListener('click', () => {
+    const ds = root.dataset;
+    const model = (ds.carShowroomModel || '').trim();
+    if (model.startsWith('blob:') || model.startsWith('data:')) {
+      showToast('Cannot save presets that use local (blob/data) models.');
+      return;
+    }
+
+    const existingNames = new Set(savedPresets.map(p => p.name));
+    const suggested = (() => {
+      for (let i = 1; i < 1000; i++) {
+        const name = `Preset ${i}`;
+        if (!existingNames.has(name)) return name;
+      }
+      return `Preset ${Date.now()}`;
+    })();
+
+    const nameRaw = window.prompt('Preset name:', suggested);
+    const name = (nameRaw || '').trim();
+    if (!name) return;
+
+    const preset: SavedPreset = {
+      id: createPresetId(),
+      name,
+      state: captureStateForPreset(),
+    };
+
+    savedPresets = [preset, ...savedPresets].slice(0, 50);
+    saveSavedPresets(savedPresets);
+    renderPresetOptions();
+    if (presetSel) presetSel.value = preset.id;
+    showToast('Preset saved.');
+  });
+
+  presetLoadBtn?.addEventListener('click', () => {
+    const id = (presetSel?.value || '').trim();
+    if (!id) {
+      showToast('Choose a preset first.');
+      return;
+    }
+    const preset = savedPresets.find(p => p.id === id);
+    if (!preset) {
+      showToast('Preset not found.');
+      return;
+    }
+    applyPresetState(preset.state);
+    showToast(`Loaded: ${preset.name}`);
+  });
+
+  presetDeleteBtn?.addEventListener('click', () => {
+    const id = (presetSel?.value || '').trim();
+    if (!id) {
+      showToast('Choose a preset first.');
+      return;
+    }
+    const preset = savedPresets.find(p => p.id === id);
+    if (!preset) {
+      showToast('Preset not found.');
+      return;
+    }
+    const ok = window.confirm(`Delete preset "${preset.name}"?`);
+    if (!ok) return;
+    savedPresets = savedPresets.filter(p => p.id !== id);
+    saveSavedPresets(savedPresets);
+    renderPresetOptions();
+    showToast('Preset deleted.');
+  });
+
   const handleFile = (file: File) => {
     if (!file.name.toLowerCase().endsWith('.glb')) {
       showToast('Please choose a .glb file.');
@@ -444,6 +683,14 @@ createAstroMount(ROOT_SELECTOR, () => {
   window.addEventListener('dragover', onDragOver);
   window.addEventListener('drop', onDrop);
 
+  let downloadScreenshot = () => {
+    showToast('Screenshot not ready yet.');
+  };
+
+  screenshotBtn?.addEventListener('click', () => {
+    downloadScreenshot();
+  });
+
   // Keyboard shortcuts
   const onKeyDown = (e: KeyboardEvent) => {
     const key = e.key;
@@ -459,6 +706,16 @@ createAstroMount(ROOT_SELECTOR, () => {
     }
     if (key === 'c' || key === 'C') {
       void copyShareLink();
+      e.preventDefault();
+      return;
+    }
+    if (key === 's' || key === 'S') {
+      downloadScreenshot();
+      e.preventDefault();
+      return;
+    }
+    if (key === 'p' || key === 'P') {
+      presetSaveBtn?.click();
       e.preventDefault();
       return;
     }
@@ -500,6 +757,30 @@ createAstroMount(ROOT_SELECTOR, () => {
 
   const output = new OutputPass();
   composer.addPass(output);
+
+  downloadScreenshot = () => {
+    try {
+      composer.render();
+      canvas.toBlob(blob => {
+        if (!blob) {
+          showToast('Screenshot failed (no image data).');
+          return;
+        }
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'car-showroom.png';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('Screenshot downloaded.');
+      }, 'image/png');
+    } catch {
+      showToast('Screenshot failed.');
+    }
+  };
 
   const size = { width: 1, height: 1, dpr: 1 };
   const resize = () => {
