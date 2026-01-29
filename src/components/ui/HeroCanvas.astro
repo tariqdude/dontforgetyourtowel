@@ -17,6 +17,8 @@ const { className = '', variant = 'auto' } = Astro.props;
   <canvas
     data-hero-canvas
     class="block h-full w-full touch-none select-none outline-none"></canvas>
+
+  <div class="hero-canvas-tint" aria-hidden="true"></div>
 </div>
 
 <script>
@@ -62,6 +64,10 @@ const { className = '', variant = 'auto' } = Astro.props;
 
   window.addEventListener('astro:page-load', mountAll);
   document.addEventListener('astro:before-swap', cleanupAll);
+
+  // Allow external UI (e.g., Hero controls panel) to request a remount
+  // when swapping chapters/variants.
+  window.addEventListener('hero:remount', mountAll);
 </script>
 
 <style>
@@ -73,5 +79,14 @@ const { className = '', variant = 'auto' } = Astro.props;
       rgba(0, 0, 0, 0.4) 100%
     );
     pointer-events: none;
+  }
+
+  .hero-canvas-tint {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: var(--hero-tint-color, transparent);
+    opacity: var(--hero-tint-opacity, 0);
+    mix-blend-mode: screen;
   }
 </style>

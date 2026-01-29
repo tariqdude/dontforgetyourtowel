@@ -81,7 +81,32 @@ export function createHeroScene(
   const gyro = new THREE.Vector3(0, 0, 0);
   const audio = { level: 0, low: 0, mid: 0, high: 0 };
 
-  const makeCtx = (dt: number, time: number): SceneRuntime => ({
+  const getHeroSpeed = () => {
+    const raw = root?.dataset?.heroSpeed;
+    const parsed = raw ? Number.parseFloat(raw) : 1;
+    if (!Number.isFinite(parsed)) return 1;
+    return THREE.MathUtils.clamp(parsed, 0.25, 2);
+  };
+
+  const getHeroZoom = () => {
+    const raw = root?.dataset?.heroZoom;
+    const parsed = raw ? Number.parseFloat(raw) : 0;
+    if (!Number.isFinite(parsed)) return 0;
+    return THREE.MathUtils.clamp(parsed, 0, 1);
+  };
+
+  const camera = scene.camera;
+  const baseFov =
+    camera instanceof THREE.PerspectiveCamera ? camera.fov : undefined;
+  let prevZoom = getHeroZoom();
+  let heroTime = 0;
+
+  const makeCtx = (
+    dt: number,
+    time: number,
+    zoom: number,
+    zoomDelta: number
+  ): SceneRuntime => ({
     renderer,
     root: root!,
     size: { width, height, dpr },
@@ -98,15 +123,17 @@ export function createHeroScene(
     bgTheme: 'dark',
     press,
     tap,
+    zoom,
+    zoomDelta,
     sceneId: scene.id,
     sceneIndex: -1,
     audio,
   });
 
   // Initial layout
-  scene.resize(makeCtx(0, 0));
-  scene.init(makeCtx(0, 0));
-  scene.resize(makeCtx(0, 0));
+  scene.resize(makeCtx(0, 0, prevZoom, 0));
+  scene.init(makeCtx(0, 0, prevZoom, 0));
+  scene.resize(makeCtx(0, 0, prevZoom, 0));
 
   // Input: pointer (works for mouse + touch/stylus)
   const handlePointerMove = (e: PointerEvent) => {
@@ -151,7 +178,9 @@ export function createHeroScene(
 
     renderer.setPixelRatio(dpr);
     renderer.setSize(width, height, false);
-    scene.resize(makeCtx(0, 0));
+    const zoom = getHeroZoom();
+    prevZoom = zoom;
+    scene.resize(makeCtx(0, 0, zoom, 0));
   };
 
   window.addEventListener('resize', handleResize);
@@ -160,7 +189,8 @@ export function createHeroScene(
 
   // Render
   if (caps.reducedMotion) {
-    const ctx = makeCtx(0, 0);
+    const zoom = getHeroZoom();
+    const ctx = makeCtx(0, 0, zoom, 0);
     scene.update(ctx);
     if (scene.render) scene.render(ctx);
     else renderer.render(scene.group, scene.camera);
@@ -210,8 +240,11 @@ export function createHeroScene(
 
     if (!active) return;
 
-    const dt = Math.min(clock.getDelta(), 0.05);
-    const time = clock.getElapsedTime();
+    const dtRaw = Math.min(clock.getDelta(), 0.05);
+    const speed = getHeroSpeed();
+    const dt = Math.min(dtRaw * speed, 0.05);
+    heroTime += dt;
+    const time = heroTime;
 
     // Smooth pointer + subtle idle drift to keep the hero alive.
     const idleMs = performance.now() - lastPointerChange;
@@ -221,18 +254,31 @@ export function createHeroScene(
 
     const targetX = THREE.MathUtils.clamp(rawPointer.x + driftX, -1, 1);
     const targetY = THREE.MathUtils.clamp(rawPointer.y + driftY, -1, 1);
-    pointer.x = damp(pointer.x, targetX, 10, dt);
-    pointer.y = damp(pointer.y, targetY, 10, dt);
+    pointer.x = damp(pointer.x, targetX, 10, dtRaw);
+    pointer.y = damp(pointer.y, targetY, 10, dtRaw);
 
     pointerVelocity
       .copy(pointer)
       .sub(prevPointer)
-      .divideScalar(Math.max(dt, 1e-4));
+      .divideScalar(Math.max(dtRaw, 1e-4));
     prevPointer.copy(pointer);
 
-    press = damp(press, pressTarget, 10, dt);
+    press = damp(press, pressTarget, 10, dtRaw);
 
-    const ctx = makeCtx(dt, time);
+    const zoom = getHeroZoom();
+    const zoomDelta = zoom - prevZoom;
+    prevZoom = zoom;
+
+    if (baseFov !== undefined && camera instanceof THREE.PerspectiveCamera) {
+      // Mild global zoom so it works across chapters.
+      const fov = THREE.MathUtils.lerp(baseFov, baseFov * 0.74, zoom);
+      if (Math.abs(camera.fov - fov) > 1e-3) {
+        camera.fov = fov;
+        camera.updateProjectionMatrix();
+      }
+    }
+
+    const ctx = makeCtx(dt, time, zoom, zoomDelta);
     scene.update(ctx);
     if (scene.render) scene.render(ctx);
     else renderer.render(scene.group, scene.camera);
