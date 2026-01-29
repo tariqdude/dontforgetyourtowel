@@ -148,6 +148,15 @@ createAstroMount(ROOT_SELECTOR, () => {
     '[data-csr-reset-view]'
   );
   const colorInp = root.querySelector<HTMLInputElement>('[data-csr-color]');
+  const wrapColorInp = root.querySelector<HTMLInputElement>(
+    '[data-csr-wrap-color]'
+  );
+  const wrapPatternSel = root.querySelector<HTMLSelectElement>(
+    '[data-csr-wrap-pattern]'
+  );
+  const wrapScaleRange = root.querySelector<HTMLInputElement>(
+    '[data-csr-wrap-scale]'
+  );
   const finishSel = root.querySelector<HTMLSelectElement>('[data-csr-finish]');
   const wheelFinishSel = root.querySelector<HTMLSelectElement>(
     '[data-csr-wheel-finish]'
@@ -274,6 +283,10 @@ createAstroMount(ROOT_SELECTOR, () => {
     const fm = params.get('fm');
     const fo = params.get('fo');
 
+    const wcolor = params.get('wcolor');
+    const wpat = params.get('wpat');
+    const wscale = params.get('wscale');
+
     if (model) root.dataset.carShowroomModel = model;
     if (mode) root.dataset.carShowroomMode = mode;
     if (finish) root.dataset.carShowroomFinish = finish;
@@ -376,6 +389,24 @@ createAstroMount(ROOT_SELECTOR, () => {
     const foN = parseNum(fo);
     if (foN !== null)
       root.dataset.carShowroomFloorOpacity = String(clamp(foN, 0.05, 1));
+
+    if (wcolor) {
+      const hex = normalizeHexColor(wcolor);
+      if (hex) root.dataset.carShowroomWrapColor = hex;
+    }
+
+    if (
+      wpat === 'solid' ||
+      wpat === 'stripes' ||
+      wpat === 'carbon' ||
+      wpat === 'camo'
+    ) {
+      root.dataset.carShowroomWrapPattern = wpat;
+    }
+
+    const wscaleN = parseNum(wscale);
+    if (wscaleN !== null)
+      root.dataset.carShowroomWrapScale = String(clamp(wscaleN, 0.2, 6));
   };
 
   // Apply deep-link state before defaults so query params win.
@@ -397,6 +428,9 @@ createAstroMount(ROOT_SELECTOR, () => {
     'carShowroomModel',
     'carShowroomMode',
     'carShowroomColor',
+    'carShowroomWrapColor',
+    'carShowroomWrapPattern',
+    'carShowroomWrapScale',
     'carShowroomFinish',
     'carShowroomWheelFinish',
     'carShowroomTrimFinish',
@@ -475,6 +509,12 @@ createAstroMount(ROOT_SELECTOR, () => {
       camDistanceRange.value = ds.carShowroomCamDistance;
     if (fovRange && ds.carShowroomFov) fovRange.value = ds.carShowroomFov;
     if (colorInp && ds.carShowroomColor) colorInp.value = ds.carShowroomColor;
+    if (wrapColorInp && ds.carShowroomWrapColor)
+      wrapColorInp.value = ds.carShowroomWrapColor;
+    if (wrapPatternSel && ds.carShowroomWrapPattern)
+      wrapPatternSel.value = ds.carShowroomWrapPattern;
+    if (wrapScaleRange && ds.carShowroomWrapScale)
+      wrapScaleRange.value = ds.carShowroomWrapScale;
     if (finishSel && ds.carShowroomFinish)
       finishSel.value = ds.carShowroomFinish;
     if (wheelFinishSel && ds.carShowroomWheelFinish)
@@ -485,6 +525,20 @@ createAstroMount(ROOT_SELECTOR, () => {
       glassTintRange.value = ds.carShowroomGlassTint;
     if (bgSel && ds.carShowroomBackground)
       bgSel.value = ds.carShowroomBackground;
+    if (envIntensityRange && ds.carShowroomEnvIntensity)
+      envIntensityRange.value = ds.carShowroomEnvIntensity;
+    if (lightIntensityRange && ds.carShowroomLightIntensity)
+      lightIntensityRange.value = ds.carShowroomLightIntensity;
+    if (floorPresetSel && ds.carShowroomFloorPreset)
+      floorPresetSel.value = ds.carShowroomFloorPreset;
+    if (floorColorInp && ds.carShowroomFloorColor)
+      floorColorInp.value = ds.carShowroomFloorColor;
+    if (floorRoughnessRange && ds.carShowroomFloorRoughness)
+      floorRoughnessRange.value = ds.carShowroomFloorRoughness;
+    if (floorMetalnessRange && ds.carShowroomFloorMetalness)
+      floorMetalnessRange.value = ds.carShowroomFloorMetalness;
+    if (floorOpacityRange && ds.carShowroomFloorOpacity)
+      floorOpacityRange.value = ds.carShowroomFloorOpacity;
     if (exposureRange && ds.carShowroomExposure)
       exposureRange.value = ds.carShowroomExposure;
     if (bloomStrengthRange && ds.carShowroomBloomStrength)
@@ -582,6 +636,9 @@ createAstroMount(ROOT_SELECTOR, () => {
   root.dataset.carShowroomFov ||= fovRange?.value || '55';
   root.dataset.carShowroomMode ||= modeSel?.value || 'paint';
   root.dataset.carShowroomColor ||= colorInp?.value || '#00d1b2';
+  root.dataset.carShowroomWrapColor ||= wrapColorInp?.value || '#00d1b2';
+  root.dataset.carShowroomWrapPattern ||= wrapPatternSel?.value || 'stripes';
+  root.dataset.carShowroomWrapScale ||= wrapScaleRange?.value || '1.6';
   root.dataset.carShowroomFinish ||= finishSel?.value || 'gloss';
   root.dataset.carShowroomWheelFinish ||= wheelFinishSel?.value || 'graphite';
   root.dataset.carShowroomTrimFinish ||= trimFinishSel?.value || 'black';
@@ -634,6 +691,12 @@ createAstroMount(ROOT_SELECTOR, () => {
     fovRange.value = root.dataset.carShowroomFov;
   if (colorInp && root.dataset.carShowroomColor)
     colorInp.value = root.dataset.carShowroomColor;
+  if (wrapColorInp && root.dataset.carShowroomWrapColor)
+    wrapColorInp.value = root.dataset.carShowroomWrapColor;
+  if (wrapPatternSel && root.dataset.carShowroomWrapPattern)
+    wrapPatternSel.value = root.dataset.carShowroomWrapPattern;
+  if (wrapScaleRange && root.dataset.carShowroomWrapScale)
+    wrapScaleRange.value = root.dataset.carShowroomWrapScale;
   if (finishSel && root.dataset.carShowroomFinish)
     finishSel.value = root.dataset.carShowroomFinish;
   if (wheelFinishSel && root.dataset.carShowroomWheelFinish)
@@ -767,6 +830,11 @@ createAstroMount(ROOT_SELECTOR, () => {
     if (fovRange) root.dataset.carShowroomFov = fovRange.value;
     if (modeSel) root.dataset.carShowroomMode = modeSel.value;
     if (colorInp) root.dataset.carShowroomColor = colorInp.value;
+    if (wrapColorInp) root.dataset.carShowroomWrapColor = wrapColorInp.value;
+    if (wrapPatternSel)
+      root.dataset.carShowroomWrapPattern = wrapPatternSel.value;
+    if (wrapScaleRange)
+      root.dataset.carShowroomWrapScale = wrapScaleRange.value;
     if (finishSel) root.dataset.carShowroomFinish = finishSel.value;
     if (wheelFinishSel)
       root.dataset.carShowroomWheelFinish = wheelFinishSel.value;
@@ -819,6 +887,9 @@ createAstroMount(ROOT_SELECTOR, () => {
     fovRange,
     modeSel,
     colorInp,
+    wrapColorInp,
+    wrapPatternSel,
+    wrapScaleRange,
     finishSel,
     wheelFinishSel,
     trimFinishSel,
@@ -850,6 +921,9 @@ createAstroMount(ROOT_SELECTOR, () => {
     if (cameraSel) cameraSel.value = 'hero';
     if (modeSel) modeSel.value = 'paint';
     if (colorInp) colorInp.value = '#00d1b2';
+    if (wrapColorInp) wrapColorInp.value = '#00d1b2';
+    if (wrapPatternSel) wrapPatternSel.value = 'stripes';
+    if (wrapScaleRange) wrapScaleRange.value = '1.6';
     if (finishSel) finishSel.value = 'gloss';
     if (wheelFinishSel) wheelFinishSel.value = 'graphite';
     if (trimFinishSel) trimFinishSel.value = 'black';
@@ -910,6 +984,9 @@ createAstroMount(ROOT_SELECTOR, () => {
 
     params.set('mode', ds.carShowroomMode || 'paint');
     params.set('color', ds.carShowroomColor || '#00d1b2');
+    params.set('wcolor', ds.carShowroomWrapColor || '#00d1b2');
+    params.set('wpat', ds.carShowroomWrapPattern || 'stripes');
+    params.set('wscale', ds.carShowroomWrapScale || '1.6');
     params.set('finish', ds.carShowroomFinish || 'gloss');
     params.set('wheel', ds.carShowroomWheelFinish || 'graphite');
     params.set('trim', ds.carShowroomTrimFinish || 'black');

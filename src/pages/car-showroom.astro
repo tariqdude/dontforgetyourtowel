@@ -203,6 +203,33 @@ const description =
             <input type="color" value="#00d1b2" data-csr-color />
           </label>
 
+          <label class="csr-field">
+            <span>Wrap color</span>
+            <input type="color" value="#00d1b2" data-csr-wrap-color />
+          </label>
+
+          <label class="csr-field">
+            <span>Wrap pattern</span>
+            <select data-csr-wrap-pattern>
+              <option value="solid">Solid</option>
+              <option value="stripes">Stripes</option>
+              <option value="carbon">Carbon</option>
+              <option value="camo">Camo</option>
+            </select>
+          </label>
+
+          <label class="csr-field csr-field--wide">
+            <span>Wrap scale</span>
+            <input
+              type="range"
+              min="0.2"
+              max="6"
+              step="0.01"
+              value="1.6"
+              data-csr-wrap-scale
+            />
+          </label>
+
           <div class="csr-field csr-field--wide">
             <span>Color presets</span>
             <div class="csr-swatches" role="list">

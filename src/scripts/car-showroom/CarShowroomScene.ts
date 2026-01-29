@@ -11,16 +11,28 @@ type ShowroomBackground = 'studio' | 'day' | 'sunset' | 'night' | 'grid';
 type WheelFinish = 'graphite' | 'chrome' | 'black';
 type TrimFinish = 'black' | 'chrome' | 'brushed';
 type CameraPreset = 'hero' | 'front' | 'rear' | 'side' | 'top' | 'detail';
+type FloorPreset = 'auto' | 'asphalt' | 'matte' | 'polished' | 'glass';
+type WrapPattern = 'solid' | 'stripes' | 'carbon' | 'camo';
 
 type UiState = {
   modelUrl: string;
   mode: ShowroomMode;
   color: THREE.Color;
+  wrapColor: THREE.Color;
+  wrapPattern: WrapPattern;
+  wrapScale: number;
   finish: ShowroomFinish;
   wheelFinish: WheelFinish;
   trimFinish: TrimFinish;
   glassTint: number;
   background: ShowroomBackground;
+  envIntensity: number;
+  lightIntensity: number;
+  floorPreset: FloorPreset;
+  floorColor: THREE.Color;
+  floorRoughness: number;
+  floorMetalness: number;
+  floorOpacity: number;
   cameraPreset: CameraPreset;
   cameraMode: 'preset' | 'manual';
   camYawDeg: number;
@@ -127,6 +139,95 @@ const createContactShadowTexture = (size = 256): THREE.CanvasTexture => {
   return texture;
 };
 
+const createWrapPatternTexture = (
+  pattern: WrapPattern
+): THREE.CanvasTexture => {
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  ctx.clearRect(0, 0, size, size);
+  ctx.fillStyle = 'rgb(255,255,255)';
+  ctx.fillRect(0, 0, size, size);
+
+  const rand = (seed: number) => {
+    const x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
+  };
+
+  if (pattern === 'stripes') {
+    ctx.save();
+    ctx.translate(size / 2, size / 2);
+    ctx.rotate(Math.PI / 4);
+    ctx.translate(-size / 2, -size / 2);
+    const stripeW = 42;
+    for (let x = -size; x < size * 2; x += stripeW) {
+      const t = (x / stripeW) % 2;
+      ctx.fillStyle = t < 1 ? 'rgb(245,245,245)' : 'rgb(210,210,210)';
+      ctx.fillRect(x, 0, stripeW, size);
+    }
+    ctx.restore();
+  } else if (pattern === 'carbon') {
+    ctx.save();
+    ctx.translate(size / 2, size / 2);
+    ctx.rotate(-Math.PI / 8);
+    ctx.translate(-size / 2, -size / 2);
+    const cell = 18;
+    for (let y = 0; y < size; y += cell) {
+      for (let x = 0; x < size; x += cell) {
+        const v = (x / cell + y / cell) % 2;
+        const c = v < 1 ? 235 : 205;
+        ctx.fillStyle = `rgb(${c},${c},${c})`;
+        ctx.fillRect(x, y, cell, cell);
+      }
+    }
+    // Subtle weave highlight
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = 'white';
+    for (let y = 0; y < size; y += 36) {
+      ctx.fillRect(0, y, size, 2);
+    }
+    ctx.restore();
+  } else if (pattern === 'camo') {
+    const blobs = 120;
+    for (let i = 0; i < blobs; i++) {
+      const r = 18 + rand(i * 11.7) * 90;
+      const x = rand(i * 3.1) * size;
+      const y = rand(i * 5.3) * size;
+      const c = 200 + rand(i * 9.9) * 45;
+      ctx.fillStyle = `rgb(${c},${c},${c})`;
+      ctx.beginPath();
+      ctx.ellipse(
+        x,
+        y,
+        r,
+        r * (0.55 + rand(i * 2.2) * 0.9),
+        rand(i) * Math.PI,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  return texture;
+};
+
 export class CarShowroomScene {
   public readonly group = new THREE.Group();
   public readonly camera: THREE.PerspectiveCamera;
@@ -146,6 +247,11 @@ export class CarShowroomScene {
   private readonly rimLight: THREE.DirectionalLight;
   private readonly topLight: THREE.DirectionalLight;
 
+  private baseKeyIntensity = 3.0;
+  private baseFillIntensity = 1.25;
+  private baseRimIntensity = 1.1;
+  private baseTopIntensity = 0.9;
+
   private envTex: THREE.Texture | null = null;
   private pmrem: THREE.PMREMGenerator | null = null;
 
@@ -162,6 +268,9 @@ export class CarShowroomScene {
   private tireMat: THREE.MeshStandardMaterial;
   private lightMat: THREE.MeshStandardMaterial;
   private wireframeMat: THREE.MeshStandardMaterial;
+
+  private wrapTex: THREE.CanvasTexture | null = null;
+  private wrapTexKey = '';
 
   private orbitYaw = 0;
   private orbitPitch = 0.12;
@@ -403,6 +512,36 @@ export class CarShowroomScene {
     const background = (ds.carShowroomBackground ||
       'studio') as ShowroomBackground;
 
+    const envIntensity = clamp(
+      parseNumber(ds.carShowroomEnvIntensity, 1),
+      0,
+      3
+    );
+    const lightIntensity = clamp(
+      parseNumber(ds.carShowroomLightIntensity, 1),
+      0.2,
+      2.5
+    );
+
+    const floorPreset = (ds.carShowroomFloorPreset || 'auto') as FloorPreset;
+    const floorColor = parseColor(
+      ds.carShowroomFloorColor || '#05070d',
+      new THREE.Color('#05070d')
+    );
+    const floorRoughness = parseNumber01(
+      ds.carShowroomFloorRoughness || '0.55',
+      0.55
+    );
+    const floorMetalness = parseNumber01(
+      ds.carShowroomFloorMetalness || '0.02',
+      0.02
+    );
+    const floorOpacity = clamp(
+      parseNumber(ds.carShowroomFloorOpacity, 1),
+      0.05,
+      1
+    );
+
     const cameraPreset = (ds.carShowroomCameraPreset || 'hero') as CameraPreset;
 
     const cameraMode = (ds.carShowroomCameraMode || 'preset') as
@@ -444,15 +583,42 @@ export class CarShowroomScene {
       new THREE.Color(0x00d1b2)
     );
 
+    const wrapColor = parseColor(
+      ds.carShowroomWrapColor || ds.carShowroomColor || '#00d1b2',
+      new THREE.Color(0x00d1b2)
+    );
+
+    const rawWrapPattern = (
+      ds.carShowroomWrapPattern || 'stripes'
+    ).toLowerCase();
+    const wrapPattern: WrapPattern =
+      rawWrapPattern === 'solid' ||
+      rawWrapPattern === 'stripes' ||
+      rawWrapPattern === 'carbon' ||
+      rawWrapPattern === 'camo'
+        ? (rawWrapPattern as WrapPattern)
+        : 'stripes';
+    const wrapScale = clamp(parseNumber(ds.carShowroomWrapScale, 1.6), 0.2, 6);
+
     return {
       modelUrl,
       mode,
       color,
+      wrapColor,
+      wrapPattern,
+      wrapScale,
       finish,
       wheelFinish,
       trimFinish,
       glassTint,
       background,
+      envIntensity,
+      lightIntensity,
+      floorPreset,
+      floorColor,
+      floorRoughness,
+      floorMetalness,
+      floorOpacity,
       cameraPreset,
       cameraMode,
       camYawDeg,
@@ -464,6 +630,86 @@ export class CarShowroomScene {
       spinSpeed,
       zoom,
     };
+  }
+
+  private ensureWrapTexture(pattern: WrapPattern) {
+    const key = pattern;
+    if (this.wrapTex && this.wrapTexKey === key) return;
+    this.wrapTex?.dispose();
+    this.wrapTex = createWrapPatternTexture(pattern);
+    this.wrapTexKey = key;
+  }
+
+  private applyLightMultiplier(mult: number) {
+    const m = clamp(mult, 0.2, 2.5);
+    this.keyLight.intensity = this.baseKeyIntensity * m;
+    this.fillLight.intensity = this.baseFillIntensity * m;
+    this.rimLight.intensity = this.baseRimIntensity * m;
+    this.topLight.intensity = this.baseTopIntensity * m;
+  }
+
+  private applyEnvironmentIntensity(loaded: THREE.Object3D | null, v: number) {
+    const intensity = clamp(v, 0, 3);
+    const applyToMat = (mat: THREE.Material | null | undefined) => {
+      if (!mat) return;
+      const anyMat = mat as unknown as {
+        envMapIntensity?: number;
+        needsUpdate?: boolean;
+      };
+      if (typeof anyMat.envMapIntensity === 'number') {
+        anyMat.envMapIntensity = intensity;
+        anyMat.needsUpdate = true;
+      }
+    };
+
+    applyToMat(this.bodyMat);
+    applyToMat(this.wrapMat);
+    applyToMat(this.glassMat);
+    applyToMat(this.trimMat);
+    applyToMat(this.wheelMat);
+
+    if (!loaded) return;
+    loaded.traverse(obj => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const m = mesh.material;
+      if (Array.isArray(m)) m.forEach(applyToMat);
+      else applyToMat(m);
+    });
+  }
+
+  private applyFloor(ui: UiState) {
+    // Preset is mostly a UX hint (runtime sets the underlying values).
+    // But in case a deep-link sets a preset only, provide best-effort defaults.
+    if (ui.floorPreset !== 'auto') {
+      if (ui.floorPreset === 'asphalt') {
+        this.groundMat.color.set('#0b0f1a');
+        this.groundMat.roughness = 0.95;
+        this.groundMat.metalness = 0.02;
+      } else if (ui.floorPreset === 'matte') {
+        this.groundMat.color.set('#05070d');
+        this.groundMat.roughness = 0.78;
+        this.groundMat.metalness = 0.02;
+      } else if (ui.floorPreset === 'polished') {
+        this.groundMat.color.set('#0b1220');
+        this.groundMat.roughness = 0.16;
+        this.groundMat.metalness = 0.35;
+      } else if (ui.floorPreset === 'glass') {
+        this.groundMat.color.set('#0b1220');
+        this.groundMat.roughness = 0.05;
+        this.groundMat.metalness = 0.0;
+      }
+    }
+
+    this.groundMat.color.copy(ui.floorColor);
+    this.groundMat.roughness = clamp(ui.floorRoughness, 0, 1);
+    this.groundMat.metalness = clamp(ui.floorMetalness, 0, 1);
+
+    const op = clamp(ui.floorOpacity, 0.05, 1);
+    this.groundMat.opacity = op;
+    this.groundMat.transparent = op < 0.999;
+    this.groundMat.depthWrite = op >= 0.999;
+    this.groundMat.needsUpdate = true;
   }
 
   getFrameRecommendation(): {
@@ -716,53 +962,69 @@ export class CarShowroomScene {
       case 'day':
         scene.background = new THREE.Color('#071223');
         this.groundMat.color.set('#040812');
-        this.keyLight.intensity = 3.15;
+        this.baseKeyIntensity = 3.15;
         this.fillLight.color.set('#bfe6ff');
-        this.fillLight.intensity = 1.45;
-        this.rimLight.intensity = 1.05;
+        this.baseFillIntensity = 1.45;
+        this.baseRimIntensity = 1.05;
         break;
       case 'sunset':
         scene.background = new THREE.Color('#08040a');
         this.groundMat.color.set('#05070d');
-        this.keyLight.intensity = 3.0;
+        this.baseKeyIntensity = 3.0;
         this.fillLight.color.set('#ffb088');
-        this.fillLight.intensity = 1.25;
-        this.rimLight.intensity = 1.25;
+        this.baseFillIntensity = 1.25;
+        this.baseRimIntensity = 1.25;
         break;
       case 'night':
         scene.background = new THREE.Color('#02030a');
         this.groundMat.color.set('#040612');
-        this.keyLight.intensity = 2.6;
+        this.baseKeyIntensity = 2.6;
         this.fillLight.color.set('#8db8ff');
-        this.fillLight.intensity = 1.15;
-        this.rimLight.intensity = 1.35;
+        this.baseFillIntensity = 1.15;
+        this.baseRimIntensity = 1.35;
         break;
       case 'grid':
         scene.background = new THREE.Color('#030616');
         this.groundMat.color.set('#030616');
-        this.keyLight.intensity = 2.9;
+        this.baseKeyIntensity = 2.9;
         this.fillLight.color.set('#8db8ff');
-        this.fillLight.intensity = 1.15;
-        this.rimLight.intensity = 1.2;
+        this.baseFillIntensity = 1.15;
+        this.baseRimIntensity = 1.2;
         break;
       case 'studio':
       default:
         scene.background = new THREE.Color('#02030a');
         this.groundMat.color.set('#05070d');
-        this.keyLight.intensity = 3.0;
+        this.baseKeyIntensity = 3.0;
         this.fillLight.color.set('#8db8ff');
-        this.fillLight.intensity = 1.25;
-        this.rimLight.intensity = 1.1;
+        this.baseFillIntensity = 1.25;
+        this.baseRimIntensity = 1.1;
         break;
     }
+
+    // Top light stays stable across scenes.
+    this.baseTopIntensity = 0.9;
   }
 
   private applyMaterials(loaded: THREE.Object3D, ui: UiState) {
     this.bodyMat.color.copy(ui.color);
-    this.wrapMat.color.copy(ui.color);
+    this.wrapMat.color.copy(ui.wrapColor);
 
     this.applyFinishPreset(this.bodyMat, ui.finish);
     this.applyFinishPreset(this.wrapMat, ui.finish);
+
+    // Wrap material gets a subtle procedural pattern so it looks distinct from paint.
+    if (ui.mode === 'wrap' && ui.wrapPattern !== 'solid') {
+      this.ensureWrapTexture(ui.wrapPattern);
+      if (this.wrapTex) {
+        this.wrapTex.repeat.set(ui.wrapScale, ui.wrapScale);
+        this.wrapTex.needsUpdate = true;
+        this.wrapMat.map = this.wrapTex;
+      }
+    } else {
+      this.wrapMat.map = null;
+    }
+    this.wrapMat.needsUpdate = true;
 
     this.applyWheelPreset(ui.wheelFinish);
     this.applyTrimPreset(ui.trimFinish);
@@ -916,6 +1178,11 @@ export class CarShowroomScene {
 
     // Background
     this.setBackground(scene, ui.background);
+
+    // Lights/env/floor
+    this.applyLightMultiplier(ui.lightIntensity);
+    this.applyFloor(ui);
+    this.applyEnvironmentIntensity(this.loaded, ui.envIntensity);
 
     // Model
     if (ui.modelUrl && resolveModelUrl(ui.modelUrl) !== this.loadingUrl) {
