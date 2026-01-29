@@ -113,7 +113,7 @@ const SCENE_DESCRIPTIONS = [
   'A neon metropolis built from pure information',
   'A voxel world: controlled collapse, deliberate decay',
   'Volumetric storm cells and charged light sheets',
-  'A studio car showcase—wheel/pinch to zoom; tap cycles materials',
+  'A studio car showcase—drag/press to orbit, wheel/pinch to zoom; tap cycles materials',
 ];
 
 // Auto-play dwell time per scene (ms). Heavier/"slower" chapters linger longer.

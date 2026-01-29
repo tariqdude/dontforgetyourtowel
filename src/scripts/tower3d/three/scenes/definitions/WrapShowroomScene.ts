@@ -47,6 +47,13 @@ const parseColor = (value: string | null): THREE.Color | null => {
 const clamp = (v: number, lo: number, hi: number) =>
   Math.max(lo, Math.min(hi, v));
 
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+const smoothstep01 = (x: number) => {
+  const t = clamp(x, 0, 1);
+  return t * t * (3 - 2 * t);
+};
+
 const createContactShadowTexture = (size = 256): THREE.CanvasTexture => {
   const canvas = document.createElement('canvas');
   canvas.width = size;
@@ -166,6 +173,10 @@ export class WrapShowroomScene extends SceneBase {
   private modelLookAt = new THREE.Vector3(0, 0.78, 0);
   private autoSpin = 0;
 
+  private lastTapTime = -10;
+  private softResetTime = -10;
+  private tapDebounce = 0.25;
+
   constructor() {
     super();
     // Repurposed as the single merged car chapter.
@@ -250,7 +261,7 @@ export class WrapShowroomScene extends SceneBase {
     this.stage.add(this.topLight);
     this.stage.add(this.topLight.target);
 
-    const amb = new THREE.AmbientLight(0xffffff, 0.25);
+    const amb = new THREE.AmbientLight(0xffffff, 0.2);
     this.stage.add(amb);
 
     // Camera baseline
@@ -864,43 +875,84 @@ export class WrapShowroomScene extends SceneBase {
   update(ctx: SceneRuntime) {
     this.time = ctx.time;
 
-    // Tap cycles material presentation (wrap -> wireframe -> glass)
-    if (ctx.tap > 0.85 && this.time - this.lastModeSwitchTime > 0.25) {
-      const next: MaterialMode =
-        this.mode === 'wrap'
-          ? 'wireframe'
-          : this.mode === 'wireframe'
-            ? 'glass'
-            : 'wrap';
-      this.setMode(next);
-    }
+    const coarse = ctx.caps.coarsePointer;
 
-    // Camera orbit: pointer influences yaw/pitch; press zooms slightly.
+    // Tap cycles material presentation (wrap -> wireframe -> glass).
+    // Guard against accidental mode flips while orbiting.
     const interaction = clamp(
       Math.abs(ctx.pointerVelocity.x) + Math.abs(ctx.pointerVelocity.y),
       0,
       1
     );
+    const isLikelyTap = interaction < (coarse ? 0.16 : 0.12) && ctx.press < 0.2;
+    if (
+      ctx.tap > 0.85 &&
+      isLikelyTap &&
+      this.time - this.lastModeSwitchTime > this.tapDebounce
+    ) {
+      const doubleTap = this.time - this.lastTapTime < (coarse ? 0.38 : 0.32);
+      this.lastTapTime = this.time;
 
-    this.orbitYawTarget += ctx.pointerVelocity.x * 0.9 * ctx.dt;
-    this.orbitPitchTarget -= ctx.pointerVelocity.y * 0.7 * ctx.dt;
+      if (doubleTap) {
+        // Soft reset: recenters orbit targets without snapping.
+        this.softResetTime = this.time;
+        this.orbitYawTarget = 0;
+        this.orbitPitchTarget = 0.12;
+        this.autoSpin = 0;
+      } else {
+        const next: MaterialMode =
+          this.mode === 'wrap'
+            ? 'wireframe'
+            : this.mode === 'wireframe'
+              ? 'glass'
+              : 'wrap';
+        this.setMode(next);
+      }
+    }
+
+    // Camera orbit: pointer influences yaw/pitch; press zooms slightly.
+    const rotateGain = (coarse ? 0.95 : 0.75) * lerp(0.55, 1.15, ctx.press);
+    const pitchGain = (coarse ? 0.85 : 0.65) * lerp(0.6, 1.15, ctx.press);
+
+    // Clamp velocity influence so very fast moves don't overshoot.
+    const vx = clamp(ctx.pointerVelocity.x, -1.2, 1.2);
+    const vy = clamp(ctx.pointerVelocity.y, -1.2, 1.2);
+
+    this.orbitYawTarget += vx * rotateGain * ctx.dt;
+    this.orbitPitchTarget -= vy * pitchGain * ctx.dt;
     this.orbitPitchTarget = clamp(this.orbitPitchTarget, -0.22, 0.38);
 
     // Gentle auto spin when idle.
-    this.autoSpin += ctx.dt * 0.18 * (1 - clamp(interaction * 1.6, 0, 1));
+    const engagement = clamp(interaction * 1.45 + ctx.press * 0.9, 0, 1);
+    this.autoSpin += ctx.dt * 0.18 * (1 - engagement);
 
-    this.orbitYaw = damp(this.orbitYaw, this.orbitYawTarget, 6.5, ctx.dt);
-    this.orbitPitch = damp(this.orbitPitch, this.orbitPitchTarget, 6.5, ctx.dt);
+    // Extra smoothing right after a soft reset.
+    const resetBoost = clamp(1 - (this.time - this.softResetTime) / 0.6, 0, 1);
+    const orbitLambda = lerp(6.5, 9.5, resetBoost);
+    this.orbitYaw = damp(
+      this.orbitYaw,
+      this.orbitYawTarget,
+      orbitLambda,
+      ctx.dt
+    );
+    this.orbitPitch = damp(
+      this.orbitPitch,
+      this.orbitPitchTarget,
+      orbitLambda,
+      ctx.dt
+    );
 
     // Combined zoom: wheel/pinch (ctx.zoom) for fine tuning + press for a small cinematic push-in.
     const zoom01 = clamp(ctx.zoom ?? 0, 0, 1);
-    const wheelFactor = 1.05 - 0.6 * zoom01; // 0 -> wider, 1 -> tighter
+    // Shape the curve so the mid-range has finer control.
+    const zoomShaped = smoothstep01(Math.pow(zoom01, 1.1));
+    const wheelFactor = 1.06 - 0.62 * zoomShaped; // 0 -> wider, 1 -> tighter
     const pressFactor = 1 - 0.18 * clamp(ctx.press, 0, 1);
     this.orbitRadiusTarget = this.baseDistance * wheelFactor * pressFactor;
     this.orbitRadius = damp(
       this.orbitRadius,
       this.orbitRadiusTarget,
-      6.0,
+      coarse ? 5.2 : 6.2,
       ctx.dt
     );
 
@@ -914,8 +966,11 @@ export class WrapShowroomScene extends SceneBase {
 
     // Subtle lighting drift to avoid a dead showroom.
     const breathe = 0.6 + 0.4 * Math.sin(ctx.time * 0.6);
-    this.keyLight.intensity = 2.85 + 0.2 * breathe;
-    this.rimLight.intensity = 1.1 + 0.15 * (1 - breathe);
+    this.keyLight.intensity = 2.75 + 0.22 * breathe;
+    this.rimLight.intensity = 1.05 + 0.16 * (1 - breathe);
+    // Keep highlights flattering as the camera orbits.
+    this.keyLight.position.x = 7 + Math.sin(yaw) * 0.45;
+    this.keyLight.position.z = 6 + Math.cos(yaw) * 0.45;
 
     // Ground response per mode (subtle: just enough to feel premium).
     const targetRoughness =
@@ -927,6 +982,17 @@ export class WrapShowroomScene extends SceneBase {
       3.5,
       ctx.dt
     );
+
+    // Contact shadow: slightly lighter when pulled back, denser up close.
+    const shadowMat = this.contactShadow.material;
+    if (shadowMat instanceof THREE.MeshBasicMaterial) {
+      const close01 = clamp((this.baseDistance - this.orbitRadius) / 6.5, 0, 1);
+      const targetOpacity =
+        this.loadedRoot && !this.loadError ? lerp(0.62, 0.9, close01) : 0.0;
+      shadowMat.opacity = damp(shadowMat.opacity, targetOpacity, 4.0, ctx.dt);
+      shadowMat.needsUpdate = true;
+      this.contactShadow.visible = shadowMat.opacity > 0.01;
+    }
     this.groundMat.metalness = damp(
       this.groundMat.metalness,
       targetMetalness,
@@ -948,9 +1014,6 @@ export class WrapShowroomScene extends SceneBase {
       );
     }
 
-    // If we failed to load (404), we keep fallback.
-    if (this.loadError) {
-      this.contactShadow.visible = false;
-    }
+    // If we failed to load (404), we keep fallback; contact shadow is handled above.
   }
 }
