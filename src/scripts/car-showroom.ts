@@ -1,0 +1,343 @@
+import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
+
+import { createAstroMount } from './tower3d/core/astro-mount';
+import { getTowerCaps } from './tower3d/core/caps';
+import { CarShowroomScene } from './car-showroom/CarShowroomScene';
+
+const ROOT_SELECTOR = '[data-car-showroom-root]';
+
+const clamp = (v: number, lo: number, hi: number) =>
+  Math.max(lo, Math.min(hi, v));
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const damp = (current: number, target: number, lambda: number, dt: number) =>
+  lerp(current, target, 1 - Math.exp(-lambda * dt));
+
+createAstroMount(ROOT_SELECTOR, () => {
+  const root = document.querySelector<HTMLElement>(ROOT_SELECTOR);
+  if (!root) return null;
+
+  const canvas = root.querySelector<HTMLCanvasElement>(
+    '[data-car-showroom-canvas]'
+  );
+  if (!canvas) return null;
+
+  const caps = getTowerCaps();
+  if (!caps.webgl) return null;
+
+  // --- UI wiring (dataset-driven)
+  const bumpRevision = () => {
+    const ds = root.dataset;
+    const n = Number.parseInt(ds.carShowroomUiRevision ?? '0', 10);
+    ds.carShowroomUiRevision = String(Number.isFinite(n) ? n + 1 : 1);
+  };
+
+  const panel = root.querySelector<HTMLElement>('[data-csr-panel]');
+  const togglePanelBtn = root.querySelector<HTMLButtonElement>(
+    '[data-csr-toggle-panel]'
+  );
+  const modelSel = root.querySelector<HTMLSelectElement>('[data-csr-model]');
+  const modeSel = root.querySelector<HTMLSelectElement>('[data-csr-mode]');
+  const colorInp = root.querySelector<HTMLInputElement>('[data-csr-color]');
+  const finishSel = root.querySelector<HTMLSelectElement>('[data-csr-finish]');
+  const bgSel = root.querySelector<HTMLSelectElement>('[data-csr-background]');
+  const autoRotateChk = root.querySelector<HTMLInputElement>(
+    '[data-csr-autorotate]'
+  );
+  const spinSpeedRange = root.querySelector<HTMLInputElement>(
+    '[data-csr-spinspeed]'
+  );
+  const zoomRange = root.querySelector<HTMLInputElement>('[data-csr-zoom]');
+  const resetBtn = root.querySelector<HTMLButtonElement>('[data-csr-reset]');
+
+  const setPanelOpen = (open: boolean) => {
+    if (!panel) return;
+    panel.hidden = !open;
+  };
+
+  togglePanelBtn?.addEventListener('click', () => {
+    setPanelOpen(Boolean(panel?.hidden));
+  });
+
+  // Defaults
+  root.dataset.carShowroomModel ||=
+    modelSel?.value || '/models/porsche-911-gt3rs.glb';
+  root.dataset.carShowroomMode ||= modeSel?.value || 'paint';
+  root.dataset.carShowroomColor ||= colorInp?.value || '#00d1b2';
+  root.dataset.carShowroomFinish ||= finishSel?.value || 'gloss';
+  root.dataset.carShowroomBackground ||= bgSel?.value || 'studio';
+  root.dataset.carShowroomAutoRotate ||=
+    autoRotateChk?.checked === false ? 'false' : 'true';
+  root.dataset.carShowroomSpinSpeed ||= spinSpeedRange?.value || '0.65';
+  root.dataset.carShowroomZoom ||= zoomRange?.value || '0';
+  bumpRevision();
+
+  const syncFromInputs = () => {
+    if (modelSel) root.dataset.carShowroomModel = modelSel.value;
+    if (modeSel) root.dataset.carShowroomMode = modeSel.value;
+    if (colorInp) root.dataset.carShowroomColor = colorInp.value;
+    if (finishSel) root.dataset.carShowroomFinish = finishSel.value;
+    if (bgSel) root.dataset.carShowroomBackground = bgSel.value;
+    if (autoRotateChk)
+      root.dataset.carShowroomAutoRotate = autoRotateChk.checked
+        ? 'true'
+        : 'false';
+    if (spinSpeedRange)
+      root.dataset.carShowroomSpinSpeed = spinSpeedRange.value;
+    if (zoomRange) root.dataset.carShowroomZoom = zoomRange.value;
+    bumpRevision();
+  };
+
+  [
+    modelSel,
+    modeSel,
+    colorInp,
+    finishSel,
+    bgSel,
+    autoRotateChk,
+    spinSpeedRange,
+    zoomRange,
+  ].forEach(el => {
+    if (!el) return;
+    el.addEventListener('input', syncFromInputs, { passive: true });
+    el.addEventListener('change', syncFromInputs, { passive: true });
+  });
+
+  resetBtn?.addEventListener('click', () => {
+    if (modelSel) modelSel.value = '/models/porsche-911-gt3rs.glb';
+    if (modeSel) modeSel.value = 'paint';
+    if (colorInp) colorInp.value = '#00d1b2';
+    if (finishSel) finishSel.value = 'gloss';
+    if (bgSel) bgSel.value = 'studio';
+    if (autoRotateChk) autoRotateChk.checked = true;
+    if (spinSpeedRange) spinSpeedRange.value = '0.65';
+    if (zoomRange) zoomRange.value = '0';
+    syncFromInputs();
+  });
+
+  // --- Three.js runtime
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    alpha: true,
+    antialias: !caps.coarsePointer,
+    powerPreference: 'high-performance',
+  });
+
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+
+  const scene = new THREE.Scene();
+
+  const showroom = new CarShowroomScene(root, renderer);
+  showroom.setEnvironment(scene);
+  scene.add(showroom.group);
+
+  const composer = new EffectComposer(renderer);
+  const renderPass = new RenderPass(scene, showroom.camera);
+  composer.addPass(renderPass);
+
+  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.55, 0.35, 0.88);
+  bloom.enabled = true;
+  composer.addPass(bloom);
+
+  const fxaa = new ShaderPass(FXAAShader);
+  composer.addPass(fxaa);
+
+  const output = new OutputPass();
+  composer.addPass(output);
+
+  const size = { width: 1, height: 1, dpr: 1 };
+  const resize = () => {
+    const rect = canvas.getBoundingClientRect();
+    size.width = Math.max(1, Math.floor(rect.width));
+    size.height = Math.max(1, Math.floor(rect.height));
+    size.dpr = Math.min(caps.devicePixelRatio, caps.maxDpr);
+
+    renderer.setPixelRatio(size.dpr);
+    renderer.setSize(size.width, size.height, false);
+    composer.setPixelRatio(size.dpr);
+    composer.setSize(size.width, size.height);
+
+    showroom.resize(size.width, size.height);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (fxaa.material.uniforms as any)['resolution'].value.set(
+      1 / (size.width * size.dpr),
+      1 / (size.height * size.dpr)
+    );
+
+    bloom.setSize(size.width, size.height);
+  };
+
+  resize();
+
+  // Deterministic test breadcrumb.
+  document.documentElement.dataset.carShowroomBoot = '1';
+
+  // Input shaping
+  const rawPointer = new THREE.Vector2(0, 0);
+  const pointer = new THREE.Vector2(0, 0);
+  const prevPointer = new THREE.Vector2(0, 0);
+  const pointerVelocity = new THREE.Vector2(0, 0);
+
+  let press = 0;
+  let pressTarget = 0;
+
+  let zoomTarget = clamp(
+    Number.parseFloat(root.dataset.carShowroomZoom || '0') || 0,
+    0,
+    1
+  );
+  let zoom = zoomTarget;
+
+  let pinchActive = false;
+  let pinchStartDist = 0;
+  let pinchStartZoom = 0;
+
+  const onPointerMove = (e: PointerEvent) => {
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+
+    const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    rawPointer.set(x, y);
+  };
+
+  const onPointerDown = () => {
+    pressTarget = 1;
+  };
+
+  const onPointerUp = () => {
+    pressTarget = 0;
+  };
+
+  const onWheel = (e: WheelEvent) => {
+    if (caps.reducedMotion) return;
+    // Trackpad can be huge; keep it gentle.
+    const delta = clamp(e.deltaY / 1200, -0.25, 0.25);
+    zoomTarget = clamp(zoomTarget + delta, 0, 1);
+    if (zoomRange) {
+      zoomRange.value = zoomTarget.toFixed(2);
+      root.dataset.carShowroomZoom = zoomRange.value;
+      bumpRevision();
+    }
+  };
+
+  const onTouchStart = (e: TouchEvent) => {
+    if (e.touches.length !== 2) return;
+    pinchActive = true;
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    pinchStartDist = Math.hypot(dx, dy);
+    pinchStartZoom = zoomTarget;
+  };
+
+  const onTouchMove = (e: TouchEvent) => {
+    if (!pinchActive || e.touches.length !== 2) return;
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.hypot(dx, dy);
+
+    const t = clamp((dist - pinchStartDist) / 260, -1, 1);
+    zoomTarget = clamp(pinchStartZoom - t, 0, 1);
+
+    if (zoomRange) {
+      zoomRange.value = zoomTarget.toFixed(2);
+      root.dataset.carShowroomZoom = zoomRange.value;
+      bumpRevision();
+    }
+  };
+
+  const onTouchEnd = () => {
+    pinchActive = false;
+  };
+
+  if (!caps.reducedMotion) {
+    canvas.addEventListener('pointermove', onPointerMove, { passive: true });
+    canvas.addEventListener('pointerdown', onPointerDown, { passive: true });
+    window.addEventListener('pointerup', onPointerUp, { passive: true });
+    canvas.addEventListener('wheel', onWheel, { passive: true });
+    canvas.addEventListener('touchstart', onTouchStart, { passive: true });
+    canvas.addEventListener('touchmove', onTouchMove, { passive: true });
+    canvas.addEventListener('touchend', onTouchEnd, { passive: true });
+    canvas.addEventListener('touchcancel', onTouchEnd, { passive: true });
+  }
+
+  // Render loop
+  const clock = new THREE.Clock();
+  let raf = 0;
+  let running = true;
+
+  const loop = () => {
+    if (!running) return;
+    raf = requestAnimationFrame(loop);
+
+    const dtRaw = Math.min(clock.getDelta(), 0.05);
+
+    // Smooth pointer.
+    pointer.x = damp(pointer.x, rawPointer.x, 12, dtRaw);
+    pointer.y = damp(pointer.y, rawPointer.y, 12, dtRaw);
+
+    pointerVelocity
+      .copy(pointer)
+      .sub(prevPointer)
+      .divideScalar(Math.max(dtRaw, 1e-4));
+    prevPointer.copy(pointer);
+
+    press = damp(press, pressTarget, 10, dtRaw);
+
+    // Smooth zoom
+    zoom = damp(zoom, zoomTarget, 8, dtRaw);
+
+    // Advance the showroom.
+    showroom.update(scene, dtRaw, pointer, pointerVelocity, press, zoom);
+
+    composer.render();
+  };
+
+  loop();
+
+  const onResize = () => resize();
+  window.addEventListener('resize', onResize, { passive: true });
+
+  // Keep it alive only when visible.
+  const io = new IntersectionObserver(
+    entries => {
+      const entry = entries[0];
+      if (!entry) return;
+      if (entry.isIntersecting) clock.getDelta();
+    },
+    { root: null, threshold: 0.01 }
+  );
+  io.observe(root);
+
+  return {
+    destroy: () => {
+      document.documentElement.dataset.carShowroomBoot = '0';
+      running = false;
+      cancelAnimationFrame(raf);
+      io.disconnect();
+      window.removeEventListener('resize', onResize);
+      if (!caps.reducedMotion) {
+        canvas.removeEventListener('pointermove', onPointerMove);
+        canvas.removeEventListener('pointerdown', onPointerDown);
+        window.removeEventListener('pointerup', onPointerUp);
+        canvas.removeEventListener('wheel', onWheel);
+        canvas.removeEventListener('touchstart', onTouchStart);
+        canvas.removeEventListener('touchmove', onTouchMove);
+        canvas.removeEventListener('touchend', onTouchEnd);
+        canvas.removeEventListener('touchcancel', onTouchEnd);
+      }
+      showroom.dispose();
+      composer.dispose();
+      renderer.dispose();
+    },
+  };
+});

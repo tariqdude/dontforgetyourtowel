@@ -1,0 +1,304 @@
+---
+import MarketingLayout from '../layouts/MarketingLayout.astro';
+import { withBasePath } from '../utils/helpers';
+
+const title = 'Car Showroom — 3D Studio';
+const description =
+  'A dedicated, manufacturer-style 3D car showroom: models, materials, colors, camera, and studio backgrounds.';
+---
+
+<MarketingLayout
+  title={title}
+  description={description}
+  mainClass="p-0"
+  bodyClass="bg-black"
+  showFooter={false}
+  showStickyCTA={false}
+  showMobileNav={false}
+  showLiveChat={false}
+>
+  <section class="car-showroom" data-car-showroom-root>
+    <canvas class="car-showroom__canvas" data-car-showroom-canvas></canvas>
+
+    <div class="car-showroom__hud" aria-label="Car showroom controls">
+      <div class="car-showroom__hud-top">
+        <div class="car-showroom__title">
+          <p class="car-showroom__kicker">3D Car Showroom</p>
+          <h1 class="car-showroom__headline">Studio Configurator</h1>
+        </div>
+
+        <div class="car-showroom__actions">
+          <button type="button" class="csr-btn" data-csr-toggle-panel>
+            Options
+          </button>
+          <a class="csr-btn csr-btn--ghost" href={withBasePath('gallery/')}
+            >3D Gallery</a
+          >
+        </div>
+      </div>
+
+      <div class="car-showroom__panel" data-csr-panel hidden>
+        <div class="csr-grid">
+          <label class="csr-field">
+            <span>Model</span>
+            <select data-csr-model>
+              <option value="/models/porsche-911-gt3rs.glb"
+                >Porsche 911 GT3 RS</option
+              >
+            </select>
+          </label>
+
+          <label class="csr-field">
+            <span>Mode</span>
+            <select data-csr-mode>
+              <option value="paint">Paint</option>
+              <option value="wrap">Wrap</option>
+              <option value="glass">Glass</option>
+              <option value="wireframe">Wireframe</option>
+            </select>
+          </label>
+
+          <label class="csr-field">
+            <span>Color</span>
+            <input type="color" value="#00d1b2" data-csr-color />
+          </label>
+
+          <label class="csr-field">
+            <span>Finish</span>
+            <select data-csr-finish>
+              <option value="gloss">Gloss</option>
+              <option value="satin">Satin</option>
+              <option value="matte">Matte</option>
+            </select>
+          </label>
+
+          <label class="csr-field csr-field--wide">
+            <span>Background</span>
+            <select data-csr-background>
+              <option value="studio">Studio</option>
+              <option value="day">Day</option>
+              <option value="sunset">Sunset</option>
+              <option value="night">Night</option>
+              <option value="grid">Grid</option>
+            </select>
+          </label>
+
+          <label class="csr-field">
+            <span>Auto-rotate</span>
+            <input type="checkbox" checked data-csr-autorotate />
+          </label>
+
+          <label class="csr-field csr-field--wide">
+            <span>Spin speed</span>
+            <input
+              type="range"
+              min="0"
+              max="2"
+              step="0.01"
+              value="0.65"
+              data-csr-spinspeed
+            />
+          </label>
+
+          <label class="csr-field csr-field--wide">
+            <span>Zoom</span>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value="0"
+              data-csr-zoom
+            />
+          </label>
+
+          <div class="csr-row">
+            <button type="button" class="csr-btn" data-csr-reset>Reset</button>
+            <p class="csr-hint">Drag to orbit. Wheel/pinch to zoom.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    import '../scripts/car-showroom';
+  </script>
+
+  <style>
+    .car-showroom {
+      position: relative;
+      height: calc(100svh - 64px);
+      background:
+        radial-gradient(
+          120% 90% at 50% 15%,
+          rgba(34, 211, 238, 0.1),
+          transparent 55%
+        ),
+        radial-gradient(
+          90% 70% at 70% 45%,
+          rgba(124, 58, 237, 0.1),
+          transparent 55%
+        ),
+        #02030a;
+      overflow: hidden;
+    }
+
+    .car-showroom__canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+    }
+
+    .car-showroom__hud {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      padding: 18px;
+    }
+
+    .car-showroom__hud-top {
+      pointer-events: none;
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+    }
+
+    .car-showroom__title {
+      pointer-events: none;
+      color: rgba(255, 255, 255, 0.92);
+      text-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+    }
+
+    .car-showroom__kicker {
+      margin: 0;
+      font-family:
+        ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        'Liberation Mono', 'Courier New', monospace;
+      font-size: 12px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.62);
+    }
+
+    .car-showroom__headline {
+      margin: 6px 0 0;
+      font-size: 20px;
+      letter-spacing: -0.02em;
+    }
+
+    .car-showroom__actions {
+      pointer-events: auto;
+      display: flex;
+      gap: 10px;
+    }
+
+    .csr-btn {
+      pointer-events: auto;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(0, 0, 0, 0.35);
+      color: rgba(255, 255, 255, 0.92);
+      padding: 10px 12px;
+      font-size: 13px;
+      font-weight: 650;
+      backdrop-filter: blur(14px);
+    }
+
+    .csr-btn--ghost {
+      text-decoration: none;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .car-showroom__panel {
+      pointer-events: auto;
+      position: absolute;
+      right: 18px;
+      top: 64px;
+      width: min(520px, calc(100vw - 36px));
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(18px);
+      padding: 14px;
+    }
+
+    .csr-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .csr-field {
+      display: grid;
+      gap: 6px;
+      color: rgba(255, 255, 255, 0.88);
+      font-size: 12px;
+    }
+
+    .csr-field span {
+      color: rgba(255, 255, 255, 0.65);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-family:
+        ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        'Liberation Mono', 'Courier New', monospace;
+      font-size: 11px;
+    }
+
+    .csr-field select,
+    .csr-field input[type='range'],
+    .csr-field input[type='color'] {
+      width: 100%;
+    }
+
+    .csr-field select {
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.06);
+      color: rgba(255, 255, 255, 0.9);
+      padding: 9px 10px;
+      outline: none;
+    }
+
+    .csr-field input[type='range'] {
+      accent-color: rgb(34, 211, 238);
+    }
+
+    .csr-field input[type='color'] {
+      height: 40px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.06);
+      padding: 6px;
+    }
+
+    .csr-field--wide {
+      grid-column: 1 / -1;
+    }
+
+    .csr-row {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .csr-hint {
+      margin: 0;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.65);
+    }
+
+    @media (max-width: 520px) {
+      .csr-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</MarketingLayout>

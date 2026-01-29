@@ -148,10 +148,4 @@ export const sceneMeta: SceneMeta[] = [
     subtitle: 'Volumetric Lightning',
     index: 16,
   },
-  {
-    id: 'scene17',
-    title: 'Porsche Showroom',
-    subtitle: 'Studio Turntable',
-    index: 17,
-  },
 ];
