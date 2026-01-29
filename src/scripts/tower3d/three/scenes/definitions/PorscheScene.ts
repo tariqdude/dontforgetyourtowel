@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { SceneBase } from './SceneBase';
 import type { SceneRuntime } from './types';
 import { damp } from './SceneUtils';
-import { withBasePath } from '../../../../../utils/url';
+import { parseQuery, withBasePath } from '../../../../../utils/url';
 
 /**
  * Scene 17: Cyber Porsche GT3 RS (High Fidelity)
@@ -20,7 +20,14 @@ export class PorscheScene extends SceneBase {
   private usingExternalModel = false;
   private modelRequested = false;
   private modelLoadToken = 0;
-  private readonly modelUrl = withBasePath('/models/porsche-911-gt3rs.glb');
+
+  private readonly modelUrlDefault = withBasePath(
+    '/models/porsche-911-gt3rs.glb'
+  );
+  private loggedModelMissingHint = false;
+  private modelOrbitRadius = 10.5;
+  private modelCamY = 2.0;
+  private modelLookAt = new THREE.Vector3(0, 0.9, 0);
 
   private contactShadow: THREE.Mesh | null = null;
   private externalWheels: Array<{
@@ -417,7 +424,8 @@ export class PorscheScene extends SceneBase {
         this.contactShadow.rotation.x = -Math.PI / 2;
         this.contactShadow.position.y = 0.002;
         this.contactShadow.scale.set(5.0, 2.6, 1);
-        this.contactShadow.visible = false;
+        // Show even for fallback: makes the procedural car feel grounded.
+        this.contactShadow.visible = true;
         this.group.add(this.contactShadow);
       }
     }
@@ -465,21 +473,77 @@ export class PorscheScene extends SceneBase {
     this.requestExternalModel();
   }
 
+  private resolveModelUrl(): string {
+    if (typeof window === 'undefined') return this.modelUrlDefault;
+
+    const q = parseQuery(window.location.search);
+    const override = q.porscheModel || q.carModel;
+    if (typeof override === 'string' && override.trim()) {
+      // Support absolute URLs, base-path relative URLs, and plain paths.
+      return withBasePath(override.trim());
+    }
+
+    return this.modelUrlDefault;
+  }
+
+  private async loadGltfViaFetch(url: string): Promise<THREE.Object3D | null> {
+    // Avoid browser console “Failed to load resource” spam by probing with fetch.
+    // If present, parse the payload locally (single download).
+    let res: Response;
+    try {
+      res = await fetch(url, { cache: 'no-store' });
+    } catch {
+      return null;
+    }
+
+    if (!res.ok) return null;
+
+    let buffer: ArrayBuffer;
+    try {
+      buffer = await res.arrayBuffer();
+    } catch {
+      return null;
+    }
+
+    const loader = new GLTFLoader();
+    const base = THREE.LoaderUtils.extractUrlBase(url);
+
+    return await new Promise(resolve => {
+      loader.parse(
+        buffer,
+        base,
+        gltf => {
+          const root =
+            gltf.scene ??
+            (gltf as unknown as { scene: THREE.Object3D | undefined })?.scene;
+          resolve(root ?? null);
+        },
+        () => resolve(null)
+      );
+    });
+  }
+
   private requestExternalModel(): void {
     if (this.modelRequested) return;
     this.modelRequested = true;
 
     const loadToken = ++this.modelLoadToken;
-    const loader = new GLTFLoader();
 
-    loader
-      .loadAsync(this.modelUrl)
-      .then(gltf => {
+    const url = this.resolveModelUrl();
+    void this.loadGltfViaFetch(url)
+      .then(root => {
         if (loadToken !== this.modelLoadToken) return;
+        if (!root) {
+          if (!this.loggedModelMissingHint) {
+            this.loggedModelMissingHint = true;
+            // Intentionally use info (not error) so it doesn't look like a hard failure.
 
-        const root =
-          gltf.scene ?? (gltf as unknown as { scene: THREE.Object3D })?.scene;
-        if (!root) return;
+            console.info(
+              `[PorscheScene] External model not found. Add ${this.modelUrlDefault} (or use ?porscheModel=/models/your.glb). Using procedural fallback.`
+            );
+          }
+          return;
+        }
 
         // Hide procedural content, keep it for disposal.
         for (const child of this.carGroup.children) {
@@ -586,6 +650,20 @@ export class PorscheScene extends SceneBase {
           this.contactShadow.scale.set(sx, sz, 1);
         }
 
+        // Presentation tuning: keep camera framing consistent across model sources.
+        const footprint = Math.max(size2.x, size2.z);
+        this.modelOrbitRadius = THREE.MathUtils.clamp(
+          footprint * 2.15,
+          8.5,
+          14.0
+        );
+        this.modelCamY = THREE.MathUtils.clamp(size2.y * 0.85, 1.7, 3.4);
+        this.modelLookAt.set(
+          0,
+          THREE.MathUtils.clamp(size2.y * 0.45, 0.75, 1.6),
+          0
+        );
+
         // Heuristic wheel detection for imported models.
         // We wrap detected wheel objects into a steering group so we can steer + spin separately.
         this.externalWheels = [];
@@ -672,6 +750,11 @@ export class PorscheScene extends SceneBase {
         // Slightly lower ride height for realism.
         this.carGroup.position.y = 0.0;
         this.usingExternalModel = true;
+
+        // Test/debug breadcrumb: lets automation verify the external model path is working.
+        if (typeof document !== 'undefined') {
+          document.documentElement.dataset.porscheModelLoaded = '1';
+        }
       })
       .catch(() => {
         // Model missing or failed to load; keep procedural fallback.
@@ -703,15 +786,15 @@ export class PorscheScene extends SceneBase {
 
       // Camera: gentle orbit + slightly elevated angle.
       const orbit = 0.6 + turn * 0.35;
-      const radius = this.baseDistance + 1.5;
+      const radius = this.modelOrbitRadius;
       const camX = Math.sin(orbit) * radius;
       const camZ = Math.cos(orbit) * radius;
-      const camY = 2.0;
+      const camY = this.modelCamY;
 
       this.camera.position.x = damp(this.camera.position.x, camX, 3.0, ctx.dt);
       this.camera.position.z = damp(this.camera.position.z, camZ, 3.0, ctx.dt);
       this.camera.position.y = damp(this.camera.position.y, camY, 3.0, ctx.dt);
-      this.camera.lookAt(0, 0.9, 0);
+      this.camera.lookAt(this.modelLookAt);
 
       // Wheel spin + front steering if wheels were detected.
       if (this.externalWheels.length > 0) {

@@ -8,6 +8,11 @@ The Porsche chapter (`scene17`) will attempt to load this file at runtime:
 
 - `public/models/porsche-911-gt3rs.glb`
 
+You can also override the runtime model URL (useful if your file has a different name):
+
+- `?porscheModel=/models/your-file.glb`
+- `?carModel=/models/your-file.glb`
+
 If the file is missing, the scene falls back to the procedural car.
 
 ### Recommended source (license-confirmed)

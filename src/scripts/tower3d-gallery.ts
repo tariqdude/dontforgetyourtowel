@@ -6,6 +6,7 @@
 import { createAstroMount } from './tower3d/core/astro-mount';
 import { getTowerCaps } from './tower3d/core/caps';
 import { SceneDirector } from './tower3d/three/scene-director';
+import { parseQuery } from '../utils/url';
 
 type GalleryAutoPlayController = {
   start: () => void;
@@ -112,7 +113,7 @@ const SCENE_DESCRIPTIONS = [
   'A neon metropolis built from pure information',
   'A voxel world: controlled collapse, deliberate decay',
   'Volumetric storm cells and charged light sheets',
-  'A high-fidelity hero asset chapter—speed and sheen',
+  'A high-fidelity hero asset chapter—drops in an optional GLB if present',
   'A studio car showcase—tap to cycle materials',
 ];
 
@@ -160,6 +161,39 @@ const state: GalleryState = {
   idleTime: 0,
   showingInfo: false,
 };
+
+function applyInitialSceneFromQuery(): void {
+  if (typeof window === 'undefined') return;
+
+  const q = parseQuery(window.location.search);
+  const raw = (q.sceneId || q.scene || q.sceneIndex || '').trim();
+  if (!raw) return;
+
+  let index: number | null = null;
+
+  // scene=scene17
+  if (raw.startsWith('scene')) {
+    const found = SCENE_IDS.indexOf(raw as (typeof SCENE_IDS)[number]);
+    if (found >= 0) index = found;
+  }
+
+  // scene=17 or sceneIndex=17 (supports 0-based or 1-based)
+  if (index === null) {
+    const parsed = Number.parseInt(raw, 10);
+    if (Number.isFinite(parsed)) {
+      if (parsed >= 0 && parsed <= SCENE_IDS.length - 1) {
+        index = parsed;
+      } else if (parsed >= 1 && parsed <= SCENE_IDS.length) {
+        index = parsed - 1;
+      }
+    }
+  }
+
+  if (index === null) return;
+
+  state.currentScene = index;
+  state.targetProgress = index / (SCENE_IDS.length - 1);
+}
 
 let galleryCaps: ReturnType<typeof getTowerCaps> | null = null;
 
@@ -399,6 +433,9 @@ createAstroMount(ROOT_SELECTOR, () => {
   setupFullscreen();
   setupInfoPanel();
   setupIdleDetection();
+
+  // Allow deep-linking to a specific scene (e.g. ?scene=scene17).
+  applyInitialSceneFromQuery();
   updateUI();
 
   console.log('[Gallery] Initialized with', SCENE_IDS.length, 'scenes');
