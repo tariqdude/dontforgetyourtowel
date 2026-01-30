@@ -311,6 +311,9 @@ createAstroMount(ROOT_SELECTOR, () => {
   const envIntensityRange = root.querySelector<HTMLInputElement>(
     '[data-csr-env-intensity]'
   );
+  const lightPresetSel = root.querySelector<HTMLSelectElement>(
+    '[data-csr-light-preset]'
+  );
   const lightIntensityRange = root.querySelector<HTMLInputElement>(
     '[data-csr-light-intensity]'
   );
@@ -322,6 +325,10 @@ createAstroMount(ROOT_SELECTOR, () => {
   );
   const rigYawRange =
     root.querySelector<HTMLInputElement>('[data-csr-rig-yaw]');
+  const rigHeightRange = root.querySelector<HTMLInputElement>(
+    '[data-csr-rig-height]'
+  );
+  const gridToggle = root.querySelector<HTMLInputElement>('[data-csr-grid]');
   const underglowColorInp = root.querySelector<HTMLInputElement>(
     '[data-csr-underglow-color]'
   );
@@ -405,6 +412,9 @@ createAstroMount(ROOT_SELECTOR, () => {
 
   const swatches = Array.from(
     root.querySelectorAll<HTMLButtonElement>('[data-csr-swatch]')
+  );
+  const randomizeLookBtn = root.querySelector<HTMLButtonElement>(
+    '[data-csr-randomize-look]'
   );
 
   const selectedPartEl = root.querySelector<HTMLElement>(
@@ -650,6 +660,8 @@ createAstroMount(ROOT_SELECTOR, () => {
     const env = params.get('env');
     const li = params.get('li');
     const ry = params.get('ry');
+    const rgh = params.get('rgh');
+    const grid = params.get('grid');
     const ug = params.get('ug');
     const ugc = params.get('ugc');
     const ugs = params.get('ugs');
@@ -817,6 +829,14 @@ createAstroMount(ROOT_SELECTOR, () => {
     if (ryN !== null)
       root.dataset.carShowroomRigYaw = String(clamp(ryN, 0, 360));
 
+    const rghN = parseNum(rgh);
+    if (rghN !== null)
+      root.dataset.carShowroomRigHeight = String(clamp(rghN, 0.6, 1.6));
+
+    if (grid === '1' || grid === 'true') root.dataset.carShowroomGrid = 'true';
+    if (grid === '0' || grid === 'false')
+      root.dataset.carShowroomGrid = 'false';
+
     const ugN = parseNum(ug);
     if (ugN !== null)
       root.dataset.carShowroomUnderglow = String(clamp(ugN, 0, 5));
@@ -982,12 +1002,15 @@ createAstroMount(ROOT_SELECTOR, () => {
     'carShowroomLightColor',
     'carShowroomLightGlow',
     'carShowroomGlassTint',
+    'carShowroomLightPreset',
     'carShowroomLightWarmth',
     'carShowroomRimBoost',
     'carShowroomBackground',
     'carShowroomEnvIntensity',
     'carShowroomLightIntensity',
     'carShowroomRigYaw',
+    'carShowroomRigHeight',
+    'carShowroomGrid',
     'carShowroomUnderglow',
     'carShowroomUnderglowColor',
     'carShowroomUnderglowSize',
@@ -1140,6 +1163,8 @@ createAstroMount(ROOT_SELECTOR, () => {
       lightGlowRange.value = ds.carShowroomLightGlow;
     if (glassTintRange && ds.carShowroomGlassTint)
       glassTintRange.value = ds.carShowroomGlassTint;
+    if (lightPresetSel && ds.carShowroomLightPreset)
+      lightPresetSel.value = ds.carShowroomLightPreset;
     if (bgSel && ds.carShowroomBackground)
       bgSel.value = ds.carShowroomBackground;
     if (envIntensityRange && ds.carShowroomEnvIntensity)
@@ -1152,6 +1177,10 @@ createAstroMount(ROOT_SELECTOR, () => {
       rimBoostRange.value = ds.carShowroomRimBoost;
     if (rigYawRange && ds.carShowroomRigYaw)
       rigYawRange.value = ds.carShowroomRigYaw;
+    if (rigHeightRange && ds.carShowroomRigHeight)
+      rigHeightRange.value = ds.carShowroomRigHeight;
+    if (gridToggle && ds.carShowroomGrid)
+      gridToggle.checked = ds.carShowroomGrid === 'true';
     if (underglowColorInp && ds.carShowroomUnderglowColor)
       underglowColorInp.value = ds.carShowroomUnderglowColor;
     if (underglowRange && ds.carShowroomUnderglow)
@@ -1506,12 +1535,16 @@ createAstroMount(ROOT_SELECTOR, () => {
   root.dataset.carShowroomLightColor ||= lightColorInp?.value || '#dbeafe';
   root.dataset.carShowroomLightGlow ||= lightGlowRange?.value || '1.25';
   root.dataset.carShowroomGlassTint ||= glassTintRange?.value || '0.15';
+  root.dataset.carShowroomLightPreset ||= lightPresetSel?.value || 'studio';
   root.dataset.carShowroomBackground ||= bgSel?.value || 'studio';
   root.dataset.carShowroomEnvIntensity ||= envIntensityRange?.value || '1';
   root.dataset.carShowroomLightIntensity ||= lightIntensityRange?.value || '1';
   root.dataset.carShowroomLightWarmth ||= lightWarmthRange?.value || '0';
   root.dataset.carShowroomRimBoost ||= rimBoostRange?.value || '1';
   root.dataset.carShowroomRigYaw ||= rigYawRange?.value || '0';
+  root.dataset.carShowroomRigHeight ||= rigHeightRange?.value || '1';
+  root.dataset.carShowroomGrid ||=
+    gridToggle?.checked === true ? 'true' : 'false';
   root.dataset.carShowroomUnderglow ||= underglowRange?.value || '0';
   root.dataset.carShowroomUnderglowColor ||=
     underglowColorInp?.value || '#22d3ee';
@@ -1614,6 +1647,8 @@ createAstroMount(ROOT_SELECTOR, () => {
     lightGlowRange.value = root.dataset.carShowroomLightGlow;
   if (glassTintRange && root.dataset.carShowroomGlassTint)
     glassTintRange.value = root.dataset.carShowroomGlassTint;
+  if (lightPresetSel && root.dataset.carShowroomLightPreset)
+    lightPresetSel.value = root.dataset.carShowroomLightPreset;
   if (bgSel && root.dataset.carShowroomBackground)
     bgSel.value = root.dataset.carShowroomBackground;
   if (envIntensityRange && root.dataset.carShowroomEnvIntensity)
@@ -1626,6 +1661,10 @@ createAstroMount(ROOT_SELECTOR, () => {
     rimBoostRange.value = root.dataset.carShowroomRimBoost;
   if (rigYawRange && root.dataset.carShowroomRigYaw)
     rigYawRange.value = root.dataset.carShowroomRigYaw;
+  if (rigHeightRange && root.dataset.carShowroomRigHeight)
+    rigHeightRange.value = root.dataset.carShowroomRigHeight;
+  if (gridToggle && root.dataset.carShowroomGrid)
+    gridToggle.checked = root.dataset.carShowroomGrid === 'true';
   if (underglowColorInp && root.dataset.carShowroomUnderglowColor)
     underglowColorInp.value = root.dataset.carShowroomUnderglowColor;
   if (underglowRange && root.dataset.carShowroomUnderglow)
@@ -1867,9 +1906,150 @@ createAstroMount(ROOT_SELECTOR, () => {
     bumpRevision();
   };
 
+  const LIGHT_PRESETS: Record<
+    string,
+    {
+      background?: string;
+      envIntensity?: number;
+      lightIntensity?: number;
+      lightWarmth?: number;
+      rimBoost?: number;
+      exposure?: number;
+      bloomStrength?: number;
+      bloomThreshold?: number;
+      bloomRadius?: number;
+      rigYaw?: number;
+      underglow?: number;
+      underglowColor?: string;
+    }
+  > = {
+    studio: {
+      background: 'studio',
+      envIntensity: 1,
+      lightIntensity: 1,
+      lightWarmth: 0,
+      rimBoost: 1,
+      exposure: 1,
+      bloomStrength: 0.35,
+      bloomThreshold: 0.88,
+      bloomRadius: 0.35,
+      rigYaw: 0,
+    },
+    golden: {
+      background: 'sunset',
+      envIntensity: 1.15,
+      lightIntensity: 1.15,
+      lightWarmth: 0.85,
+      rimBoost: 1.15,
+      exposure: 1.05,
+      bloomStrength: 0.5,
+      bloomThreshold: 0.8,
+      bloomRadius: 0.55,
+      rigYaw: 25,
+    },
+    neon: {
+      background: 'night',
+      envIntensity: 1.35,
+      lightIntensity: 1.3,
+      lightWarmth: 0.2,
+      rimBoost: 1.6,
+      exposure: 0.95,
+      bloomStrength: 0.75,
+      bloomThreshold: 0.6,
+      bloomRadius: 0.75,
+      rigYaw: 140,
+      underglow: 2.2,
+      underglowColor: '#22d3ee',
+    },
+    ice: {
+      background: 'day',
+      envIntensity: 1.2,
+      lightIntensity: 1.05,
+      lightWarmth: 0.05,
+      rimBoost: 1.25,
+      exposure: 1.1,
+      bloomStrength: 0.45,
+      bloomThreshold: 0.85,
+      bloomRadius: 0.4,
+      rigYaw: 320,
+    },
+    noir: {
+      background: 'studio',
+      envIntensity: 0.65,
+      lightIntensity: 0.85,
+      lightWarmth: 0.1,
+      rimBoost: 1.8,
+      exposure: 0.9,
+      bloomStrength: 0.2,
+      bloomThreshold: 0.9,
+      bloomRadius: 0.2,
+      rigYaw: 210,
+    },
+  };
+
+  const applyLightPreset = (presetId: string, announce = true) => {
+    const preset = LIGHT_PRESETS[presetId];
+    if (!preset) return;
+
+    if (lightPresetSel) lightPresetSel.value = presetId;
+    root.dataset.carShowroomLightPreset = presetId;
+
+    const setRange = (
+      el: HTMLInputElement | null,
+      value: number | undefined,
+      key: keyof DOMStringMap
+    ) => {
+      if (value == null) return;
+      const next = value.toString();
+      if (el) el.value = next;
+      root.dataset[key] = next;
+    };
+
+    if (preset.background && bgSel) {
+      bgSel.value = preset.background;
+      root.dataset.carShowroomBackground = preset.background;
+    }
+
+    setRange(envIntensityRange, preset.envIntensity, 'carShowroomEnvIntensity');
+    setRange(
+      lightIntensityRange,
+      preset.lightIntensity,
+      'carShowroomLightIntensity'
+    );
+    setRange(lightWarmthRange, preset.lightWarmth, 'carShowroomLightWarmth');
+    setRange(rimBoostRange, preset.rimBoost, 'carShowroomRimBoost');
+    setRange(exposureRange, preset.exposure, 'carShowroomExposure');
+    setRange(
+      bloomStrengthRange,
+      preset.bloomStrength,
+      'carShowroomBloomStrength'
+    );
+    setRange(
+      bloomThresholdRange,
+      preset.bloomThreshold,
+      'carShowroomBloomThreshold'
+    );
+    setRange(bloomRadiusRange, preset.bloomRadius, 'carShowroomBloomRadius');
+    setRange(rigYawRange, preset.rigYaw, 'carShowroomRigYaw');
+    setRange(underglowRange, preset.underglow, 'carShowroomUnderglow');
+
+    if (preset.underglowColor) {
+      if (underglowColorInp) underglowColorInp.value = preset.underglowColor;
+      root.dataset.carShowroomUnderglowColor = preset.underglowColor;
+    }
+
+    bumpRevision();
+    if (announce) showToast('Lighting preset applied.');
+  };
+
   floorPresetSel?.addEventListener('change', () => {
     const preset = (floorPresetSel.value || 'auto').trim();
     applyFloorPreset(preset);
+  });
+
+  lightPresetSel?.addEventListener('change', () => {
+    const preset = (lightPresetSel.value || 'studio').trim();
+    applyLightPreset(preset);
   });
 
   loadModelBtn?.addEventListener('click', () => {
@@ -1926,6 +2106,8 @@ createAstroMount(ROOT_SELECTOR, () => {
       root.dataset.carShowroomLightGlow = lightGlowRange.value;
     if (glassTintRange)
       root.dataset.carShowroomGlassTint = glassTintRange.value;
+    if (lightPresetSel)
+      root.dataset.carShowroomLightPreset = lightPresetSel.value;
     if (bgSel) root.dataset.carShowroomBackground = bgSel.value;
     if (envIntensityRange)
       root.dataset.carShowroomEnvIntensity = envIntensityRange.value;
@@ -1935,6 +2117,10 @@ createAstroMount(ROOT_SELECTOR, () => {
       root.dataset.carShowroomLightWarmth = lightWarmthRange.value;
     if (rimBoostRange) root.dataset.carShowroomRimBoost = rimBoostRange.value;
     if (rigYawRange) root.dataset.carShowroomRigYaw = rigYawRange.value;
+    if (rigHeightRange)
+      root.dataset.carShowroomRigHeight = rigHeightRange.value;
+    if (gridToggle)
+      root.dataset.carShowroomGrid = gridToggle.checked ? 'true' : 'false';
     if (underglowColorInp)
       root.dataset.carShowroomUnderglowColor = underglowColorInp.value;
     if (underglowRange)
@@ -2013,10 +2199,13 @@ createAstroMount(ROOT_SELECTOR, () => {
     glassTintRange,
     bgSel,
     envIntensityRange,
+    lightPresetSel,
     lightIntensityRange,
     lightWarmthRange,
     rimBoostRange,
     rigYawRange,
+    rigHeightRange,
+    gridToggle,
     underglowColorInp,
     underglowRange,
     underglowPulseRange,
@@ -2044,6 +2233,76 @@ createAstroMount(ROOT_SELECTOR, () => {
     el.addEventListener('input', syncFromInputs, { passive: true });
     el.addEventListener('change', syncFromInputs, { passive: true });
   });
+
+  const randomizeLook = () => {
+    const pick = <T>(list: T[]) =>
+      list[Math.floor(Math.random() * list.length)];
+    const range = (min: number, max: number, digits = 2) =>
+      (min + Math.random() * (max - min)).toFixed(digits);
+
+    const paintPalette = [
+      '#00d1b2',
+      '#60a5fa',
+      '#f472b6',
+      '#fbbf24',
+      '#f87171',
+      '#e5e7eb',
+      '#0b0f1a',
+      '#ffffff',
+      '#22c55e',
+      '#a855f7',
+      '#fb923c',
+      '#94a3b8',
+    ];
+    const accentPalette = [
+      '#ef4444',
+      '#f97316',
+      '#fbbf24',
+      '#22d3ee',
+      '#a855f7',
+      '#22c55e',
+      '#f472b6',
+    ];
+    const wheelPalette = ['#111827', '#1f2937', '#e5e7eb', '#0b0f1a'];
+    const finishes = ['gloss', 'satin', 'matte'];
+    const wrapPatterns = [
+      'solid',
+      'stripes',
+      'carbon',
+      'camo',
+      'checker',
+      'hex',
+      'race',
+    ];
+    const wrapStyles = ['oem', 'procedural'];
+    const wheelFinishes = ['graphite', 'chrome', 'black'];
+    const trimFinishes = ['black', 'chrome', 'brushed'];
+
+    if (colorInp) colorInp.value = pick(paintPalette);
+    if (wrapColorInp) wrapColorInp.value = pick(paintPalette);
+    if (caliperColorInp) caliperColorInp.value = pick(accentPalette);
+    if (wheelColorInp) wheelColorInp.value = pick(wheelPalette);
+    if (trimColorInp) trimColorInp.value = pick(wheelPalette);
+
+    if (finishSel) finishSel.value = pick(finishes);
+    if (clearcoatRange) clearcoatRange.value = range(0.7, 1, 2);
+    if (pearlRange) pearlRange.value = range(0, 0.6, 2);
+    if (pearlThicknessRange) pearlThicknessRange.value = range(180, 620, 0);
+
+    if (wrapPatternSel) wrapPatternSel.value = pick(wrapPatterns);
+    if (wrapStyleSel) wrapStyleSel.value = pick(wrapStyles);
+    if (wrapScaleRange) wrapScaleRange.value = range(0.6, 3, 2);
+    if (wrapRotRange) wrapRotRange.value = range(-45, 45, 0);
+    if (wrapTintRange) wrapTintRange.value = range(0.7, 1, 2);
+
+    if (wheelFinishSel) wheelFinishSel.value = pick(wheelFinishes);
+    if (trimFinishSel) trimFinishSel.value = pick(trimFinishes);
+
+    syncFromInputs();
+    showToast('New look generated.');
+  };
+
+  randomizeLookBtn?.addEventListener('click', randomizeLook);
 
   resetBtn?.addEventListener('click', () => {
     if (modelSel) modelSel.value = '/models/porsche-911-gt3rs.glb';
@@ -2073,12 +2332,15 @@ createAstroMount(ROOT_SELECTOR, () => {
     if (lightColorInp) lightColorInp.value = '#dbeafe';
     if (lightGlowRange) lightGlowRange.value = '1.25';
     if (glassTintRange) glassTintRange.value = '0.15';
+    if (lightPresetSel) lightPresetSel.value = 'studio';
     if (bgSel) bgSel.value = 'studio';
     if (envIntensityRange) envIntensityRange.value = '1';
     if (lightIntensityRange) lightIntensityRange.value = '1';
     if (lightWarmthRange) lightWarmthRange.value = '0';
     if (rimBoostRange) rimBoostRange.value = '1';
     if (rigYawRange) rigYawRange.value = '0';
+    if (rigHeightRange) rigHeightRange.value = '1';
+    if (gridToggle) gridToggle.checked = false;
     if (underglowColorInp) underglowColorInp.value = '#22d3ee';
     if (underglowRange) underglowRange.value = '0';
     if (underglowPulseRange) underglowPulseRange.value = '0';
@@ -2203,6 +2465,8 @@ createAstroMount(ROOT_SELECTOR, () => {
     params.set('lw', ds.carShowroomLightWarmth || '0');
     params.set('rb', ds.carShowroomRimBoost || '1');
     params.set('ry', ds.carShowroomRigYaw || '0');
+    params.set('rgh', ds.carShowroomRigHeight || '1');
+    params.set('grid', ds.carShowroomGrid === 'true' ? '1' : '0');
     params.set('ug', ds.carShowroomUnderglow || '0');
     params.set('ugc', ds.carShowroomUnderglowColor || '#22d3ee');
     params.set('ugs', ds.carShowroomUnderglowSize || '4.5');
@@ -2332,6 +2596,8 @@ createAstroMount(ROOT_SELECTOR, () => {
       params.set('lw', ds.carShowroomLightWarmth || '0');
       params.set('rb', ds.carShowroomRimBoost || '1');
       params.set('ry', ds.carShowroomRigYaw || '0');
+      params.set('rgh', ds.carShowroomRigHeight || '1');
+      params.set('grid', ds.carShowroomGrid === 'true' ? '1' : '0');
       params.set('ug', ds.carShowroomUnderglow || '0');
       params.set('ugc', ds.carShowroomUnderglowColor || '#22d3ee');
       params.set('ugs', ds.carShowroomUnderglowSize || '4.5');

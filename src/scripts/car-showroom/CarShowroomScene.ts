@@ -57,6 +57,7 @@ type UiState = {
   lightWarmth: number;
   rimBoost: number;
   rigYaw: number;
+  rigHeight: number;
   underglow: number;
   underglowColor: THREE.Color;
   underglowSize: number;
@@ -68,6 +69,7 @@ type UiState = {
   floorRoughness: number;
   floorMetalness: number;
   floorOpacity: number;
+  gridEnabled: boolean;
   cameraPreset: CameraPreset;
   cameraMode: 'preset' | 'manual';
   camYawDeg: number;
@@ -1061,6 +1063,7 @@ export class CarShowroomScene {
     const lightWarmth = clamp(parseNumber(ds.carShowroomLightWarmth, 0), 0, 1);
     const rimBoost = clamp(parseNumber(ds.carShowroomRimBoost, 1), 0.5, 2);
     const rigYaw = clamp(parseNumber(ds.carShowroomRigYaw, 0), 0, 360);
+    const rigHeight = clamp(parseNumber(ds.carShowroomRigHeight, 1), 0.6, 1.6);
     const underglow = clamp(parseNumber(ds.carShowroomUnderglow, 0), 0, 5);
     const underglowColor = parseColor(
       ds.carShowroomUnderglowColor || '#22d3ee',
@@ -1101,6 +1104,9 @@ export class CarShowroomScene {
       0.05,
       1
     );
+    const gridEnabled =
+      (ds.carShowroomGrid || '').trim() === 'true' ||
+      (ds.carShowroomGrid || '').trim() === '1';
 
     const cameraPreset = (ds.carShowroomCameraPreset || 'hero') as CameraPreset;
 
@@ -1231,6 +1237,7 @@ export class CarShowroomScene {
       lightWarmth,
       rimBoost,
       rigYaw,
+      rigHeight,
       underglow,
       underglowColor,
       underglowSize,
@@ -1242,6 +1249,7 @@ export class CarShowroomScene {
       floorRoughness,
       floorMetalness,
       floorOpacity,
+      gridEnabled,
       cameraPreset,
       cameraMode,
       camYawDeg,
@@ -1285,9 +1293,12 @@ export class CarShowroomScene {
     this.rimLight.color.copy(this.baseRimColor).lerp(tint, 0.45);
   }
 
-  private applyRigPositions(driftX: number, driftZ: number) {
+  private applyRigPositions(driftX: number, driftZ: number, rigHeight: number) {
+    const height = clamp(rigHeight, 0.6, 1.6);
+
     this.rigTmp
       .copy(this.keyLightBase)
+      .setY(this.keyLightBase.y * height)
       .applyAxisAngle(this.rigAxis, this.rigYaw);
     this.keyLight.position.set(
       this.rigTmp.x + driftX,
@@ -1297,13 +1308,17 @@ export class CarShowroomScene {
 
     this.rigTmp
       .copy(this.fillLightBase)
+      .setY(this.fillLightBase.y * height)
       .applyAxisAngle(this.rigAxis, this.rigYaw);
     this.fillLight.position.copy(this.rigTmp);
 
     this.rigTmp
       .copy(this.rimLightBase)
+      .setY(this.rimLightBase.y * height)
       .applyAxisAngle(this.rigAxis, this.rigYaw);
     this.rimLight.position.copy(this.rigTmp);
+
+    this.topLight.position.set(0, 14 * height, 0);
   }
 
   private applyUnderglow(ui: UiState) {
@@ -1728,8 +1743,6 @@ export class CarShowroomScene {
   }
 
   private setBackground(scene: THREE.Scene, bg: ShowroomBackground) {
-    this.gridHelper.visible = bg === 'grid';
-
     switch (bg) {
       case 'day':
         scene.background = new THREE.Color('#071223');
@@ -2040,6 +2053,7 @@ export class CarShowroomScene {
 
     // Background
     this.setBackground(scene, ui.background);
+    this.gridHelper.visible = ui.gridEnabled || ui.background === 'grid';
 
     // Lights/env/floor
     this.applyLightMultiplier(ui.lightIntensity, ui.rimBoost);
@@ -2161,7 +2175,7 @@ export class CarShowroomScene {
     const drift = 0.18;
     const driftX = Math.sin(this.time * 0.35) * drift;
     const driftZ = Math.cos(this.time * 0.31) * drift;
-    this.applyRigPositions(driftX, driftZ);
+    this.applyRigPositions(driftX, driftZ, ui.rigHeight);
 
     if (this.underglowBaseIntensity > 0) {
       const pulse =
