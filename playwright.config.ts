@@ -1,4 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
+import { createDeploymentConfig } from './config/deployment.js';
+
+// Ensure Playwright uses the site's configured base path so tests work
+// both for repos served at root and for GitHub Pages-style repo bases.
+const { basePath } = createDeploymentConfig();
 
 /**
  * Playwright configuration for E2E tests
@@ -18,42 +23,7 @@ export default defineConfig({
     ? [['html'], ['list'], ['github']]
     : [['html'], ['list']],
   use: {
-    // NOTE: Do not use BASE_URL here.
-    // This repo's deployment config treats BASE_URL as a *base path* hint,
-    // so setting it to a full URL would break Astro's `base`.
-    baseURL: (() => {
-      const normalizeBasePath = (value: string) => {
-        const trimmed = String(value || '').trim();
-        if (!trimmed || trimmed === '/') return '/';
-        const noSlashes = trimmed.replace(/^\/+/, '').replace(/\/+$/g, '');
-        return `/${noSlashes}/`;
-      };
-
-      const basePath = normalizeBasePath(
-        process.env.E2E_BASE_PATH ?? '/dontforgetyourtowel/'
-      );
-      const fallback = `http://localhost:4321${basePath === '/' ? '/' : basePath}`;
-
-      const override = process.env.PLAYWRIGHT_BASE_URL;
-      if (!override) return fallback;
-
-      // Some runners set PLAYWRIGHT_BASE_URL to a host-only URL (e.g. http://localhost:4321).
-      // If Astro is configured with a non-root basePath, that would cause tests to hit / and get 404.
-      // Auto-append basePath only when the override URL is rooted at '/'.
-      try {
-        const url = new URL(override);
-        const pathname =
-          url.pathname && url.pathname !== '/' ? url.pathname : '/';
-        if (pathname === '/' && basePath !== '/') {
-          url.pathname = basePath;
-        } else if (!url.pathname.endsWith('/')) {
-          url.pathname = `${url.pathname}/`;
-        }
-        return url.toString();
-      } catch {
-        return override;
-      }
-    })(),
+    baseURL: `http://localhost:4321${basePath}`,
     // `reducedMotion` is a browser context option; keep it nested so TS stays happy
     // across Playwright type versions.
     contextOptions: {
@@ -104,38 +74,8 @@ export default defineConfig({
       ],
 
   webServer: {
-    // Build + preview the static output so E2E is deterministic.
-    command: 'npm run build && npm run preview -- --host 127.0.0.1 --port 4321',
-    url: (() => {
-      const normalizeBasePath = (value: string) => {
-        const trimmed = String(value || '').trim();
-        if (!trimmed || trimmed === '/') return '/';
-        const noSlashes = trimmed.replace(/^\/+/, '').replace(/\/+$/g, '');
-        return `/${noSlashes}/`;
-      };
-
-      const basePath = normalizeBasePath(
-        process.env.E2E_BASE_PATH ?? '/dontforgetyourtowel/'
-      );
-      const fallback = `http://localhost:4321${basePath === '/' ? '/' : basePath}`;
-
-      const override = process.env.PLAYWRIGHT_BASE_URL;
-      if (!override) return fallback;
-
-      try {
-        const url = new URL(override);
-        const pathname =
-          url.pathname && url.pathname !== '/' ? url.pathname : '/';
-        if (pathname === '/' && basePath !== '/') {
-          url.pathname = basePath;
-        } else if (!url.pathname.endsWith('/')) {
-          url.pathname = `${url.pathname}/`;
-        }
-        return url.toString();
-      } catch {
-        return override;
-      }
-    })(),
+    command: 'npm run dev',
+    port: 4321,
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
   },

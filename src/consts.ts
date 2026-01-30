@@ -7,8 +7,13 @@ import { createDeploymentConfig } from '../config/deployment.js';
  * Site Configuration Constants
  * Central location for all site-wide configuration values
  */
-const DEPLOYMENT = createDeploymentConfig(import.meta.env);
-const analyticsFlag = import.meta.env.PUBLIC_ENABLE_ANALYTICS;
+const DEPLOYMENT = createDeploymentConfig(
+  import.meta.env as unknown as Record<string, string>
+);
+const analyticsFlag =
+  typeof import.meta.env !== 'undefined'
+    ? import.meta.env.PUBLIC_ENABLE_ANALYTICS
+    : process.env.PUBLIC_ENABLE_ANALYTICS;
 const analyticsEnabled =
   analyticsFlag === 'true' || analyticsFlag === '1' || analyticsFlag === true;
 

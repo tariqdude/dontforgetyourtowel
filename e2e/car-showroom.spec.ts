@@ -6,8 +6,10 @@ test.describe('Car Showroom', () => {
     const consoleWarnings: string[] = [];
 
     page.on('console', msg => {
+      const text = msg.text();
       if (msg.type() === 'error') {
-        const text = msg.text();
+        // Also print errors immediately to aid debugging in CI logs.
+        console.error('[PAGE][console][error]', text);
         // Ignore 404s for optional 3D model files - these are expected to be missing in test environments
         // Also ignore generic "Failed to load resource" 404s which can be from optional assets
         const isOptional404 =
@@ -16,7 +18,10 @@ test.describe('Car Showroom', () => {
           consoleErrors.push(text);
         }
       }
-      if (msg.type() === 'warning') consoleWarnings.push(msg.text());
+      if (msg.type() === 'warning') {
+        console.warn('[PAGE][console][warning]', text);
+        consoleWarnings.push(text);
+      }
     });
 
     await page.goto('./car-showroom/', { waitUntil: 'domcontentloaded' });
