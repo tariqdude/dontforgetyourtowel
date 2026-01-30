@@ -196,6 +196,8 @@ createAstroMount(ROOT_SELECTOR, () => {
   };
 
   const panel = root.querySelector<HTMLElement>('[data-csr-panel]');
+  const panelHead =
+    panel?.querySelector<HTMLElement>('.csr-panel-head') || null;
   const sheetHandle = root.querySelector<HTMLButtonElement>(
     '[data-csr-sheet-handle]'
   );
@@ -1367,46 +1369,64 @@ createAstroMount(ROOT_SELECTOR, () => {
     once: true,
   });
 
-  let panelCollapsed = false;
+  type PanelSnap = 'collapsed' | 'peek' | 'half' | 'full';
+  const snapOrder: PanelSnap[] = ['collapsed', 'peek', 'half', 'full'];
+  let panelSnap: PanelSnap = 'peek';
 
-  const PANEL_HEIGHT_STORAGE_KEY = 'csr-panel-height-v3';
-  const PANEL_COLLAPSE_STORAGE_KEY = 'csr-panel-collapsed-v3';
+  const PANEL_SNAP_STORAGE_KEY = 'csr-panel-snap-v1';
 
   const isMobilePanel = () => window.matchMedia('(max-width: 980px)').matches;
 
-  const getPanelHeightLimits = () => {
+  const getSnapHeights = () => {
     const vv =
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).visualViewport?.height || window.innerHeight;
+    const collapsed = 64;
+    const peek = Math.round(vv * 0.4);
+    const half = Math.round(vv * 0.7);
+    const full = Math.round(vv * 0.9);
+    const clampHeight = (v: number) =>
+      Math.max(collapsed, Math.min(full, Math.round(v)));
+    const peekH = clampHeight(peek);
+    const halfH = clampHeight(Math.max(peekH + 40, half));
+    const fullH = clampHeight(Math.max(halfH + 40, full));
     return {
-      min: 180,
-      max: Math.max(280, Math.floor(vv * 0.75)),
+      collapsed,
+      peek: peekH,
+      half: halfH,
+      full: fullH,
     };
   };
 
-  const applyPanelHeight = (px: number, persist: boolean) => {
-    if (!panel || !isMobilePanel()) return;
-    const { min, max } = getPanelHeightLimits();
-    const clamped = clamp(Math.floor(px), min, max);
-    panel.style.setProperty('--csr-panel-height', `${clamped}px`);
-    if (persist) {
-      try {
-        localStorage.setItem(PANEL_HEIGHT_STORAGE_KEY, String(clamped));
-      } catch {
-        // ignore
+  const getNearestSnap = (
+    height: number,
+    heights: Record<PanelSnap, number>
+  ) => {
+    let best = snapOrder[0];
+    let bestDist = Number.POSITIVE_INFINITY;
+    for (const snap of snapOrder) {
+      const dist = Math.abs(height - heights[snap]);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = snap;
       }
     }
+    return best;
   };
 
-  const setPanelCollapsed = (collapsed: boolean, persist: boolean) => {
+  const setPanelSnap = (snap: PanelSnap, persist: boolean) => {
     if (!panel) return;
-    panelCollapsed = collapsed;
-    root.dataset.carShowroomPanelCollapsed = collapsed ? 'true' : 'false';
+    panelSnap = snap;
+    root.dataset.carShowroomPanelSnap = snap;
+    const collapsed = snap === 'collapsed';
     togglePanelBtn?.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
 
     if (isMobilePanel()) {
+      const heights = getSnapHeights();
+      const height = heights[snap];
       panel.hidden = false;
       panel.classList.toggle('is-collapsed', collapsed);
+      panel.style.setProperty('--csr-panel-height', `${height}px`);
       root.classList.remove('is-panel-collapsed');
     } else {
       panel.classList.remove('is-collapsed');
@@ -1417,7 +1437,7 @@ createAstroMount(ROOT_SELECTOR, () => {
 
     if (persist) {
       try {
-        localStorage.setItem(PANEL_COLLAPSE_STORAGE_KEY, collapsed ? '1' : '0');
+        localStorage.setItem(PANEL_SNAP_STORAGE_KEY, snap);
       } catch {
         // ignore
       }
@@ -1426,80 +1446,142 @@ createAstroMount(ROOT_SELECTOR, () => {
 
   const initPanelState = () => {
     if (!panel) return;
-    let savedHeight: number | null = null;
-    let savedCollapsed = false;
+    let savedSnap: PanelSnap | null = null;
     try {
-      const h = localStorage.getItem(PANEL_HEIGHT_STORAGE_KEY);
-      if (h) {
-        const n = Number.parseFloat(h);
-        if (Number.isFinite(n)) savedHeight = n;
+      const raw = (localStorage.getItem(PANEL_SNAP_STORAGE_KEY) || '').trim();
+      if (snapOrder.includes(raw as PanelSnap)) {
+        savedSnap = raw as PanelSnap;
       }
-      const c = localStorage.getItem(PANEL_COLLAPSE_STORAGE_KEY);
-      if (c === '1') savedCollapsed = true;
     } catch {
       // ignore
     }
-
-    if (isMobilePanel()) {
-      if (savedHeight != null) applyPanelHeight(savedHeight, false);
-    }
-    setPanelCollapsed(savedCollapsed, false);
+    const initialSnap = savedSnap ?? (isMobilePanel() ? 'peek' : 'peek');
+    setPanelSnap(initialSnap, false);
   };
 
-  const startPanelDrag = (startY: number) => {
+  let dragActive = false;
+  let dragStartY = 0;
+  let dragStartHeight = 0;
+  let dragStartTime = 0;
+  let lastDragY = 0;
+  let lastDragTime = 0;
+
+  const beginDrag = (clientY: number) => {
     if (!panel || !isMobilePanel()) return;
-    if (panelCollapsed) setPanelCollapsed(false, true);
-    const startHeight = panel.getBoundingClientRect().height;
+    dragActive = true;
+    panel.classList.add('is-dragging');
+    dragStartY = clientY;
+    dragStartHeight = panel.getBoundingClientRect().height;
+    dragStartTime = performance.now();
+    lastDragY = clientY;
+    lastDragTime = dragStartTime;
+  };
 
-    const onMove = (e: PointerEvent) => {
-      const dy = e.clientY - startY;
-      applyPanelHeight(startHeight - dy, false);
-    };
+  const onDragMove = (e: PointerEvent) => {
+    if (!dragActive || !panel || !isMobilePanel()) return;
+    e.preventDefault();
+    const heights = getSnapHeights();
+    const dy = e.clientY - dragStartY;
+    const nextHeight = clamp(
+      dragStartHeight - dy,
+      heights.collapsed,
+      heights.full
+    );
+    panel.style.setProperty(
+      '--csr-panel-height',
+      `${Math.round(nextHeight)}px`
+    );
+    panel.classList.toggle('is-collapsed', nextHeight <= heights.collapsed + 4);
+    lastDragY = e.clientY;
+    lastDragTime = performance.now();
+  };
 
-    const onUp = (e: PointerEvent) => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      const rectNow = panel.getBoundingClientRect();
-      applyPanelHeight(rectNow.height, true);
+  const onDragEnd = (e: PointerEvent) => {
+    if (!dragActive || !panel) return;
+    dragActive = false;
+    panel.classList.remove('is-dragging');
+    const heights = getSnapHeights();
+    const rectNow = panel.getBoundingClientRect();
+    const height = rectNow.height;
+    const dt = Math.max(1, lastDragTime - dragStartTime);
+    const velocity = ((lastDragY - dragStartY) / dt) * 1000;
+    const nearest = getNearestSnap(height, heights);
+    const idx = snapOrder.indexOf(nearest);
+    const velocityThreshold = 700;
+    let nextSnap = nearest;
+    if (Math.abs(velocity) > velocityThreshold) {
+      if (velocity > 0) {
+        nextSnap = snapOrder[Math.max(0, idx - 1)];
+      } else {
+        nextSnap = snapOrder[Math.min(snapOrder.length - 1, idx + 1)];
+      }
+    }
+    setPanelSnap(nextSnap, true);
+    try {
+      sheetHandle?.releasePointerCapture?.(e.pointerId);
+      panelHead?.releasePointerCapture?.(e.pointerId);
+    } catch {
+      // ignore
+    }
+  };
+
+  const canStartDrag = (target: EventTarget | null) => {
+    const el = target as HTMLElement | null;
+    if (!el) return true;
+    return !el.closest(
+      'button, input, select, textarea, a, [data-csr-no-drag]'
+    );
+  };
+
+  const attachDragHandle = (el: HTMLElement | null) => {
+    el?.addEventListener('pointerdown', e => {
+      if (!isMobilePanel()) return;
+      if (!canStartDrag(e.target)) return;
+      e.preventDefault();
       try {
-        sheetHandle?.releasePointerCapture?.(e.pointerId);
+        el.setPointerCapture(e.pointerId);
       } catch {
         // ignore
       }
-    };
-
-    window.addEventListener('pointermove', onMove, { passive: true });
-    window.addEventListener('pointerup', onUp, { passive: true, once: true });
+      beginDrag(e.clientY);
+      window.addEventListener('pointermove', onDragMove, { passive: false });
+      window.addEventListener('pointerup', onDragEnd, {
+        passive: true,
+        once: true,
+      });
+    });
   };
 
-  sheetHandle?.addEventListener('pointerdown', e => {
-    if (!isMobilePanel()) return;
-    try {
-      sheetHandle.setPointerCapture(e.pointerId);
-    } catch {
-      // ignore
-    }
-    startPanelDrag(e.clientY);
-  });
+  attachDragHandle(sheetHandle);
+  attachDragHandle(panelHead);
 
   togglePanelBtn?.addEventListener('click', () => {
     if (isMobilePanel()) {
-      setPanelCollapsed(!panelCollapsed, true);
+      setPanelSnap(panelSnap === 'collapsed' ? 'peek' : 'collapsed', true);
       return;
     }
-    if (panelCollapsed) {
-      setPanelCollapsed(false, true);
+    if (panelSnap === 'collapsed') {
+      setPanelSnap('peek', true);
     }
     panel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 
   closePanelBtn?.addEventListener('click', () => {
     if (isMobilePanel()) {
-      setPanelCollapsed(true, true);
+      setPanelSnap('collapsed', true);
       return;
     }
-    setPanelCollapsed(true, true);
+    setPanelSnap('collapsed', true);
     canvas.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  quickPanelBtn?.addEventListener('click', () => {
+    if (isMobilePanel()) {
+      setPanelSnap('half', true);
+      return;
+    }
+    setPanelSnap('peek', true);
+    panel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 
   window.addEventListener('resize', () => {
