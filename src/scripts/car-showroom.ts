@@ -3392,11 +3392,6 @@ createAstroMount(ROOT_SELECTOR, () => {
   let renderer: THREE.WebGLRenderer | null = null;
   let composer: EffectComposer | null = null;
   let showroom: CarShowroomScene | null = null;
-  let bloom: UnrealBloomPass | null = null;
-  let fxaa: ShaderPass | null = null;
-  let output: OutputPass | null = null;
-  let renderPass: RenderPass | null = null;
-  let scene: THREE.Scene | null = null;
   const size = { width: 1, height: 1, dpr: 1 };
   let qualityDprCap = caps.maxDpr;
   let onResize: (() => void) | null = null;
@@ -3429,7 +3424,6 @@ createAstroMount(ROOT_SELECTOR, () => {
     rendererInstance.toneMappingExposure = 1.0;
 
     const sceneInstance = new THREE.Scene();
-    scene = sceneInstance;
 
     const showroomInstance = new CarShowroomScene(root, rendererInstance);
     showroom = showroomInstance;
@@ -3456,7 +3450,6 @@ createAstroMount(ROOT_SELECTOR, () => {
       sceneInstance,
       showroomInstance.camera
     );
-    renderPass = renderPassInstance;
     composerInstance.addPass(renderPassInstance);
 
     const bloomInstance = new UnrealBloomPass(
@@ -3465,16 +3458,13 @@ createAstroMount(ROOT_SELECTOR, () => {
       0.35,
       0.88
     );
-    bloom = bloomInstance;
     bloomInstance.enabled = false;
     composerInstance.addPass(bloomInstance);
 
     const fxaaInstance = new ShaderPass(FXAAShader);
-    fxaa = fxaaInstance;
     composerInstance.addPass(fxaaInstance);
 
     const outputInstance = new OutputPass();
-    output = outputInstance;
     composerInstance.addPass(outputInstance);
 
     let lastUiRevision = '';

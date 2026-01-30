@@ -7,10 +7,6 @@ export interface GyroscopeCallbacks {
   onRotate: (yaw: number, pitch: number) => void;
 }
 
-interface DeviceOrientationEventiOS extends DeviceOrientationEvent {
-  requestPermission?: () => Promise<'granted' | 'denied'>;
-}
-
 export class GyroscopeHandler {
   private callbacks: GyroscopeCallbacks;
   private isActive = false;
@@ -110,9 +106,6 @@ export class GyroscopeHandler {
     this.smoothedGamma = this.lerp(this.smoothedGamma, gamma, this.smoothing);
 
     // Calculate relative rotation from base position
-    const _deltaAlpha = this.normalizeAngle(
-      this.smoothedAlpha - this.baseAlpha
-    );
     const deltaBeta = this.smoothedBeta - this.baseBeta;
     const deltaGamma = this.smoothedGamma - this.baseGamma;
 
