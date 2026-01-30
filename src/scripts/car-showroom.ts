@@ -214,7 +214,16 @@ createAstroMount(ROOT_SELECTOR, () => {
 
   const hideTutorial = () => {
     if (!tutorialEl) return;
-    tutorialEl.hidden = true;
+
+    // Add closing animation
+    tutorialEl.classList.add('is-closing');
+
+    // Wait for animation to complete before hiding
+    setTimeout(() => {
+      tutorialEl.hidden = true;
+      tutorialEl.classList.remove('is-closing');
+    }, 300);
+
     try {
       localStorage.setItem(TUTORIAL_STORAGE_KEY, '1');
     } catch {
@@ -226,6 +235,119 @@ createAstroMount(ROOT_SELECTOR, () => {
 
   // Auto-show on first mobile visit
   showTutorial();
+
+  // --- Floating Action Button (Mobile) ---
+  const fabEl = root.querySelector<HTMLElement>('[data-csr-fab]');
+  const fabTrigger = root.querySelector<HTMLButtonElement>(
+    '[data-csr-fab-trigger]'
+  );
+  const fabMenu = root.querySelector<HTMLElement>('[data-csr-fab-menu]');
+  const fabScreenshot = root.querySelector<HTMLButtonElement>(
+    '[data-csr-fab-screenshot]'
+  );
+  const fabShare = root.querySelector<HTMLButtonElement>(
+    '[data-csr-fab-share]'
+  );
+  const fabFrame = root.querySelector<HTMLButtonElement>(
+    '[data-csr-fab-frame]'
+  );
+  const fabReset = root.querySelector<HTMLButtonElement>(
+    '[data-csr-fab-reset]'
+  );
+
+  let fabOpen = false;
+
+  const toggleFAB = () => {
+    fabOpen = !fabOpen;
+    if (fabMenu && fabTrigger) {
+      fabMenu.hidden = !fabOpen;
+      fabTrigger.setAttribute('aria-expanded', String(fabOpen));
+    }
+  };
+
+  const closeFAB = () => {
+    fabOpen = false;
+    if (fabMenu && fabTrigger) {
+      fabMenu.hidden = true;
+      fabTrigger.setAttribute('aria-expanded', 'false');
+    }
+  };
+
+  // Show FAB on mobile
+  const isMobileDevice = () => {
+    return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  };
+
+  if (fabEl && isMobileDevice()) {
+    fabEl.hidden = false;
+  }
+
+  fabTrigger?.addEventListener('click', toggleFAB);
+
+  // Close FAB when clicking outside
+  document.addEventListener('click', e => {
+    if (fabOpen && !fabEl?.contains(e.target as Node)) {
+      closeFAB();
+    }
+  });
+
+  // --- Orientation Change Handler ---
+  let currentOrientation = window.matchMedia('(orientation: landscape)').matches
+    ? 'landscape'
+    : 'portrait';
+
+  const handleOrientationChange = () => {
+    const isLandscape = window.matchMedia('(orientation: landscape)').matches;
+    const newOrientation = isLandscape ? 'landscape' : 'portrait';
+
+    if (newOrientation !== currentOrientation && isMobileDevice()) {
+      currentOrientation = newOrientation;
+
+      // Close FAB on orientation change
+      closeFAB();
+
+      // Show toast
+      const message =
+        newOrientation === 'landscape'
+          ? 'Landscape mode: Panel moved to side'
+          : 'Portrait mode restored';
+      showToast(message);
+
+      // Optional: Trigger a resize to ensure proper layout
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 100);
+    }
+  };
+
+  window
+    .matchMedia('(orientation: landscape)')
+    .addEventListener('change', handleOrientationChange);
+
+  // --- Quality Badge ---
+  const qualityBadge = root.querySelector<HTMLElement>(
+    '[data-csr-quality-badge]'
+  );
+  const qualityFps = root.querySelector<HTMLElement>('[data-csr-quality-fps]');
+
+  if (qualityBadge && isMobileDevice()) {
+    qualityBadge.hidden = false;
+  }
+
+  const updateQualityBadge = (fps: number, quality: string) => {
+    if (!qualityFps || !qualityBadge) return;
+
+    qualityFps.textContent = Math.round(fps).toString();
+
+    // Update FPS level for color coding
+    if (fps >= 50) {
+      qualityBadge.dataset.fpsLevel = 'high';
+    } else if (fps >= 35) {
+      qualityBadge.dataset.fpsLevel = 'medium';
+    } else {
+      qualityBadge.dataset.fpsLevel = 'low';
+    }
+  };
 
   // --- UI wiring (dataset-driven)
   const bumpRevision = () => {
@@ -2352,6 +2474,35 @@ createAstroMount(ROOT_SELECTOR, () => {
     resetViewBtn?.click();
   });
 
+  // FAB action handlers
+  fabScreenshot?.addEventListener('click', async () => {
+    closeFAB();
+
+    // Small delay for FAB to close
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Trigger screenshot
+    downloadScreenshot();
+
+    // Optionally trigger native share with screenshot
+    // (Implementation in downloadScreenshot function below)
+  });
+
+  fabShare?.addEventListener('click', () => {
+    closeFAB();
+    copyLinkBtn?.click();
+  });
+
+  fabFrame?.addEventListener('click', () => {
+    closeFAB();
+    frameBtn?.click();
+  });
+
+  fabReset?.addEventListener('click', () => {
+    closeFAB();
+    resetViewBtn?.click();
+  });
+
   quickSpinChk?.addEventListener('change', () => {
     if (autoRotateChk) autoRotateChk.checked = quickSpinChk.checked;
     syncFromInputs();
@@ -3292,12 +3443,53 @@ createAstroMount(ROOT_SELECTOR, () => {
 
         composerInstance.render();
 
-        canvas.toBlob(blob => {
+        canvas.toBlob(async blob => {
           if (!blob) {
             showToast('Screenshot failed (no image data).');
             return;
           }
 
+          // Try native share on mobile (with screenshot)
+          if (isMobileDevice() && navigator.share && navigator.canShare) {
+            try {
+              const file = new File([blob], 'car-showroom.png', {
+                type: 'image/png',
+              });
+
+              const shareData = {
+                title: 'My 3D Car Configuration',
+                text: 'Check out my custom car design!',
+                files: [file],
+              };
+
+              if (navigator.canShare(shareData)) {
+                await navigator.share(shareData);
+                showToast('Shared successfully!');
+
+                // Restore view sizing
+                sceneInstance.background = prevBg;
+                rendererInstance.setPixelRatio(prevDpr);
+                rendererInstance.setSize(size.width, size.height, false);
+                composerInstance.setPixelRatio(prevDpr);
+                composerInstance.setSize(size.width, size.height);
+                showroomInstance.resize(size.width, size.height);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (fxaaInstance.material.uniforms as any)['resolution'].value.set(
+                  1 / (size.width * prevDpr),
+                  1 / (size.height * prevDpr)
+                );
+                bloomInstance.setSize(size.width, size.height);
+                return;
+              }
+            } catch (err) {
+              // User cancelled or share failed, fall through to download
+              if ((err as Error).name !== 'AbortError') {
+                console.warn('Share failed:', err);
+              }
+            }
+          }
+
+          // Fallback to download
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
@@ -3619,6 +3811,11 @@ createAstroMount(ROOT_SELECTOR, () => {
       fpsTimer += dtRaw;
       if (fpsTimer > 0.5) {
         root.dataset.carShowroomFps = Math.round(fpsSmoothed).toString();
+
+        // Update quality badge on mobile
+        const currentQuality = root.dataset.carShowroomQuality || 'balanced';
+        updateQualityBadge(fpsSmoothed, currentQuality);
+
         fpsTimer = 0;
       }
 

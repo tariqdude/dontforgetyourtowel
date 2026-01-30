@@ -106,6 +106,121 @@ const description =
       <div class="csr-status__error" data-csr-error hidden></div>
     </div>
 
+    <!-- Quality Indicator (Mobile Only) -->
+    <div class="csr-quality-badge" data-csr-quality-badge hidden>
+      <span class="csr-quality-badge__fps" data-csr-quality-fps>--</span>
+      <span class="csr-quality-badge__label" data-csr-quality-label>FPS</span>
+    </div>
+
+    <!-- Floating Action Button (Mobile Only) -->
+    <div class="csr-fab" data-csr-fab hidden>
+      <button
+        type="button"
+        class="csr-fab__trigger"
+        data-csr-fab-trigger
+        aria-label="Quick actions"
+        aria-expanded="false"
+      >
+        <svg
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <circle cx="12" cy="12" r="1"></circle>
+          <circle cx="12" cy="5" r="1"></circle>
+          <circle cx="12" cy="19" r="1"></circle>
+        </svg>
+      </button>
+      <div class="csr-fab__menu" data-csr-fab-menu hidden>
+        <button
+          type="button"
+          class="csr-fab__action"
+          data-csr-fab-screenshot
+          title="Screenshot"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
+            ></path>
+            <circle cx="12" cy="13" r="4"></circle>
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="csr-fab__action"
+          data-csr-fab-share
+          title="Share"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="18" cy="5" r="3"></circle>
+            <circle cx="6" cy="12" r="3"></circle>
+            <circle cx="18" cy="19" r="3"></circle>
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="csr-fab__action"
+          data-csr-fab-frame
+          title="Frame view"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+            <line x1="7" y1="2" x2="7" y2="22"></line>
+            <line x1="17" y1="2" x2="17" y2="22"></line>
+            <line x1="2" y1="12" x2="22" y2="12"></line>
+            <line x1="2" y1="7" x2="7" y2="7"></line>
+            <line x1="2" y1="17" x2="7" y2="17"></line>
+            <line x1="17" y1="17" x2="22" y2="17"></line>
+            <line x1="17" y1="7" x2="22" y2="7"></line>
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="csr-fab__action"
+          data-csr-fab-reset
+          title="Reset view"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+
     <div class="car-showroom__hud" aria-label="Car showroom controls">
       <div class="car-showroom__hud-top">
         <div class="car-showroom__title">
