@@ -4,9 +4,10 @@
   padding: 16px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 460px);
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto 1fr;
   grid-template-areas:
     'viewer header'
+    'viewer quickbar'
     'viewer panel';
   gap: 16px;
   background:
@@ -26,9 +27,10 @@
 
 .car-showroom.is-panel-collapsed {
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto 1fr;
   grid-template-areas:
     'header'
+    'quickbar'
     'viewer';
 }
 
@@ -63,6 +65,77 @@
   gap: 14px;
   align-items: flex-start;
   flex-wrap: wrap;
+}
+
+.car-showroom__quickbar {
+  grid-area: quickbar;
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(16px);
+}
+
+.csr-quick-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.csr-quick-row--controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.csr-chip {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.92);
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.csr-chip--ghost {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.csr-quick-toggle,
+.csr-quick-range,
+.csr-quick-select {
+  display: grid;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+}
+
+.csr-quick-toggle span,
+.csr-quick-range span,
+.csr-quick-select span {
+  color: rgba(255, 255, 255, 0.65);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
+}
+
+.csr-quick-toggle input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: rgb(34, 211, 238);
+}
+
+.csr-quick-range input[type='range'],
+.csr-quick-select select {
+  width: 100%;
+  min-height: 40px;
 }
 
 .car-showroom__title {
@@ -241,6 +314,29 @@
 
 .csr-sheet-handle {
   display: none;
+}
+
+.csr-tab-select {
+  display: none;
+  gap: 6px;
+  margin-bottom: 8px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+}
+
+.csr-tab-select span {
+  color: rgba(255, 255, 255, 0.65);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
+}
+
+.csr-tab-select select {
+  width: 100%;
+  min-height: 40px;
 }
 
 .csr-filter-input {
@@ -549,9 +645,10 @@
 @media (max-width: 980px) {
   .car-showroom {
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto;
+    grid-template-rows: auto auto auto auto;
     grid-template-areas:
       'header'
+      'quickbar'
       'viewer'
       'panel';
     height: auto;
@@ -604,11 +701,27 @@
     overflow: visible;
     padding-right: 0;
   }
+
+  .car-showroom__quickbar {
+    display: flex;
+  }
 }
 
 @media (max-width: 760px) {
   .csr-grid {
     grid-template-columns: 1fr;
+  }
+
+  .csr-tabs {
+    display: none;
+  }
+
+  .csr-tab-select {
+    display: grid;
+  }
+
+  .csr-quick-row--controls {
+    grid-template-columns: 1fr 1fr;
   }
 
   .csr-field {
@@ -696,6 +809,11 @@
 
   .csr-btn {
     min-height: 44px;
+  }
+
+  .csr-chip {
+    min-height: 40px;
+    flex: 1 1 auto;
   }
 
   .csr-hint {

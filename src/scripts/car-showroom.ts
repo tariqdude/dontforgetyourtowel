@@ -211,6 +211,27 @@ createAstroMount(ROOT_SELECTOR, () => {
   const togglePanelBtn = root.querySelector<HTMLButtonElement>(
     '[data-csr-toggle-panel]'
   );
+  const quickPanelBtn = root.querySelector<HTMLButtonElement>(
+    '[data-csr-quick-panel]'
+  );
+  const quickFrameBtn = root.querySelector<HTMLButtonElement>(
+    '[data-csr-quick-frame]'
+  );
+  const quickResetBtn = root.querySelector<HTMLButtonElement>(
+    '[data-csr-quick-reset]'
+  );
+  const quickSpinChk = root.querySelector<HTMLInputElement>(
+    '[data-csr-quick-spin]'
+  );
+  const quickZoomRange = root.querySelector<HTMLInputElement>(
+    '[data-csr-quick-zoom]'
+  );
+  const quickStyleSel = root.querySelector<HTMLSelectElement>(
+    '[data-csr-quick-style]'
+  );
+  const quickLightSel = root.querySelector<HTMLSelectElement>(
+    '[data-csr-quick-light]'
+  );
   const closePanelBtn = root.querySelector<HTMLButtonElement>(
     '[data-csr-close-panel]'
   );
@@ -493,6 +514,9 @@ createAstroMount(ROOT_SELECTOR, () => {
   const tabPanels = Array.from(
     root.querySelectorAll<HTMLElement>('[data-csr-tab-panel]')
   );
+  const tabSelect = root.querySelector<HTMLSelectElement>(
+    '[data-csr-tab-select]'
+  );
 
   const getTabId = (el: Element) =>
     (el.getAttribute('data-csr-tab-btn') || '').trim();
@@ -514,6 +538,10 @@ createAstroMount(ROOT_SELECTOR, () => {
     for (const panelEl of tabPanels) {
       const id = getPanelId(panelEl);
       panelEl.hidden = id !== tabId;
+    }
+
+    if (tabSelect && tabSelect.value !== tabId) {
+      tabSelect.value = tabId;
     }
 
     if (matched) {
@@ -561,6 +589,11 @@ createAstroMount(ROOT_SELECTOR, () => {
         setActiveTab(getTabId(nextBtn));
       });
     }
+
+    tabSelect?.addEventListener('change', () => {
+      const next = (tabSelect.value || '').trim();
+      setActiveTab(next);
+    });
   };
 
   let currentObjectUrl: string | null = null;
@@ -1686,6 +1719,14 @@ createAstroMount(ROOT_SELECTOR, () => {
     motionRange.value = root.dataset.carShowroomMotionRange;
   if (zoomRange && root.dataset.carShowroomZoom)
     zoomRange.value = root.dataset.carShowroomZoom;
+  if (quickSpinChk && root.dataset.carShowroomAutoRotate)
+    quickSpinChk.checked = root.dataset.carShowroomAutoRotate !== 'false';
+  if (quickZoomRange && root.dataset.carShowroomZoom)
+    quickZoomRange.value = root.dataset.carShowroomZoom;
+  if (quickLightSel && root.dataset.carShowroomLightPreset)
+    quickLightSel.value = root.dataset.carShowroomLightPreset;
+  if (quickStyleSel && stylePresetSel)
+    quickStyleSel.value = stylePresetSel.value || '';
 
   renderPresetOptions();
 

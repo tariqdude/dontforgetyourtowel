@@ -84,6 +84,66 @@ const description =
         </div>
       </div>
 
+      <div class="car-showroom__quickbar" data-csr-quickbar>
+        <div class="csr-quick-row">
+          <button type="button" class="csr-chip" data-csr-quick-panel>
+            Options
+          </button>
+          <button
+            type="button"
+            class="csr-chip csr-chip--ghost"
+            data-csr-quick-frame
+          >
+            Frame
+          </button>
+          <button
+            type="button"
+            class="csr-chip csr-chip--ghost"
+            data-csr-quick-reset
+          >
+            Reset View
+          </button>
+        </div>
+        <div class="csr-quick-row csr-quick-row--controls">
+          <label class="csr-quick-toggle">
+            <span>Spin</span>
+            <input type="checkbox" data-csr-quick-spin />
+          </label>
+          <label class="csr-quick-range">
+            <span>Zoom</span>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value="0.8"
+              data-csr-quick-zoom
+            />
+          </label>
+          <label class="csr-quick-select">
+            <span>Style</span>
+            <select data-csr-quick-style>
+              <option value="">Style preset</option>
+              <option value="stealth">Stealth</option>
+              <option value="track">Track</option>
+              <option value="lux">Luxury</option>
+              <option value="neo">Neo</option>
+              <option value="classic">Classic</option>
+            </select>
+          </label>
+          <label class="csr-quick-select">
+            <span>Light</span>
+            <select data-csr-quick-light>
+              <option value="studio">Studio</option>
+              <option value="golden">Golden</option>
+              <option value="neon">Neon</option>
+              <option value="ice">Ice</option>
+              <option value="noir">Noir</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
       <div
         id="csr-panel"
         class="car-showroom__panel"
@@ -179,6 +239,18 @@ const description =
             data-csr-sheet-handle
             aria-label="Resize options panel"
             title="Drag to resize"></button>
+
+          <label class="csr-tab-select">
+            <span>Section</span>
+            <select data-csr-tab-select>
+              <option value="look">Look</option>
+              <option value="env">Environment</option>
+              <option value="camera">Camera</option>
+              <option value="post">Post</option>
+              <option value="motion">Motion</option>
+              <option value="setup">Setup</option>
+            </select>
+          </label>
 
           <div
             class="csr-tabs"
