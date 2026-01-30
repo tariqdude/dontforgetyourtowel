@@ -7,7 +7,13 @@ import { withBasePath } from '../../utils/helpers';
 
 type ShowroomMode = 'paint' | 'wrap' | 'glass' | 'wireframe' | 'factory';
 type ShowroomFinish = 'gloss' | 'satin' | 'matte';
-type ShowroomBackground = 'studio' | 'day' | 'sunset' | 'night' | 'grid';
+type ShowroomBackground =
+  | 'studio'
+  | 'day'
+  | 'sunset'
+  | 'night'
+  | 'grid'
+  | 'void';
 type WheelFinish = 'graphite' | 'chrome' | 'black';
 type TrimFinish = 'black' | 'chrome' | 'brushed';
 type CameraPreset = 'hero' | 'front' | 'rear' | 'side' | 'top' | 'detail';
@@ -1095,7 +1101,7 @@ export class CarShowroomScene {
       800
     );
     const rideHeight = clamp(
-      parseNumber(ds.carShowroomRideHeight, 0),
+      parseNumber(ds.carShowroomRideHeight, 0.05),
       -0.3,
       0.3
     );
@@ -1105,10 +1111,10 @@ export class CarShowroomScene {
     const trimFinish = (ds.carShowroomTrimFinish || 'black') as TrimFinish;
     const glassTint = parseNumber01(ds.carShowroomGlassTint || '0.15', 0.15);
     const background = (ds.carShowroomBackground ||
-      'studio') as ShowroomBackground;
+      'void') as ShowroomBackground;
 
     const envIntensity = clamp(
-      parseNumber(ds.carShowroomEnvIntensity, 1),
+      parseNumber(ds.carShowroomEnvIntensity, 0.7),
       0,
       3
     );
@@ -1137,7 +1143,7 @@ export class CarShowroomScene {
       1
     );
     const shadowStrength = clamp(
-      parseNumber(ds.carShowroomShadowStrength, 0.85),
+      parseNumber(ds.carShowroomShadowStrength, 0.5),
       0,
       1
     );
@@ -1157,8 +1163,8 @@ export class CarShowroomScene {
       0.02
     );
     const floorOpacity = clamp(
-      parseNumber(ds.carShowroomFloorOpacity, 1),
-      0.05,
+      parseNumber(ds.carShowroomFloorOpacity, 0),
+      0,
       1
     );
     const gridEnabled =
@@ -1452,11 +1458,12 @@ export class CarShowroomScene {
     this.groundMat.roughness = clamp(ui.floorRoughness, 0, 1);
     this.groundMat.metalness = clamp(ui.floorMetalness, 0, 1);
 
-    const op = clamp(ui.floorOpacity, 0.05, 1);
+    const op = clamp(ui.floorOpacity, 0, 1);
     this.groundMat.opacity = op;
     this.groundMat.transparent = op < 0.999;
     this.groundMat.depthWrite = op >= 0.999;
     this.groundMat.needsUpdate = true;
+    this.ground.visible = op > 0.001;
   }
 
   getFrameRecommendation(): {
@@ -1803,6 +1810,15 @@ export class CarShowroomScene {
 
   private setBackground(scene: THREE.Scene, bg: ShowroomBackground) {
     switch (bg) {
+      case 'void':
+        scene.background = null;
+        this.groundMat.color.set('#02030a');
+        this.baseKeyIntensity = 2.65;
+        this.baseFillColor.set('#c7def8');
+        this.fillLight.color.copy(this.baseFillColor);
+        this.baseFillIntensity = 1.05;
+        this.baseRimIntensity = 1.15;
+        break;
       case 'day':
         scene.background = new THREE.Color('#071223');
         this.groundMat.color.set('#040812');

@@ -607,6 +607,7 @@ const description =
               <label class="csr-field csr-field--wide">
                 <span>Background</span>
                 <select data-csr-background>
+                  <option value="void">Void (transparent)</option>
                   <option value="studio">Studio</option>
                   <option value="day">Day</option>
                   <option value="sunset">Sunset</option>
@@ -641,7 +642,7 @@ const description =
                   min="0"
                   max="3"
                   step="0.01"
-                  value="1"
+                  value="0.7"
                   data-csr-env-intensity
                 />
               </label>
@@ -791,10 +792,10 @@ const description =
                 <span>Floor opacity</span>
                 <input
                   type="range"
-                  min="0.05"
+                  min="0"
                   max="1"
                   step="0.01"
-                  value="1"
+                  value="0"
                   data-csr-floor-opacity
                 />
               </label>
@@ -806,7 +807,7 @@ const description =
                   min="0"
                   max="1"
                   step="0.01"
-                  value="0.85"
+                  value="0.5"
                   data-csr-shadow
                 />
               </label>
@@ -951,7 +952,7 @@ const description =
                   min="0"
                   max="3"
                   step="0.01"
-                  value="0.35"
+                  value="0"
                   data-csr-bloom
                 />
               </label>
@@ -963,7 +964,7 @@ const description =
                   min="0"
                   max="1"
                   step="0.01"
-                  value="0.88"
+                  value="0.9"
                   data-csr-bloom-threshold
                 />
               </label>
@@ -975,7 +976,7 @@ const description =
                   min="0"
                   max="1"
                   step="0.01"
-                  value="0.35"
+                  value="0"
                   data-csr-bloom-radius
                 />
               </label>
@@ -992,7 +993,7 @@ const description =
             <div class="csr-grid">
               <label class="csr-field">
                 <span>Auto-rotate</span>
-                <input type="checkbox" data-csr-autorotate />
+                <input type="checkbox" data-csr-autorotate checked />
               </label>
 
               <label class="csr-field">
@@ -1011,7 +1012,7 @@ const description =
                   min="0"
                   max="2"
                   step="0.01"
-                  value="0.65"
+                  value="0.75"
                   data-csr-spinspeed
                 />
               </label>
@@ -1035,7 +1036,7 @@ const description =
                   min="0"
                   max="1"
                   step="0.01"
-                  value="0"
+                  value="0.8"
                   data-csr-zoom
                 />
               </label>
@@ -1110,7 +1111,7 @@ const description =
                   min="-0.3"
                   max="0.3"
                   step="0.01"
-                  value="0"
+                  value="0.05"
                   data-csr-ride-height
                 />
               </label>

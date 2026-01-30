@@ -915,7 +915,7 @@ createAstroMount(ROOT_SELECTOR, () => {
 
     const foN = parseNum(fo);
     if (foN !== null)
-      root.dataset.carShowroomFloorOpacity = String(clamp(foN, 0.05, 1));
+      root.dataset.carShowroomFloorOpacity = String(clamp(foN, 0, 1));
 
     if (wcolor) {
       const hex = normalizeHexColor(wcolor);
@@ -1328,8 +1328,8 @@ createAstroMount(ROOT_SELECTOR, () => {
 
   let panelCollapsed = false;
 
-  const PANEL_HEIGHT_STORAGE_KEY = 'csr-panel-height-v2';
-  const PANEL_COLLAPSE_STORAGE_KEY = 'csr-panel-collapsed-v2';
+  const PANEL_HEIGHT_STORAGE_KEY = 'csr-panel-height-v3';
+  const PANEL_COLLAPSE_STORAGE_KEY = 'csr-panel-collapsed-v3';
 
   const isMobilePanel = () => window.matchMedia('(max-width: 980px)').matches;
 
@@ -1493,7 +1493,7 @@ createAstroMount(ROOT_SELECTOR, () => {
   root.dataset.carShowroomPearl ||= pearlRange?.value || '0';
   root.dataset.carShowroomPearlThickness ||=
     pearlThicknessRange?.value || '320';
-  root.dataset.carShowroomRideHeight ||= rideHeightRange?.value || '0';
+  root.dataset.carShowroomRideHeight ||= rideHeightRange?.value || '0.05';
   root.dataset.carShowroomModelYaw ||= modelYawRange?.value || '0';
   root.dataset.carShowroomWheelFinish ||= wheelFinishSel?.value || 'graphite';
   root.dataset.carShowroomTrimFinish ||= trimFinishSel?.value || 'black';
@@ -1504,8 +1504,8 @@ createAstroMount(ROOT_SELECTOR, () => {
   root.dataset.carShowroomLightGlow ||= lightGlowRange?.value || '1.25';
   root.dataset.carShowroomGlassTint ||= glassTintRange?.value || '0.15';
   root.dataset.carShowroomLightPreset ||= lightPresetSel?.value || 'studio';
-  root.dataset.carShowroomBackground ||= bgSel?.value || 'studio';
-  root.dataset.carShowroomEnvIntensity ||= envIntensityRange?.value || '1';
+  root.dataset.carShowroomBackground ||= bgSel?.value || 'void';
+  root.dataset.carShowroomEnvIntensity ||= envIntensityRange?.value || '0.7';
   root.dataset.carShowroomLightIntensity ||= lightIntensityRange?.value || '1';
   root.dataset.carShowroomLightWarmth ||= lightWarmthRange?.value || '0';
   root.dataset.carShowroomRimBoost ||= rimBoostRange?.value || '1';
@@ -1519,7 +1519,7 @@ createAstroMount(ROOT_SELECTOR, () => {
   root.dataset.carShowroomUnderglowSize ||= underglowSizeRange?.value || '4.5';
   root.dataset.carShowroomUnderglowPulse ||= underglowPulseRange?.value || '0';
   root.dataset.carShowroomShadowStrength ||=
-    shadowStrengthRange?.value || '0.85';
+    shadowStrengthRange?.value || '0.5';
   root.dataset.carShowroomShadowSize ||= shadowSizeRange?.value || '6';
   root.dataset.carShowroomFloorPreset ||= floorPresetSel?.value || 'auto';
   root.dataset.carShowroomFloorColor ||= floorColorInp?.value || '#05070d';
@@ -1527,20 +1527,24 @@ createAstroMount(ROOT_SELECTOR, () => {
     floorRoughnessRange?.value || '0.55';
   root.dataset.carShowroomFloorMetalness ||=
     floorMetalnessRange?.value || '0.02';
-  root.dataset.carShowroomFloorOpacity ||= floorOpacityRange?.value || '1';
+  root.dataset.carShowroomFloorOpacity ||= floorOpacityRange?.value || '0';
   root.dataset.carShowroomExposure ||= exposureRange?.value || '1';
-  root.dataset.carShowroomBloomStrength ||= bloomStrengthRange?.value || '0.35';
+  root.dataset.carShowroomBloomStrength ||= bloomStrengthRange?.value || '0';
   root.dataset.carShowroomBloomThreshold ||=
-    bloomThresholdRange?.value || '0.88';
-  root.dataset.carShowroomBloomRadius ||= bloomRadiusRange?.value || '0.35';
+    bloomThresholdRange?.value || '0.9';
+  root.dataset.carShowroomBloomRadius ||= bloomRadiusRange?.value || '0';
   root.dataset.carShowroomAutoRotate ||=
     autoRotateChk?.checked === false ? 'false' : 'true';
   root.dataset.carShowroomAutoQuality ||=
     autoQualityChk?.checked === false ? 'false' : 'true';
   root.dataset.carShowroomMotionStyle ||= motionStyleSel?.value || 'spin';
   root.dataset.carShowroomMotionRange ||= motionRange?.value || '18';
-  root.dataset.carShowroomSpinSpeed ||= spinSpeedRange?.value || '0.65';
-  root.dataset.carShowroomZoom ||= zoomRange?.value || '0';
+  root.dataset.carShowroomSpinSpeed ||= spinSpeedRange?.value || '0.75';
+  const defaultZoom = isMobilePanel() ? '0.85' : '0.8';
+  if (!root.dataset.carShowroomZoom && zoomRange && isMobilePanel()) {
+    zoomRange.value = defaultZoom;
+  }
+  root.dataset.carShowroomZoom ||= zoomRange?.value || defaultZoom;
   root.dataset.carShowroomReady ||= '0';
   root.dataset.carShowroomLoading ||= '0';
   root.dataset.carShowroomLoadError ||= '';
@@ -2321,7 +2325,7 @@ createAstroMount(ROOT_SELECTOR, () => {
     if (flakeScaleRange) flakeScaleRange.value = '2.5';
     if (pearlRange) pearlRange.value = '0';
     if (pearlThicknessRange) pearlThicknessRange.value = '320';
-    if (rideHeightRange) rideHeightRange.value = '0';
+    if (rideHeightRange) rideHeightRange.value = '0.05';
     if (modelYawRange) modelYawRange.value = '0';
     if (wheelFinishSel) wheelFinishSel.value = 'graphite';
     if (trimFinishSel) trimFinishSel.value = 'black';
@@ -2332,8 +2336,8 @@ createAstroMount(ROOT_SELECTOR, () => {
     if (lightGlowRange) lightGlowRange.value = '1.25';
     if (glassTintRange) glassTintRange.value = '0.15';
     if (lightPresetSel) lightPresetSel.value = 'studio';
-    if (bgSel) bgSel.value = 'studio';
-    if (envIntensityRange) envIntensityRange.value = '1';
+    if (bgSel) bgSel.value = 'void';
+    if (envIntensityRange) envIntensityRange.value = '0.7';
     if (lightIntensityRange) lightIntensityRange.value = '1';
     if (lightWarmthRange) lightWarmthRange.value = '0';
     if (rimBoostRange) rimBoostRange.value = '1';
@@ -2344,23 +2348,23 @@ createAstroMount(ROOT_SELECTOR, () => {
     if (underglowRange) underglowRange.value = '0';
     if (underglowPulseRange) underglowPulseRange.value = '0';
     if (underglowSizeRange) underglowSizeRange.value = '4.5';
-    if (shadowStrengthRange) shadowStrengthRange.value = '0.85';
+    if (shadowStrengthRange) shadowStrengthRange.value = '0.5';
     if (shadowSizeRange) shadowSizeRange.value = '6';
     if (floorPresetSel) floorPresetSel.value = 'auto';
     if (floorColorInp) floorColorInp.value = '#05070d';
     if (floorRoughnessRange) floorRoughnessRange.value = '0.55';
     if (floorMetalnessRange) floorMetalnessRange.value = '0.02';
-    if (floorOpacityRange) floorOpacityRange.value = '1';
+    if (floorOpacityRange) floorOpacityRange.value = '0';
     if (exposureRange) exposureRange.value = '1';
-    if (bloomStrengthRange) bloomStrengthRange.value = '0.35';
-    if (bloomThresholdRange) bloomThresholdRange.value = '0.88';
-    if (bloomRadiusRange) bloomRadiusRange.value = '0.35';
+    if (bloomStrengthRange) bloomStrengthRange.value = '0';
+    if (bloomThresholdRange) bloomThresholdRange.value = '0.9';
+    if (bloomRadiusRange) bloomRadiusRange.value = '0';
     if (autoRotateChk) autoRotateChk.checked = true;
     if (autoQualityChk) autoQualityChk.checked = true;
     if (motionStyleSel) motionStyleSel.value = 'spin';
-    if (spinSpeedRange) spinSpeedRange.value = '0.65';
+    if (spinSpeedRange) spinSpeedRange.value = '0.75';
     if (motionRange) motionRange.value = '18';
-    if (zoomRange) zoomRange.value = '0';
+    if (zoomRange) zoomRange.value = isMobilePanel() ? '0.85' : '0.8';
     syncFromInputs();
   });
 
@@ -2449,7 +2453,7 @@ createAstroMount(ROOT_SELECTOR, () => {
     params.set('lcol', ds.carShowroomLightColor || '#dbeafe');
     params.set('lglow', ds.carShowroomLightGlow || '1.25');
     params.set('tint', ds.carShowroomGlassTint || '0.15');
-    params.set('bg', ds.carShowroomBackground || 'studio');
+    params.set('bg', ds.carShowroomBackground || 'void');
     params.set('cam', ds.carShowroomCameraPreset || 'hero');
     params.set('spin', ds.carShowroomSpinSpeed || '0.65');
     params.set('zoom', ds.carShowroomZoom || '0');
@@ -2459,11 +2463,11 @@ createAstroMount(ROOT_SELECTOR, () => {
     params.set('ma', ds.carShowroomMotionRange || '18');
 
     params.set('exp', ds.carShowroomExposure || '1');
-    params.set('bloom', ds.carShowroomBloomStrength || '0.35');
-    params.set('bt', ds.carShowroomBloomThreshold || '0.88');
-    params.set('br', ds.carShowroomBloomRadius || '0.35');
+    params.set('bloom', ds.carShowroomBloomStrength || '0');
+    params.set('bt', ds.carShowroomBloomThreshold || '0.9');
+    params.set('br', ds.carShowroomBloomRadius || '0');
 
-    params.set('env', ds.carShowroomEnvIntensity || '1');
+    params.set('env', ds.carShowroomEnvIntensity || '0.7');
     params.set('li', ds.carShowroomLightIntensity || '1');
     params.set('lw', ds.carShowroomLightWarmth || '0');
     params.set('rb', ds.carShowroomRimBoost || '1');
@@ -2481,7 +2485,7 @@ createAstroMount(ROOT_SELECTOR, () => {
     params.set('fcol', ds.carShowroomFloorColor || '#05070d');
     params.set('fr', ds.carShowroomFloorRoughness || '0.55');
     params.set('fm', ds.carShowroomFloorMetalness || '0.02');
-    params.set('fo', ds.carShowroomFloorOpacity || '1');
+    params.set('fo', ds.carShowroomFloorOpacity || '0');
 
     const cm = (ds.carShowroomCameraMode || '').trim();
     if (cm === 'manual') {
@@ -2584,7 +2588,7 @@ createAstroMount(ROOT_SELECTOR, () => {
       params.set('lcol', ds.carShowroomLightColor || '#dbeafe');
       params.set('lglow', ds.carShowroomLightGlow || '1.25');
       params.set('tint', ds.carShowroomGlassTint || '0.15');
-      params.set('bg', ds.carShowroomBackground || 'studio');
+      params.set('bg', ds.carShowroomBackground || 'void');
       params.set('cam', ds.carShowroomCameraPreset || 'hero');
       params.set('spin', ds.carShowroomSpinSpeed || '0.65');
       params.set('zoom', ds.carShowroomZoom || '0');
@@ -2594,11 +2598,11 @@ createAstroMount(ROOT_SELECTOR, () => {
       params.set('ma', ds.carShowroomMotionRange || '18');
 
       params.set('exp', ds.carShowroomExposure || '1');
-      params.set('bloom', ds.carShowroomBloomStrength || '0.35');
-      params.set('bt', ds.carShowroomBloomThreshold || '0.88');
-      params.set('br', ds.carShowroomBloomRadius || '0.35');
+      params.set('bloom', ds.carShowroomBloomStrength || '0');
+      params.set('bt', ds.carShowroomBloomThreshold || '0.9');
+      params.set('br', ds.carShowroomBloomRadius || '0');
 
-      params.set('env', ds.carShowroomEnvIntensity || '1');
+      params.set('env', ds.carShowroomEnvIntensity || '0.7');
       params.set('li', ds.carShowroomLightIntensity || '1');
       params.set('lw', ds.carShowroomLightWarmth || '0');
       params.set('rb', ds.carShowroomRimBoost || '1');
@@ -2616,7 +2620,7 @@ createAstroMount(ROOT_SELECTOR, () => {
       params.set('fcol', ds.carShowroomFloorColor || '#05070d');
       params.set('fr', ds.carShowroomFloorRoughness || '0.55');
       params.set('fm', ds.carShowroomFloorMetalness || '0.02');
-      params.set('fo', ds.carShowroomFloorOpacity || '1');
+      params.set('fo', ds.carShowroomFloorOpacity || '0');
 
       const cm = (ds.carShowroomCameraMode || '').trim();
       if (cm === 'manual') {
@@ -2893,7 +2897,7 @@ createAstroMount(ROOT_SELECTOR, () => {
       0.88
     );
     bloom = bloomInstance;
-    bloomInstance.enabled = true;
+    bloomInstance.enabled = false;
     composerInstance.addPass(bloomInstance);
 
     const fxaaInstance = new ShaderPass(FXAAShader);
@@ -2918,16 +2922,18 @@ createAstroMount(ROOT_SELECTOR, () => {
       );
       rendererInstance.toneMappingExposure = exp;
 
-      bloomInstance.strength = clamp(
-        Number.parseFloat(ds.carShowroomBloomStrength || '0.35') || 0,
+      const bloomStrength = clamp(
+        Number.parseFloat(ds.carShowroomBloomStrength || '0') || 0,
         0,
         3
       );
+      bloomInstance.strength = bloomStrength;
+      bloomInstance.enabled = bloomStrength > 0.01;
       bloomInstance.threshold = clamp01(
-        Number.parseFloat(ds.carShowroomBloomThreshold || '0.88') || 0
+        Number.parseFloat(ds.carShowroomBloomThreshold || '0.9') || 0
       );
       bloomInstance.radius = clamp01(
-        Number.parseFloat(ds.carShowroomBloomRadius || '0.35') || 0
+        Number.parseFloat(ds.carShowroomBloomRadius || '0') || 0
       );
     };
 

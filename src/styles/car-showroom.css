@@ -50,7 +50,7 @@
   touch-action: none;
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: #02030a;
+  background: transparent;
   box-shadow:
     0 20px 60px rgba(0, 0, 0, 0.55),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
@@ -168,14 +168,19 @@
   display: none;
 }
 
-@media (min-width: 980px) {
-  .car-showroom__panel[hidden] {
-    display: flex !important;
-  }
-}
-
 .car-showroom__backdrop {
   display: none;
+}
+
+.car-showroom[data-car-showroom-background='void'] {
+  background: #01020a;
+}
+
+.car-showroom[data-car-showroom-background='void'] .car-showroom__canvas {
+  border-color: rgba(255, 255, 255, 0.04);
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .csr-panel-head {
@@ -554,7 +559,8 @@
   }
 
   .car-showroom__canvas {
-    min-height: 52svh;
+    min-height: 60svh;
+    touch-action: pan-y;
   }
 
   .car-showroom__actions {
@@ -562,13 +568,15 @@
   }
 
   .car-showroom__panel {
-    height: var(--csr-panel-height, auto);
-    max-height: min(70svh, 560px);
+    height: auto;
+    max-height: none;
+    overflow: visible;
   }
 
   .car-showroom__panel.is-collapsed {
     height: 64px;
     max-height: 64px;
+    overflow: hidden;
   }
 
   .car-showroom__panel.is-collapsed .csr-panel-filter,
@@ -579,15 +587,7 @@
   }
 
   .csr-sheet-handle {
-    display: block;
-    width: 100%;
-    height: 22px;
-    border: 0;
-    padding: 0;
-    margin: -4px 0 6px;
-    background: transparent;
-    cursor: ns-resize;
-    touch-action: none;
+    display: none;
   }
 
   .csr-sheet-handle::before {
@@ -598,6 +598,32 @@
     border-radius: 999px;
     margin: 7px auto 0;
     background: rgba(255, 255, 255, 0.22);
+  }
+
+  .csr-tab-panels {
+    overflow: visible;
+    padding-right: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .csr-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .csr-field {
+    font-size: 14px;
+  }
+
+  .csr-field span {
+    font-size: 12px;
+  }
+
+  .csr-field select,
+  .csr-field input[type='range'],
+  .csr-field input[type='color'],
+  .csr-text {
+    min-height: 48px;
   }
 }
 
