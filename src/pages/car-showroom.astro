@@ -113,6 +113,71 @@ const description =
             </button>
           </div>
 
+          <div class="csr-panel-inspector">
+            <div class="csr-inspector-card">
+              <span class="csr-inspector-title">Selection</span>
+              <div class="csr-readout" data-csr-selected-part>
+                Tap/click the car to select
+              </div>
+              <div
+                class="csr-readout csr-readout--mini"
+                data-csr-selected-mesh
+                hidden
+              >
+                Mesh: —
+              </div>
+              <div
+                class="csr-readout csr-readout--mini"
+                data-csr-selected-path
+                hidden
+              >
+                Path: —
+              </div>
+              <div
+                class="csr-readout csr-readout--mini"
+                data-csr-selected-material
+                hidden
+              >
+                Material: —
+              </div>
+            </div>
+            <div class="csr-inspector-card">
+              <span class="csr-inspector-title">Model stats</span>
+              <div class="csr-readout csr-readout--stats">
+                <div>
+                  <strong data-csr-model-size>—</strong>
+                  <small>Size (X×Y×Z)</small>
+                </div>
+                <div>
+                  <strong data-csr-model-meshes>—</strong>
+                  <small>Meshes</small>
+                </div>
+                <div>
+                  <strong data-csr-model-tris>—</strong>
+                  <small>Triangles</small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="csr-panel-filter">
+            <input
+              class="csr-text csr-filter-input"
+              type="search"
+              placeholder="Filter settings…"
+              data-csr-filter
+            />
+            <button
+              type="button"
+              class="csr-btn csr-btn--ghost csr-btn--icon"
+              data-csr-filter-clear
+              aria-label="Clear filter"
+              title="Clear filter"
+            >
+              ✕
+            </button>
+          </div>
+
           <button
             type="button"
             class="csr-sheet-handle"
@@ -194,6 +259,9 @@ const description =
         </div>
 
         <div class="csr-tab-panels" data-csr-tab-panels>
+          <div class="csr-filter-empty" data-csr-filter-empty hidden>
+            No matching settings. Try another keyword.
+          </div>
           <div
             id="csr-tab-look"
             class="csr-tab"
@@ -201,22 +269,6 @@ const description =
             data-csr-tab-panel="look"
           >
             <div class="csr-grid">
-              <div class="csr-field csr-field--wide">
-                <span>Selected part</span>
-                <div class="csr-readout" data-csr-selected-part>
-                  Tap/click the car to select
-                </div>
-                <div class="csr-readout" data-csr-selected-mesh hidden>
-                  Mesh: —
-                </div>
-                <div class="csr-readout" data-csr-selected-path hidden>
-                  Path: —
-                </div>
-                <div class="csr-readout" data-csr-selected-material hidden>
-                  Material: —
-                </div>
-              </div>
-
               <label class="csr-field">
                 <span>Mode</span>
                 <select data-csr-mode>
@@ -1126,24 +1178,6 @@ const description =
               </label>
 
               <div class="csr-field csr-field--wide">
-                <span>Model stats</span>
-                <div class="csr-readout csr-readout--stats">
-                  <div>
-                    <strong data-csr-model-size>—</strong>
-                    <small>Size (X×Y×Z)</small>
-                  </div>
-                  <div>
-                    <strong data-csr-model-meshes>—</strong>
-                    <small>Meshes</small>
-                  </div>
-                  <div>
-                    <strong data-csr-model-tris>—</strong>
-                    <small>Triangles</small>
-                  </div>
-                </div>
-              </div>
-
-              <div class="csr-field csr-field--wide">
                 <span>Presets</span>
                 <div class="csr-inline">
                   <select data-csr-preset>
@@ -1378,6 +1412,59 @@ const description =
         rgba(0, 0, 0, 0)
       );
       padding-bottom: 6px;
+    }
+
+    .csr-panel-inspector {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-bottom: 8px;
+    }
+
+    .csr-inspector-card {
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.04);
+      padding: 10px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .csr-inspector-title {
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.6);
+      font-family:
+        ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        'Liberation Mono', 'Courier New', monospace;
+    }
+
+    .csr-readout--mini {
+      padding: 8px 10px;
+      font-size: 12px;
+      opacity: 0.78;
+    }
+
+    .csr-panel-filter {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .csr-filter-input {
+      min-height: 40px;
+    }
+
+    .csr-filter-empty {
+      border-radius: 12px;
+      border: 1px dashed rgba(255, 255, 255, 0.16);
+      color: rgba(255, 255, 255, 0.7);
+      padding: 10px 12px;
+      font-size: 12px;
+      margin-bottom: 8px;
     }
 
     .csr-sheet-handle {
@@ -1823,6 +1910,14 @@ const description =
       }
 
       .csr-readout--stats {
+        grid-template-columns: 1fr;
+      }
+
+      .csr-panel-inspector {
+        grid-template-columns: 1fr;
+      }
+
+      .csr-panel-filter {
         grid-template-columns: 1fr;
       }
 
