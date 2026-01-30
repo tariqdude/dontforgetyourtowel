@@ -32,8 +32,9 @@ export class GyroscopeHandler {
 
   public async requestPermission(): Promise<boolean> {
     // For iOS 13+ we need to request permission
-    const DeviceOrientationEventTyped =
-      DeviceOrientationEvent as unknown as typeof DeviceOrientationEventiOS;
+    const DeviceOrientationEventTyped = DeviceOrientationEvent as unknown as {
+      requestPermission?: () => Promise<'granted' | 'denied'>;
+    };
 
     if (
       typeof DeviceOrientationEvent !== 'undefined' &&

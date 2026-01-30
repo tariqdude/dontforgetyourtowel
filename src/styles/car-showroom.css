@@ -893,14 +893,20 @@
 @media (max-width: 980px) {
   .car-showroom {
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto auto;
+    grid-template-rows:
+      auto
+      minmax(220px, 1fr)
+      minmax(64px, var(--csr-panel-height, 34svh));
     grid-template-areas:
       'header'
-      'quickbar'
       'viewer'
       'panel';
-    height: auto;
-    overflow: visible;
+    height: 100svh;
+    overflow: hidden;
+  }
+
+  .car-showroom__actions {
+    display: none;
   }
 
   .car-showroom__canvas {
@@ -913,20 +919,19 @@
   }
 
   .car-showroom__panel {
-    height: auto;
-    max-height: none;
-    overflow: visible;
+    height: var(--csr-panel-height, 34svh);
+    max-height: var(--csr-panel-height, 34svh);
+    overflow: hidden;
   }
 
   .car-showroom__panel.is-collapsed {
-    height: 64px;
-    max-height: 64px;
+    height: var(--csr-panel-height, 88px);
+    max-height: var(--csr-panel-height, 88px);
     overflow: hidden;
   }
 
   .car-showroom__panel.is-collapsed .csr-panel-filter,
   .car-showroom__panel.is-collapsed .csr-panel-inspector,
-  .car-showroom__panel.is-collapsed .csr-tabs,
   .car-showroom__panel.is-collapsed .csr-tab-panels {
     display: none;
   }
@@ -960,12 +965,8 @@
   }
 
   .csr-tab-panels {
-    overflow: visible;
+    overflow: auto;
     padding-right: 0;
-  }
-
-  .car-showroom__quickbar {
-    display: flex;
   }
 }
 

@@ -692,6 +692,8 @@ export class CarShowroomScene {
 
   setQuality(preset: QualityPreset) {
     if (preset === 'performance') {
+      this.keyLight.castShadow = false;
+      this.ground.receiveShadow = false;
       this.keyLight.shadow.mapSize.set(1024, 1024);
       this.keyLight.shadow.normalBias = 0.03;
       this.keyLight.shadow.bias = -0.00025;
@@ -699,6 +701,8 @@ export class CarShowroomScene {
     }
 
     if (preset === 'ultra') {
+      this.keyLight.castShadow = true;
+      this.ground.receiveShadow = true;
       this.keyLight.shadow.mapSize.set(4096, 4096);
       this.keyLight.shadow.normalBias = 0.015;
       this.keyLight.shadow.bias = -0.0001;
@@ -706,6 +710,8 @@ export class CarShowroomScene {
     }
 
     // balanced
+    this.keyLight.castShadow = true;
+    this.ground.receiveShadow = true;
     this.keyLight.shadow.mapSize.set(2048, 2048);
     this.keyLight.shadow.normalBias = 0.02;
     this.keyLight.shadow.bias = -0.00015;

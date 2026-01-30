@@ -234,7 +234,7 @@ createAstroMount(ROOT_SELECTOR, () => {
     return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
   };
 
-  if (fabEl && isMobileDevice()) {
+  if (fabEl && isMobileDevice() && root.dataset.carShowroomShowFab === 'true') {
     fabEl.hidden = false;
   }
 
@@ -496,6 +496,24 @@ createAstroMount(ROOT_SELECTOR, () => {
   );
   const closePanelBtn = root.querySelector<HTMLButtonElement>(
     '[data-csr-close-panel]'
+  );
+  const toolsFrameBtn = root.querySelector<HTMLButtonElement>(
+    '[data-csr-tools-frame]'
+  );
+  const toolsResetViewBtn = root.querySelector<HTMLButtonElement>(
+    '[data-csr-tools-reset-view]'
+  );
+  const toolsShareBtn = root.querySelector<HTMLButtonElement>(
+    '[data-csr-tools-share]'
+  );
+  const toolsScreenshotBtn = root.querySelector<HTMLButtonElement>(
+    '[data-csr-tools-screenshot]'
+  );
+  const toolsImportBtn = root.querySelector<HTMLButtonElement>(
+    '[data-csr-tools-import]'
+  );
+  const toolsGyroBtn = root.querySelector<HTMLButtonElement>(
+    '[data-csr-tools-gyro]'
   );
   const copyLinkBtn = root.querySelector<HTMLButtonElement>(
     '[data-csr-copy-link]'
@@ -812,6 +830,12 @@ createAstroMount(ROOT_SELECTOR, () => {
       } catch {
         // ignore
       }
+
+      // If the docked panel is collapsed on mobile, opening a tab should
+      // expand it so the content is actually usable.
+      if (isMobilePanel() && panelSnap === 'collapsed') {
+        setPanelSnap('peek', true);
+      }
     }
   };
 
@@ -826,8 +850,16 @@ createAstroMount(ROOT_SELECTOR, () => {
       }
     })();
 
-    const fallback = getTabId(tabButtons[0]);
-    const initial = saved || fallback;
+    const findTab = (id: string) =>
+      tabButtons.find(btn => getTabId(btn) === id) || null;
+
+    const preferredFallback = isMobileDevice()
+      ? findTab('quick')
+      : findTab('look');
+    const fallback = getTabId(preferredFallback || tabButtons[0]);
+
+    const savedBtn = saved ? findTab(saved) : null;
+    const initial = savedBtn ? saved : fallback;
     setActiveTab(initial);
 
     for (const btn of tabButtons) {
@@ -889,8 +921,27 @@ createAstroMount(ROOT_SELECTOR, () => {
     const nextId = getTabId(nextBtn);
 
     setActiveTab(nextId);
-    showToast(`Switched to ${nextId} tab`);
   };
+
+  // Wire Tools tab actions (mobile-friendly)
+  toolsFrameBtn?.addEventListener('click', () => {
+    frameBtn?.click();
+  });
+  toolsResetViewBtn?.addEventListener('click', () => {
+    resetViewBtn?.click();
+  });
+  toolsShareBtn?.addEventListener('click', () => {
+    copyLinkBtn?.click();
+  });
+  toolsScreenshotBtn?.addEventListener('click', () => {
+    screenshotBtn?.click();
+  });
+  toolsImportBtn?.addEventListener('click', () => {
+    importBtn?.click();
+  });
+  toolsGyroBtn?.addEventListener('click', () => {
+    void toggleGyroscope();
+  });
 
   if (tabPanelsContainer && isMobileDevice()) {
     tabSwipeHandler = new TabSwipeHandler(tabPanelsContainer, navigateTab);
@@ -898,7 +949,7 @@ createAstroMount(ROOT_SELECTOR, () => {
 
   const filterTargets = Array.from(
     root.querySelectorAll<HTMLElement>(
-      '.csr-tab-panels .csr-field, .csr-tab-panels .csr-row'
+      '.csr-tab-panels .csr-field:not([data-csr-no-filter]), .csr-tab-panels .csr-row:not([data-csr-no-filter])'
     )
   );
   const filterText = new Map<HTMLElement, string>();
@@ -1674,10 +1725,11 @@ createAstroMount(ROOT_SELECTOR, () => {
     const vv =
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).visualViewport?.height || window.innerHeight;
-    const collapsed = 64;
-    const peek = Math.round(vv * 0.4);
-    const half = Math.round(vv * 0.7);
-    const full = Math.round(vv * 0.9);
+    const collapsed = 88;
+    // Mobile split-view defaults: keep the model visible.
+    const peek = Math.round(vv * 0.28);
+    const half = Math.round(vv * 0.45);
+    const full = Math.round(vv * 0.65);
     const clampHeight = (v: number) =>
       Math.max(collapsed, Math.min(full, Math.round(v)));
     const peekH = clampHeight(peek);
@@ -1720,10 +1772,12 @@ createAstroMount(ROOT_SELECTOR, () => {
       panel.hidden = false;
       panel.classList.toggle('is-collapsed', collapsed);
       panel.style.setProperty('--csr-panel-height', `${height}px`);
+      root.style.setProperty('--csr-panel-height', `${height}px`);
       root.classList.remove('is-panel-collapsed');
     } else {
       panel.classList.remove('is-collapsed');
       panel.style.removeProperty('--csr-panel-height');
+      root.style.removeProperty('--csr-panel-height');
       panel.hidden = collapsed;
       root.classList.toggle('is-panel-collapsed', collapsed);
     }
@@ -1748,7 +1802,7 @@ createAstroMount(ROOT_SELECTOR, () => {
     } catch {
       // ignore
     }
-    const initialSnap = savedSnap ?? (isMobilePanel() ? 'peek' : 'peek');
+    const initialSnap = savedSnap ?? (isMobilePanel() ? 'collapsed' : 'peek');
     setPanelSnap(initialSnap, false);
   };
 
@@ -2593,11 +2647,6 @@ createAstroMount(ROOT_SELECTOR, () => {
     bumpRevision();
   };
 
-  quickPanelBtn?.addEventListener('click', () => {
-    setPanelCollapsed(false, true);
-    panel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
-
   quickFrameBtn?.addEventListener('click', () => {
     frameBtn?.click();
   });
@@ -3305,9 +3354,9 @@ createAstroMount(ROOT_SELECTOR, () => {
     const key = e.key;
     if (key === 'o' || key === 'O') {
       if (isMobilePanel()) {
-        setPanelCollapsed(!panelCollapsed, true);
+        setPanelSnap(panelSnap === 'collapsed' ? 'half' : 'collapsed', true);
       } else {
-        if (panelCollapsed) setPanelCollapsed(false, true);
+        if (panelSnap === 'collapsed') setPanelSnap('peek', true);
         panel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
       e.preventDefault();
@@ -3334,7 +3383,7 @@ createAstroMount(ROOT_SELECTOR, () => {
       return;
     }
     if (key === 'Escape') {
-      if (isMobilePanel()) setPanelCollapsed(true, true);
+      if (isMobilePanel()) setPanelSnap('collapsed', true);
     }
   };
   window.addEventListener('keydown', onKeyDown);
@@ -3363,6 +3412,7 @@ createAstroMount(ROOT_SELECTOR, () => {
   let onTouchMove: ((e: TouchEvent) => void) | null = null;
   let onTouchEnd: (() => void) | null = null;
   let onCanvasPointerUp: ((e: PointerEvent) => void) | null = null;
+  let mobileGestures: MobileGestureHandler | null = null;
 
   if (enable3d) {
     const rendererInstance = new THREE.WebGLRenderer({
@@ -3825,7 +3875,6 @@ createAstroMount(ROOT_SELECTOR, () => {
     };
 
     // Enhanced mobile gesture handler
-    let mobileGestures: MobileGestureHandler | null = null;
 
     const isMobileDevice = () => {
       return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
@@ -4003,8 +4052,21 @@ createAstroMount(ROOT_SELECTOR, () => {
 
           if (Math.abs(currentDpr - adjustedDpr) > 0.15) {
             size.dpr = adjustedDpr;
+
             rendererInstance.setPixelRatio(size.dpr);
+            rendererInstance.setSize(size.width, size.height, false);
+
             composerInstance.setPixelRatio(size.dpr);
+            composerInstance.setSize(size.width, size.height);
+
+            showroomInstance.resize(size.width, size.height);
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (fxaaInstance.material.uniforms as any)['resolution'].value.set(
+              1 / (size.width * size.dpr),
+              1 / (size.height * size.dpr)
+            );
+            bloomInstance.setSize(size.width, size.height);
           }
         }
       }

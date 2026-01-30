@@ -221,133 +221,6 @@ const description =
         </div>
       </div>
 
-      <div class="car-showroom__quickbar" data-csr-quickbar>
-        <div class="csr-quick-row">
-          <button type="button" class="csr-chip" data-csr-quick-panel>
-            Options
-          </button>
-          <button
-            type="button"
-            class="csr-chip csr-chip--ghost"
-            data-csr-quick-frame
-          >
-            Frame
-          </button>
-          <button
-            type="button"
-            class="csr-chip csr-chip--ghost"
-            data-csr-quick-reset
-          >
-            Reset View
-          </button>
-        </div>
-        <div class="csr-quick-row csr-quick-row--controls">
-          <label class="csr-quick-toggle">
-            <span>Spin</span>
-            <input type="checkbox" data-csr-quick-spin />
-          </label>
-          <label class="csr-quick-range">
-            <span>Zoom</span>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value="0.8"
-              data-csr-quick-zoom
-            />
-          </label>
-          <label class="csr-quick-select">
-            <span>Style</span>
-            <select data-csr-quick-style>
-              <option value="">Style preset</option>
-              <option value="stealth">Stealth</option>
-              <option value="track">Track</option>
-              <option value="lux">Luxury</option>
-              <option value="neo">Neo</option>
-              <option value="classic">Classic</option>
-            </select>
-          </label>
-          <label class="csr-quick-select">
-            <span>Light</span>
-            <select data-csr-quick-light>
-              <option value="studio">Studio</option>
-              <option value="golden">Golden</option>
-              <option value="neon">Neon</option>
-              <option value="ice">Ice</option>
-              <option value="noir">Noir</option>
-            </select>
-          </label>
-        </div>
-
-        <!-- Quick Color Palette (Mobile) -->
-        <div class="csr-quick-colors" data-csr-quick-colors hidden>
-          <span class="csr-quick-colors__label">Quick Colors</span>
-          <div class="csr-quick-colors__grid">
-            <button
-              type="button"
-              class="csr-quick-color"
-              data-color="#000000"
-              title="Midnight Black"
-              style="--color: #000000"></button>
-            <button
-              type="button"
-              class="csr-quick-color"
-              data-color="#ffffff"
-              title="Pearl White"
-              style="--color: #ffffff"></button>
-            <button
-              type="button"
-              class="csr-quick-color"
-              data-color="#c0c0c0"
-              title="Silver"
-              style="--color: #c0c0c0"></button>
-            <button
-              type="button"
-              class="csr-quick-color"
-              data-color="#b91c1c"
-              title="Racing Red"
-              style="--color: #b91c1c"></button>
-            <button
-              type="button"
-              class="csr-quick-color"
-              data-color="#1e40af"
-              title="Ocean Blue"
-              style="--color: #1e40af"></button>
-            <button
-              type="button"
-              class="csr-quick-color"
-              data-color="#15803d"
-              title="British Green"
-              style="--color: #15803d"></button>
-            <button
-              type="button"
-              class="csr-quick-color"
-              data-color="#f59e0b"
-              title="Sunset Orange"
-              style="--color: #f59e0b"></button>
-            <button
-              type="button"
-              class="csr-quick-color"
-              data-color="#7c3aed"
-              title="Royal Purple"
-              style="--color: #7c3aed"></button>
-            <button
-              type="button"
-              class="csr-quick-color"
-              data-color="#fbbf24"
-              title="Golden Yellow"
-              style="--color: #fbbf24"></button>
-            <button
-              type="button"
-              class="csr-quick-color"
-              data-color="#0891b2"
-              title="Teal"
-              style="--color: #0891b2"></button>
-          </div>
-        </div>
-      </div>
-
       <div
         id="csr-panel"
         class="car-showroom__panel"
@@ -447,6 +320,8 @@ const description =
           <label class="csr-tab-select">
             <span>Section</span>
             <select data-csr-tab-select>
+              <option value="quick">Quick</option>
+              <option value="tools">Tools</option>
               <option value="look">Look</option>
               <option value="env">Environment</option>
               <option value="camera">Camera</option>
@@ -461,6 +336,28 @@ const description =
             role="tablist"
             aria-label="Configurator sections"
           >
+            <button
+              type="button"
+              class="csr-tab-btn"
+              role="tab"
+              aria-selected="false"
+              aria-controls="csr-tab-quick"
+              data-csr-tab-btn="quick"
+              tabindex="-1"
+            >
+              Quick
+            </button>
+            <button
+              type="button"
+              class="csr-tab-btn"
+              role="tab"
+              aria-selected="false"
+              aria-controls="csr-tab-tools"
+              data-csr-tab-btn="tools"
+              tabindex="-1"
+            >
+              Tools
+            </button>
             <button
               type="button"
               class="csr-tab-btn"
@@ -533,6 +430,210 @@ const description =
           <div class="csr-filter-empty" data-csr-filter-empty hidden>
             No matching settings. Try another keyword.
           </div>
+          <div
+            id="csr-tab-quick"
+            class="csr-tab"
+            role="tabpanel"
+            data-csr-tab-panel="quick"
+            hidden
+          >
+            <div class="csr-quick-row">
+              <button type="button" class="csr-chip" data-csr-quick-panel>
+                Options
+              </button>
+              <button
+                type="button"
+                class="csr-chip csr-chip--ghost"
+                data-csr-quick-frame
+              >
+                Frame
+              </button>
+              <button
+                type="button"
+                class="csr-chip csr-chip--ghost"
+                data-csr-quick-reset
+              >
+                Reset View
+              </button>
+            </div>
+            <div class="csr-quick-row csr-quick-row--controls">
+              <label class="csr-quick-toggle">
+                <span>Spin</span>
+                <input type="checkbox" data-csr-quick-spin />
+              </label>
+              <label class="csr-quick-range">
+                <span>Zoom</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.8"
+                  data-csr-quick-zoom
+                />
+              </label>
+              <label class="csr-quick-select">
+                <span>Style</span>
+                <select data-csr-quick-style>
+                  <option value="">Style preset</option>
+                  <option value="stealth">Stealth</option>
+                  <option value="track">Track</option>
+                  <option value="lux">Luxury</option>
+                  <option value="neo">Neo</option>
+                  <option value="classic">Classic</option>
+                </select>
+              </label>
+              <label class="csr-quick-select">
+                <span>Light</span>
+                <select data-csr-quick-light>
+                  <option value="studio">Studio</option>
+                  <option value="golden">Golden</option>
+                  <option value="neon">Neon</option>
+                  <option value="ice">Ice</option>
+                  <option value="noir">Noir</option>
+                </select>
+              </label>
+            </div>
+
+            <p class="csr-hint">
+              One finger rotates. Two fingers zoom. Long-press selects a part.
+            </p>
+
+            <!-- Quick Color Palette (Mobile) -->
+            <div class="csr-quick-colors" data-csr-quick-colors hidden>
+              <span class="csr-quick-colors__label">Quick Colors</span>
+              <div class="csr-quick-colors__grid">
+                <button
+                  type="button"
+                  class="csr-quick-color"
+                  data-color="#000000"
+                  title="Midnight Black"
+                  style="--color: #000000"></button>
+                <button
+                  type="button"
+                  class="csr-quick-color"
+                  data-color="#ffffff"
+                  title="Pearl White"
+                  style="--color: #ffffff"></button>
+                <button
+                  type="button"
+                  class="csr-quick-color"
+                  data-color="#c0c0c0"
+                  title="Silver"
+                  style="--color: #c0c0c0"></button>
+                <button
+                  type="button"
+                  class="csr-quick-color"
+                  data-color="#b91c1c"
+                  title="Racing Red"
+                  style="--color: #b91c1c"></button>
+                <button
+                  type="button"
+                  class="csr-quick-color"
+                  data-color="#1e40af"
+                  title="Ocean Blue"
+                  style="--color: #1e40af"></button>
+                <button
+                  type="button"
+                  class="csr-quick-color"
+                  data-color="#15803d"
+                  title="British Green"
+                  style="--color: #15803d"></button>
+                <button
+                  type="button"
+                  class="csr-quick-color"
+                  data-color="#f59e0b"
+                  title="Sunset Orange"
+                  style="--color: #f59e0b"></button>
+                <button
+                  type="button"
+                  class="csr-quick-color"
+                  data-color="#7c3aed"
+                  title="Royal Purple"
+                  style="--color: #7c3aed"></button>
+                <button
+                  type="button"
+                  class="csr-quick-color"
+                  data-color="#fbbf24"
+                  title="Golden Yellow"
+                  style="--color: #fbbf24"></button>
+                <button
+                  type="button"
+                  class="csr-quick-color"
+                  data-color="#0891b2"
+                  title="Teal"
+                  style="--color: #0891b2"></button>
+              </div>
+            </div>
+          </div>
+
+          <div
+            id="csr-tab-tools"
+            class="csr-tab"
+            role="tabpanel"
+            data-csr-tab-panel="tools"
+            hidden
+          >
+            <div class="csr-grid">
+              <div class="csr-row" data-csr-no-filter>
+                <button type="button" class="csr-btn" data-csr-tools-frame>
+                  Frame
+                </button>
+                <button
+                  type="button"
+                  class="csr-btn csr-btn--ghost"
+                  data-csr-tools-reset-view
+                >
+                  Reset View
+                </button>
+              </div>
+
+              <div class="csr-row" data-csr-no-filter>
+                <button
+                  type="button"
+                  class="csr-btn csr-btn--ghost"
+                  data-csr-tools-share
+                >
+                  Share
+                </button>
+                <button
+                  type="button"
+                  class="csr-btn csr-btn--ghost"
+                  data-csr-tools-screenshot
+                >
+                  Screenshot
+                </button>
+                <button
+                  type="button"
+                  class="csr-btn csr-btn--ghost"
+                  data-csr-tools-import
+                >
+                  Import GLB
+                </button>
+                <a
+                  class="csr-btn csr-btn--ghost"
+                  href={withBasePath('gallery/')}
+                  data-csr-no-swipe>3D Gallery</a
+                >
+              </div>
+
+              <div class="csr-row" data-csr-no-filter>
+                <button
+                  type="button"
+                  class="csr-btn csr-btn--ghost"
+                  data-csr-tools-gyro
+                >
+                  Tilt Controls
+                </button>
+              </div>
+
+              <p class="csr-hint">
+                Tip: Keep the panel in “Peek” for best visibility while you
+                adjust materials.
+              </p>
+            </div>
+          </div>
+
           <div
             id="csr-tab-look"
             class="csr-tab"

@@ -38,7 +38,9 @@ export class MobileGestureHandler {
   private lastDragTime = 0;
   private velocity = { x: 0, y: 0 };
 
-  private isActive = false;
+  private gestureMode: 'none' | 'rotate' | 'scroll' | 'pinch' = 'none';
+  private readonly dragIntentThresholdPx = 8;
+  private readonly scrollDominanceRatio = 1.2;
 
   constructor(element: HTMLElement, callbacks: GestureCallbacks) {
     this.element = element;
@@ -63,10 +65,9 @@ export class MobileGestureHandler {
   }
 
   private handleTouchStart = (e: TouchEvent) => {
-    e.preventDefault();
-
     const now = performance.now();
     this.lastTouchTime = now;
+    this.gestureMode = 'none';
 
     // Clear any existing long press timer
     if (this.longPressTimer !== null) {
@@ -126,6 +127,10 @@ export class MobileGestureHandler {
         this.longPressTimer = null;
       }, 500);
     } else if (e.touches.length === 2) {
+      // Pinch gestures should prevent default page zoom/scroll.
+      e.preventDefault();
+      this.gestureMode = 'pinch';
+
       // Two finger gesture - pinch or pan
       if (this.longPressTimer !== null) {
         window.clearTimeout(this.longPressTimer);
@@ -143,8 +148,6 @@ export class MobileGestureHandler {
   };
 
   private handleTouchMove = (e: TouchEvent) => {
-    e.preventDefault();
-
     const now = performance.now();
 
     // Cancel long press if finger moves
@@ -167,6 +170,34 @@ export class MobileGestureHandler {
       const deltaY = touch.clientY - this.lastDragPos.y;
       const dt = Math.max(1, now - this.lastDragTime);
 
+      // Decide whether the user intends to scroll the page or rotate the model.
+      // This keeps the canvas interaction usable without trapping vertical scroll.
+      if (this.gestureMode === 'none') {
+        const ax = Math.abs(deltaX);
+        const ay = Math.abs(deltaY);
+        const moved = Math.max(ax, ay);
+
+        if (moved >= this.dragIntentThresholdPx) {
+          if (ay > ax * this.scrollDominanceRatio) {
+            this.gestureMode = 'scroll';
+          } else {
+            this.gestureMode = 'rotate';
+          }
+        }
+      }
+
+      if (this.gestureMode === 'scroll') {
+        // Allow native scrolling.
+        this.lastDragPos = { x: touch.clientX, y: touch.clientY };
+        this.lastDragTime = now;
+        return;
+      }
+
+      // Rotate mode: prevent the browser from handling the gesture.
+      if (this.gestureMode === 'rotate') {
+        e.preventDefault();
+      }
+
       // Calculate velocity for momentum
       this.velocity.x = (deltaX / dt) * 1000;
       this.velocity.y = (deltaY / dt) * 1000;
@@ -176,6 +207,9 @@ export class MobileGestureHandler {
       this.lastDragPos = { x: touch.clientX, y: touch.clientY };
       this.lastDragTime = now;
     } else if (e.touches.length === 2) {
+      e.preventDefault();
+      this.gestureMode = 'pinch';
+
       // Pinch zoom or two-finger pan
       const touch1 = e.touches[0];
       const touch2 = e.touches[1];
@@ -236,6 +270,7 @@ export class MobileGestureHandler {
     if (e.touches.length === 0) {
       this.lastDragPos = { x: 0, y: 0 };
       this.velocity = { x: 0, y: 0 };
+      this.gestureMode = 'none';
     }
   };
 
@@ -245,6 +280,7 @@ export class MobileGestureHandler {
     this.lastPinchScale = 1;
     this.lastDragPos = { x: 0, y: 0 };
     this.velocity = { x: 0, y: 0 };
+    this.gestureMode = 'none';
 
     if (this.longPressTimer !== null) {
       window.clearTimeout(this.longPressTimer);
@@ -275,6 +311,7 @@ export class MobileGestureHandler {
     }
 
     this.touches.clear();
+    this.gestureMode = 'none';
   }
 
   public getVelocity() {
