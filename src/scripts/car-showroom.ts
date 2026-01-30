@@ -11,6 +11,7 @@ import { getTowerCaps } from './tower3d/core/caps';
 import { CarShowroomScene } from './car-showroom/CarShowroomScene';
 import { LIGHT_PRESETS, STYLE_PRESETS } from './car-showroom/presets';
 import { MobileGestureHandler } from './car-showroom/MobileGestures';
+import { TabSwipeHandler } from './car-showroom/TabSwipeHandler';
 
 const ROOT_SELECTOR = '[data-car-showroom-root]';
 
@@ -348,6 +349,58 @@ createAstroMount(ROOT_SELECTOR, () => {
       qualityBadge.dataset.fpsLevel = 'low';
     }
   };
+
+  // --- Quick Color Palette ---
+  const quickColorsEl = root.querySelector<HTMLElement>(
+    '[data-csr-quick-colors]'
+  );
+  const quickColorButtons = Array.from(
+    root.querySelectorAll<HTMLButtonElement>('.csr-quick-color')
+  );
+
+  if (quickColorsEl && isMobileDevice()) {
+    quickColorsEl.hidden = false;
+  }
+
+  // Update active state on quick color buttons
+  const updateQuickColorActive = (currentColor: string) => {
+    for (const btn of quickColorButtons) {
+      const btnColor = btn.dataset.color || '';
+      btn.dataset.active =
+        btnColor.toLowerCase() === currentColor.toLowerCase()
+          ? 'true'
+          : 'false';
+    }
+  };
+
+  // Handle quick color selection
+  for (const btn of quickColorButtons) {
+    btn.addEventListener('click', () => {
+      const color = btn.dataset.color;
+      if (!color) return;
+
+      // Update the main color input
+      const colorInp = root.querySelector<HTMLInputElement>('[data-csr-color]');
+      if (colorInp) {
+        colorInp.value = color;
+        colorInp.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+
+      // Update dataset
+      root.dataset.carShowroomColor = color;
+
+      // Update active states
+      updateQuickColorActive(color);
+
+      // Trigger haptic feedback
+      if ('vibrate' in navigator) {
+        navigator.vibrate(15);
+      }
+
+      showToast(`Applied ${btn.title || 'color'}`);
+      bumpRevision();
+    });
+  }
 
   // --- UI wiring (dataset-driven)
   const bumpRevision = () => {
@@ -763,6 +816,39 @@ createAstroMount(ROOT_SELECTOR, () => {
   let zoomTarget = 0;
 
   initTabs();
+
+  // Tab swipe navigation for mobile
+  let tabSwipeHandler: TabSwipeHandler | null = null;
+  const tabPanelsContainer = root.querySelector<HTMLElement>(
+    '[data-csr-tab-panels]'
+  );
+
+  const navigateTab = (direction: 'next' | 'prev') => {
+    if (tabButtons.length < 2) return;
+
+    // Find current active tab
+    let currentIndex = 0;
+    for (let i = 0; i < tabButtons.length; i++) {
+      if (tabButtons[i].getAttribute('aria-selected') === 'true') {
+        currentIndex = i;
+        break;
+      }
+    }
+
+    // Calculate next index
+    const offset = direction === 'next' ? 1 : -1;
+    const nextIndex =
+      (currentIndex + offset + tabButtons.length) % tabButtons.length;
+    const nextBtn = tabButtons[nextIndex];
+    const nextId = getTabId(nextBtn);
+
+    setActiveTab(nextId);
+    showToast(`Switched to ${nextId} tab`);
+  };
+
+  if (tabPanelsContainer && isMobileDevice()) {
+    tabSwipeHandler = new TabSwipeHandler(tabPanelsContainer, navigateTab);
+  }
 
   const filterTargets = Array.from(
     root.querySelectorAll<HTMLElement>(
@@ -3952,6 +4038,7 @@ createAstroMount(ROOT_SELECTOR, () => {
       window.removeEventListener('keydown', onKeyDown);
       if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
       mobileGestures?.destroy();
+      tabSwipeHandler?.destroy();
       showroom?.dispose();
       composer?.dispose();
       renderer?.dispose();
