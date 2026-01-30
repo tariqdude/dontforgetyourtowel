@@ -190,53 +190,6 @@ createAstroMount(ROOT_SELECTOR, () => {
   const caps = getTowerCaps();
   const enable3d = caps.webgl;
 
-  // --- Mobile Tutorial ---
-  const TUTORIAL_STORAGE_KEY = 'car-showroom-tutorial-seen';
-  const tutorialEl = root.querySelector<HTMLElement>('[data-csr-tutorial]');
-  const tutorialCloseBtn = root.querySelector<HTMLButtonElement>(
-    '[data-csr-tutorial-close]'
-  );
-
-  const showTutorial = () => {
-    if (!tutorialEl) return;
-    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    if (!isMobile) return;
-
-    try {
-      const seen = localStorage.getItem(TUTORIAL_STORAGE_KEY);
-      if (!seen) {
-        tutorialEl.hidden = false;
-      }
-    } catch {
-      // localStorage not available, show tutorial anyway
-      tutorialEl.hidden = false;
-    }
-  };
-
-  const hideTutorial = () => {
-    if (!tutorialEl) return;
-
-    // Add closing animation
-    tutorialEl.classList.add('is-closing');
-
-    // Wait for animation to complete before hiding
-    setTimeout(() => {
-      tutorialEl.hidden = true;
-      tutorialEl.classList.remove('is-closing');
-    }, 300);
-
-    try {
-      localStorage.setItem(TUTORIAL_STORAGE_KEY, '1');
-    } catch {
-      // Ignore if localStorage not available
-    }
-  };
-
-  tutorialCloseBtn?.addEventListener('click', hideTutorial);
-
-  // Auto-show on first mobile visit
-  showTutorial();
-
   // --- Floating Action Button (Mobile) ---
   const fabEl = root.querySelector<HTMLElement>('[data-csr-fab]');
   const fabTrigger = root.querySelector<HTMLButtonElement>(
