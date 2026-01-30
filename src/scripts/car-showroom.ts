@@ -250,6 +250,12 @@ createAstroMount(ROOT_SELECTOR, () => {
   const wrapScaleRange = root.querySelector<HTMLInputElement>(
     '[data-csr-wrap-scale]'
   );
+  const wrapStyleSel = root.querySelector<HTMLSelectElement>(
+    '[data-csr-wrap-style]'
+  );
+  const wrapTintRange = root.querySelector<HTMLInputElement>(
+    '[data-csr-wrap-tint]'
+  );
   const finishSel = root.querySelector<HTMLSelectElement>('[data-csr-finish]');
   const wheelFinishSel = root.querySelector<HTMLSelectElement>(
     '[data-csr-wheel-finish]'
@@ -525,11 +531,22 @@ createAstroMount(ROOT_SELECTOR, () => {
     const wcolor = params.get('wcolor');
     const wpat = params.get('wpat');
     const wscale = params.get('wscale');
+    const wstyle = params.get('wstyle');
+    const wtint = params.get('wtint');
 
     const pm = params.get('pm');
 
     if (model) root.dataset.carShowroomModel = model;
-    if (mode) root.dataset.carShowroomMode = mode;
+
+    if (
+      mode === 'paint' ||
+      mode === 'wrap' ||
+      mode === 'glass' ||
+      mode === 'wireframe' ||
+      mode === 'factory'
+    ) {
+      root.dataset.carShowroomMode = mode;
+    }
     if (finish) root.dataset.carShowroomFinish = finish;
     if (wheel) root.dataset.carShowroomWheelFinish = wheel;
     if (trim) root.dataset.carShowroomTrimFinish = trim;
@@ -661,7 +678,9 @@ createAstroMount(ROOT_SELECTOR, () => {
       wpat === 'solid' ||
       wpat === 'stripes' ||
       wpat === 'carbon' ||
-      wpat === 'camo'
+      wpat === 'camo' ||
+      wpat === 'checker' ||
+      wpat === 'hex'
     ) {
       root.dataset.carShowroomWrapPattern = wpat;
     }
@@ -669,6 +688,14 @@ createAstroMount(ROOT_SELECTOR, () => {
     const wscaleN = parseNum(wscale);
     if (wscaleN !== null)
       root.dataset.carShowroomWrapScale = String(clamp(wscaleN, 0.2, 6));
+
+    if (wstyle === 'oem' || wstyle === 'procedural') {
+      root.dataset.carShowroomWrapStyle = wstyle;
+    }
+
+    const wtintN = parseNum(wtint);
+    if (wtintN !== null)
+      root.dataset.carShowroomWrapTint = String(clamp01(wtintN));
 
     if (pm) {
       const decoded = fromBase64Url(pm);
@@ -702,6 +729,8 @@ createAstroMount(ROOT_SELECTOR, () => {
     'carShowroomWrapColor',
     'carShowroomWrapPattern',
     'carShowroomWrapScale',
+    'carShowroomWrapStyle',
+    'carShowroomWrapTint',
     'carShowroomFinish',
     'carShowroomWheelFinish',
     'carShowroomWheelColor',
@@ -820,6 +849,10 @@ createAstroMount(ROOT_SELECTOR, () => {
       wrapPatternSel.value = ds.carShowroomWrapPattern;
     if (wrapScaleRange && ds.carShowroomWrapScale)
       wrapScaleRange.value = ds.carShowroomWrapScale;
+    if (wrapStyleSel && ds.carShowroomWrapStyle)
+      wrapStyleSel.value = ds.carShowroomWrapStyle;
+    if (wrapTintRange && ds.carShowroomWrapTint)
+      wrapTintRange.value = ds.carShowroomWrapTint;
     if (finishSel && ds.carShowroomFinish)
       finishSel.value = ds.carShowroomFinish;
     if (wheelFinishSel && ds.carShowroomWheelFinish)
@@ -1159,6 +1192,8 @@ createAstroMount(ROOT_SELECTOR, () => {
   root.dataset.carShowroomWrapColor ||= wrapColorInp?.value || '#00d1b2';
   root.dataset.carShowroomWrapPattern ||= wrapPatternSel?.value || 'stripes';
   root.dataset.carShowroomWrapScale ||= wrapScaleRange?.value || '1.6';
+  root.dataset.carShowroomWrapStyle ||= wrapStyleSel?.value || 'oem';
+  root.dataset.carShowroomWrapTint ||= wrapTintRange?.value || '0.92';
   root.dataset.carShowroomFinish ||= finishSel?.value || 'gloss';
   root.dataset.carShowroomWheelFinish ||= wheelFinishSel?.value || 'graphite';
   root.dataset.carShowroomTrimFinish ||= trimFinishSel?.value || 'black';
@@ -1225,6 +1260,10 @@ createAstroMount(ROOT_SELECTOR, () => {
     wrapPatternSel.value = root.dataset.carShowroomWrapPattern;
   if (wrapScaleRange && root.dataset.carShowroomWrapScale)
     wrapScaleRange.value = root.dataset.carShowroomWrapScale;
+  if (wrapStyleSel && root.dataset.carShowroomWrapStyle)
+    wrapStyleSel.value = root.dataset.carShowroomWrapStyle;
+  if (wrapTintRange && root.dataset.carShowroomWrapTint)
+    wrapTintRange.value = root.dataset.carShowroomWrapTint;
   if (finishSel && root.dataset.carShowroomFinish)
     finishSel.value = root.dataset.carShowroomFinish;
   if (wheelFinishSel && root.dataset.carShowroomWheelFinish)
@@ -1315,8 +1354,16 @@ createAstroMount(ROOT_SELECTOR, () => {
       () => {
         const hex = normalizeHexColor(btn.dataset.csrSwatch || '');
         if (!hex) return;
-        if (colorInp) colorInp.value = hex;
-        root.dataset.carShowroomColor = hex;
+        const mode = (modeSel?.value || root.dataset.carShowroomMode || 'paint')
+          .trim()
+          .toLowerCase();
+        if (mode === 'wrap') {
+          if (wrapColorInp) wrapColorInp.value = hex;
+          root.dataset.carShowroomWrapColor = hex;
+        } else {
+          if (colorInp) colorInp.value = hex;
+          root.dataset.carShowroomColor = hex;
+        }
         bumpRevision();
       },
       { passive: true }
@@ -1495,6 +1542,8 @@ createAstroMount(ROOT_SELECTOR, () => {
       root.dataset.carShowroomWrapPattern = wrapPatternSel.value;
     if (wrapScaleRange)
       root.dataset.carShowroomWrapScale = wrapScaleRange.value;
+    if (wrapStyleSel) root.dataset.carShowroomWrapStyle = wrapStyleSel.value;
+    if (wrapTintRange) root.dataset.carShowroomWrapTint = wrapTintRange.value;
     if (finishSel) root.dataset.carShowroomFinish = finishSel.value;
     if (wheelFinishSel)
       root.dataset.carShowroomWheelFinish = wheelFinishSel.value;
@@ -1557,6 +1606,8 @@ createAstroMount(ROOT_SELECTOR, () => {
     wrapColorInp,
     wrapPatternSel,
     wrapScaleRange,
+    wrapStyleSel,
+    wrapTintRange,
     finishSel,
     wheelFinishSel,
     trimFinishSel,
@@ -1596,6 +1647,8 @@ createAstroMount(ROOT_SELECTOR, () => {
     if (wrapColorInp) wrapColorInp.value = '#00d1b2';
     if (wrapPatternSel) wrapPatternSel.value = 'stripes';
     if (wrapScaleRange) wrapScaleRange.value = '1.6';
+    if (wrapStyleSel) wrapStyleSel.value = 'oem';
+    if (wrapTintRange) wrapTintRange.value = '0.92';
     if (finishSel) finishSel.value = 'gloss';
     if (wheelFinishSel) wheelFinishSel.value = 'graphite';
     if (trimFinishSel) trimFinishSel.value = 'black';
@@ -1687,6 +1740,8 @@ createAstroMount(ROOT_SELECTOR, () => {
     params.set('wcolor', ds.carShowroomWrapColor || '#00d1b2');
     params.set('wpat', ds.carShowroomWrapPattern || 'stripes');
     params.set('wscale', ds.carShowroomWrapScale || '1.6');
+    params.set('wstyle', ds.carShowroomWrapStyle || 'oem');
+    params.set('wtint', ds.carShowroomWrapTint || '0.92');
     params.set('finish', ds.carShowroomFinish || 'gloss');
     params.set('wheel', ds.carShowroomWheelFinish || 'graphite');
     params.set('trim', ds.carShowroomTrimFinish || 'black');
@@ -1795,6 +1850,8 @@ createAstroMount(ROOT_SELECTOR, () => {
       params.set('wcolor', ds.carShowroomWrapColor || '#00d1b2');
       params.set('wpat', ds.carShowroomWrapPattern || 'stripes');
       params.set('wscale', ds.carShowroomWrapScale || '1.6');
+      params.set('wstyle', ds.carShowroomWrapStyle || 'oem');
+      params.set('wtint', ds.carShowroomWrapTint || '0.92');
       params.set('finish', ds.carShowroomFinish || 'gloss');
       params.set('wheel', ds.carShowroomWheelFinish || 'graphite');
       params.set('trim', ds.carShowroomTrimFinish || 'black');

@@ -5,19 +5,33 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { withBasePath } from '../../utils/helpers';
 
-type ShowroomMode = 'paint' | 'wrap' | 'glass' | 'wireframe';
+type ShowroomMode = 'paint' | 'wrap' | 'glass' | 'wireframe' | 'factory';
 type ShowroomFinish = 'gloss' | 'satin' | 'matte';
 type ShowroomBackground = 'studio' | 'day' | 'sunset' | 'night' | 'grid';
 type WheelFinish = 'graphite' | 'chrome' | 'black';
 type TrimFinish = 'black' | 'chrome' | 'brushed';
 type CameraPreset = 'hero' | 'front' | 'rear' | 'side' | 'top' | 'detail';
 type FloorPreset = 'auto' | 'asphalt' | 'matte' | 'polished' | 'glass';
-type WrapPattern = 'solid' | 'stripes' | 'carbon' | 'camo';
+type WrapPattern =
+  | 'solid'
+  | 'stripes'
+  | 'carbon'
+  | 'camo'
+  | 'checker'
+  | 'hex'
+  | 'race';
 type QualityPreset = 'performance' | 'balanced' | 'ultra';
+
+type WrapStyle = 'oem' | 'procedural';
 
 type UiState = {
   modelUrl: string;
   mode: ShowroomMode;
+  wrapStyle: WrapStyle;
+  wrapTint: number;
+  wrapOffsetX: number;
+  wrapOffsetY: number;
+  wrapRotationDeg: number;
   color: THREE.Color;
   wrapColor: THREE.Color;
   wheelColor: THREE.Color;
@@ -224,6 +238,107 @@ const createWrapPatternTexture = (
       );
       ctx.fill();
     }
+  } else if (pattern === 'checker') {
+    const cell = 56;
+    for (let y = 0; y < size; y += cell) {
+      for (let x = 0; x < size; x += cell) {
+        const v = (x / cell + y / cell) % 2;
+        const c = v < 1 ? 238 : 205;
+        ctx.fillStyle = `rgb(${c},${c},${c})`;
+        ctx.fillRect(x, y, cell, cell);
+      }
+    }
+    ctx.globalAlpha = 0.12;
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 2;
+    for (let y = 0; y <= size; y += cell) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(size, y);
+      ctx.stroke();
+    }
+    for (let x = 0; x <= size; x += cell) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, size);
+      ctx.stroke();
+    }
+  } else if (pattern === 'hex') {
+    const r = 34;
+    const h = Math.sqrt(3) * r;
+    ctx.globalAlpha = 0.22;
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 2;
+
+    const drawHex = (cx: number, cy: number) => {
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i + Math.PI / 6;
+        const x = cx + Math.cos(a) * r;
+        const y = cy + Math.sin(a) * r;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+    };
+
+    for (let y = -h; y < size + h; y += h) {
+      const row = Math.round(y / h);
+      const xOffset = row % 2 === 0 ? 0 : r * 1.5;
+      for (let x = -r * 3; x < size + r * 3; x += r * 3) {
+        drawHex(x + xOffset, y);
+      }
+    }
+  } else if (pattern === 'race') {
+    // Grayscale livery meant to be tinted by wrap color.
+    ctx.fillStyle = 'rgb(248,248,248)';
+    ctx.fillRect(0, 0, size, size);
+
+    // Diagonal stripes.
+    ctx.save();
+    ctx.translate(size / 2, size / 2);
+    ctx.rotate(-Math.PI / 6);
+    ctx.translate(-size / 2, -size / 2);
+    ctx.globalAlpha = 0.28;
+    const stripeW = 56;
+    for (let x = -size; x < size * 2; x += stripeW) {
+      const t = (x / stripeW) % 2;
+      ctx.fillStyle = t < 1 ? 'rgb(220,220,220)' : 'rgb(245,245,245)';
+      ctx.fillRect(x, 0, stripeW, size);
+    }
+    ctx.restore();
+
+    // Door roundels + numbers (will tile, but reads as race livery).
+    const drawRoundel = (cx: number, cy: number, num: string) => {
+      ctx.save();
+      ctx.globalAlpha = 0.95;
+      ctx.fillStyle = 'rgb(250,250,250)';
+      ctx.strokeStyle = 'rgb(35,35,35)';
+      ctx.lineWidth = 10;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 110, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgb(25,25,25)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font =
+        '800 140px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial';
+      ctx.fillText(num, cx, cy + 6);
+      ctx.restore();
+    };
+
+    drawRoundel(size * 0.32, size * 0.55, '26');
+    drawRoundel(size * 0.72, size * 0.4, '26');
+
+    // Small sponsor blocks.
+    ctx.globalAlpha = 0.28;
+    ctx.fillStyle = 'rgb(30,30,30)';
+    ctx.fillRect(size * 0.08, size * 0.12, 180, 34);
+    ctx.fillRect(size * 0.58, size * 0.78, 210, 34);
   }
 
   const texture = new THREE.CanvasTexture(canvas);
@@ -265,6 +380,16 @@ export class CarShowroomScene {
   private loaded: THREE.Object3D | null = null;
   private loadingUrl: string | null = null;
   private lastUiRevision = '';
+
+  private savedMaterials = new Map<string, THREE.Material | THREE.Material[]>();
+  private oemWrapMaterials = new Map<
+    string,
+    | { material: THREE.Material | THREE.Material[]; baseColor: THREE.Color }
+    | Array<{
+        material: THREE.Material | THREE.Material[];
+        baseColor: THREE.Color;
+      }>
+  >();
 
   private bodyMat: THREE.MeshPhysicalMaterial;
   private wrapMat: THREE.MeshPhysicalMaterial;
@@ -579,6 +704,28 @@ export class CarShowroomScene {
   private disposeLoaded() {
     if (!this.loaded) return;
 
+    // If we swapped materials for configurator modes, restore the original materials
+    // first so they are properly disposed with the model.
+    this.loaded.traverse(obj => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const saved = this.savedMaterials.get(mesh.uuid);
+      if (saved) mesh.material = saved;
+    });
+
+    for (const mapped of this.oemWrapMaterials.values()) {
+      const items = Array.isArray(mapped) ? mapped : [mapped];
+      for (const item of items) {
+        const mat = item.material;
+        if (Array.isArray(mat)) {
+          mat.forEach(m => m.dispose());
+        } else {
+          mat.dispose();
+        }
+      }
+    }
+    this.oemWrapMaterials.clear();
+
     const isSharedMaterial = (mat: THREE.Material | null | undefined) => {
       if (!mat) return false;
       return (
@@ -611,6 +758,130 @@ export class CarShowroomScene {
 
     this.modelGroup.remove(this.loaded);
     this.loaded = null;
+    this.savedMaterials.clear();
+  }
+
+  private captureOriginalMaterials(loaded: THREE.Object3D) {
+    this.savedMaterials.clear();
+    loaded.traverse(obj => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      this.savedMaterials.set(mesh.uuid, mesh.material);
+    });
+  }
+
+  private restoreOriginalMaterialForMesh(mesh: THREE.Mesh) {
+    const saved = this.savedMaterials.get(mesh.uuid);
+    if (saved) mesh.material = saved;
+  }
+
+  private getMeshBaseColor(material: THREE.Material): THREE.Color {
+    const anyMat = material as unknown as { color?: THREE.Color };
+    if (anyMat?.color instanceof THREE.Color) return anyMat.color.clone();
+    return new THREE.Color(0xffffff);
+  }
+
+  private cloneAsPhysicalWrap(
+    src: THREE.Material,
+    wrapColor: THREE.Color,
+    wrapTint: number,
+    finish: ShowroomFinish
+  ): { material: THREE.MeshPhysicalMaterial; baseColor: THREE.Color } {
+    const baseColor = this.getMeshBaseColor(src);
+
+    const stdSrc = src as unknown as THREE.MeshStandardMaterial;
+    const physSrc = src as unknown as THREE.MeshPhysicalMaterial;
+
+    const mat = new THREE.MeshPhysicalMaterial({
+      color: baseColor.clone().lerp(wrapColor, wrapTint),
+      map: stdSrc.map ?? null,
+      normalMap: stdSrc.normalMap ?? null,
+      normalScale:
+        (physSrc.normalScale?.clone?.() as THREE.Vector2 | undefined) ??
+        new THREE.Vector2(1, 1),
+      roughnessMap: stdSrc.roughnessMap ?? null,
+      metalnessMap: stdSrc.metalnessMap ?? null,
+      aoMap: stdSrc.aoMap ?? null,
+      aoMapIntensity: (stdSrc.aoMapIntensity as number | undefined) ?? 1,
+      emissive:
+        (physSrc.emissive?.clone?.() as THREE.Color | undefined) ??
+        new THREE.Color(0x000000),
+      emissiveMap:
+        (stdSrc.emissiveMap as THREE.Texture | null | undefined) ?? null,
+      emissiveIntensity: (physSrc.emissiveIntensity as number | undefined) ?? 0,
+      alphaMap: (stdSrc.alphaMap as THREE.Texture | null | undefined) ?? null,
+      transparent: (stdSrc.transparent as boolean | undefined) ?? false,
+      opacity: (stdSrc.opacity as number | undefined) ?? 1,
+      alphaTest: (stdSrc.alphaTest as number | undefined) ?? 0,
+      side: (stdSrc.side as THREE.Side | undefined) ?? THREE.FrontSide,
+      depthWrite: (stdSrc.depthWrite as boolean | undefined) ?? true,
+      depthTest: (stdSrc.depthTest as boolean | undefined) ?? true,
+    });
+
+    const anySrc = src as unknown as {
+      envMapIntensity?: number;
+      transmission?: number;
+      thickness?: number;
+      ior?: number;
+      clearcoat?: number;
+      clearcoatRoughness?: number;
+    };
+    if (typeof anySrc.envMapIntensity === 'number') {
+      (mat as unknown as { envMapIntensity?: number }).envMapIntensity =
+        anySrc.envMapIntensity;
+    }
+    if (typeof anySrc.transmission === 'number') mat.transmission = 0;
+    if (typeof anySrc.thickness === 'number') mat.thickness = 0.15;
+    if (typeof anySrc.ior === 'number') mat.ior = anySrc.ior;
+    if (typeof anySrc.clearcoat === 'number') mat.clearcoat = anySrc.clearcoat;
+    if (typeof anySrc.clearcoatRoughness === 'number')
+      mat.clearcoatRoughness = anySrc.clearcoatRoughness;
+
+    this.applyFinishPreset(mat, finish);
+    mat.needsUpdate = true;
+    return { material: mat, baseColor };
+  }
+
+  private getOrCreateOemWrapMaterial(
+    mesh: THREE.Mesh,
+    wrapColor: THREE.Color,
+    wrapTint: number,
+    finish: ShowroomFinish
+  ): THREE.Material | THREE.Material[] | null {
+    const saved = this.savedMaterials.get(mesh.uuid);
+    if (!saved) return null;
+
+    const cached = this.oemWrapMaterials.get(mesh.uuid);
+    if (cached) {
+      const items = Array.isArray(cached) ? cached : [cached];
+      for (const item of items) {
+        const mats = Array.isArray(item.material)
+          ? item.material
+          : [item.material];
+        for (const mat of mats) {
+          if (mat instanceof THREE.MeshPhysicalMaterial) {
+            mat.color.copy(item.baseColor).lerp(wrapColor, wrapTint);
+            this.applyFinishPreset(mat, finish);
+            mat.needsUpdate = true;
+          }
+        }
+      }
+      return Array.isArray(cached)
+        ? (cached.map(c => c.material).flat() as unknown as THREE.Material[])
+        : cached.material;
+    }
+
+    if (Array.isArray(saved)) {
+      const mapped = saved.map(m =>
+        this.cloneAsPhysicalWrap(m, wrapColor, wrapTint, finish)
+      );
+      this.oemWrapMaterials.set(mesh.uuid, mapped);
+      return mapped.map(m => m.material);
+    }
+
+    const mapped = this.cloneAsPhysicalWrap(saved, wrapColor, wrapTint, finish);
+    this.oemWrapMaterials.set(mesh.uuid, mapped);
+    return mapped.material;
   }
 
   private getUiState(): UiState {
@@ -618,7 +889,25 @@ export class CarShowroomScene {
     const modelUrl = (
       ds.carShowroomModel || '/models/porsche-911-gt3rs.glb'
     ).trim();
-    const mode = (ds.carShowroomMode || 'paint') as ShowroomMode;
+
+    const modeRaw = (ds.carShowroomMode || 'paint').trim().toLowerCase();
+    const mode: ShowroomMode =
+      modeRaw === 'paint' ||
+      modeRaw === 'wrap' ||
+      modeRaw === 'glass' ||
+      modeRaw === 'wireframe' ||
+      modeRaw === 'factory'
+        ? (modeRaw as ShowroomMode)
+        : 'paint';
+
+    const wrapStyleRaw = (ds.carShowroomWrapStyle || 'oem')
+      .trim()
+      .toLowerCase();
+    const wrapStyle: WrapStyle =
+      wrapStyleRaw === 'procedural' || wrapStyleRaw === 'oem'
+        ? (wrapStyleRaw as WrapStyle)
+        : 'oem';
+    const wrapTint = clamp(parseNumber(ds.carShowroomWrapTint, 0.92), 0, 1);
     const finish = (ds.carShowroomFinish || 'gloss') as ShowroomFinish;
     const wheelFinish = (ds.carShowroomWheelFinish ||
       'graphite') as WheelFinish;
@@ -732,7 +1021,9 @@ export class CarShowroomScene {
       rawWrapPattern === 'solid' ||
       rawWrapPattern === 'stripes' ||
       rawWrapPattern === 'carbon' ||
-      rawWrapPattern === 'camo'
+      rawWrapPattern === 'camo' ||
+      rawWrapPattern === 'checker' ||
+      rawWrapPattern === 'hex'
         ? (rawWrapPattern as WrapPattern)
         : 'stripes';
     const wrapScale = clamp(parseNumber(ds.carShowroomWrapScale, 1.6), 0.2, 6);
@@ -740,6 +1031,8 @@ export class CarShowroomScene {
     return {
       modelUrl,
       mode,
+      wrapStyle,
+      wrapTint,
       color,
       wrapColor,
       wheelColor,
@@ -1247,6 +1540,11 @@ export class CarShowroomScene {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
 
+      if (mode === 'factory') {
+        this.restoreOriginalMaterialForMesh(mesh);
+        return;
+      }
+
       const path = this.getMeshPath(mesh);
       const mapped = path ? String(manualMap[path] || '').trim() : '';
       const part =
@@ -1292,6 +1590,19 @@ export class CarShowroomScene {
       if (part === 'trim') {
         mesh.material = this.trimMat;
         return;
+      }
+
+      if (mode === 'wrap' && ui.wrapStyle === 'oem') {
+        const wrapped = this.getOrCreateOemWrapMaterial(
+          mesh,
+          ui.wrapColor,
+          ui.wrapTint,
+          ui.finish
+        );
+        if (wrapped) {
+          mesh.material = wrapped;
+          return;
+        }
       }
 
       mesh.material = mode === 'wrap' ? this.wrapMat : this.bodyMat;
@@ -1357,6 +1668,8 @@ export class CarShowroomScene {
 
       this.loaded = gltf;
       this.modelGroup.add(gltf);
+
+      this.captureOriginalMaterials(gltf);
 
       const ui = this.getUiState();
       this.applyCameraPreset(ui, true);

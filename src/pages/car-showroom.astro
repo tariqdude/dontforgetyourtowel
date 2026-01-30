@@ -193,7 +193,7 @@ const description =
           </div>
         </div>
 
-        <div class="csr-tab-panels">
+        <div class="csr-tab-panels" data-csr-tab-panels>
           <div
             id="csr-tab-look"
             class="csr-tab"
@@ -221,6 +221,7 @@ const description =
                 <span>Mode</span>
                 <select data-csr-mode>
                   <option value="paint">Paint</option>
+                  <option value="factory">Factory</option>
                   <option value="wrap">Wrap</option>
                   <option value="glass">Glass</option>
                   <option value="wireframe">Wireframe</option>
@@ -238,12 +239,34 @@ const description =
               </label>
 
               <label class="csr-field">
+                <span>Wrap style</span>
+                <select data-csr-wrap-style>
+                  <option value="oem">OEM (preserve model wrap)</option>
+                  <option value="procedural">Procedural</option>
+                </select>
+              </label>
+
+              <label class="csr-field csr-field--wide">
+                <span>Wrap tint</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.92"
+                  data-csr-wrap-tint
+                />
+              </label>
+
+              <label class="csr-field">
                 <span>Wrap pattern</span>
                 <select data-csr-wrap-pattern>
                   <option value="solid">Solid</option>
                   <option value="stripes">Stripes</option>
                   <option value="carbon">Carbon</option>
                   <option value="camo">Camo</option>
+                  <option value="checker">Checker</option>
+                  <option value="hex">Hex</option>
                 </select>
               </label>
 
@@ -298,6 +321,42 @@ const description =
                     style="--swatch:#e5e7eb"
                     data-csr-swatch="#e5e7eb"
                     aria-label="Silver"></button>
+                  <button
+                    type="button"
+                    class="csr-swatch"
+                    style="--swatch:#0b0f1a"
+                    data-csr-swatch="#0b0f1a"
+                    aria-label="Black"></button>
+                  <button
+                    type="button"
+                    class="csr-swatch"
+                    style="--swatch:#ffffff"
+                    data-csr-swatch="#ffffff"
+                    aria-label="White"></button>
+                  <button
+                    type="button"
+                    class="csr-swatch"
+                    style="--swatch:#22c55e"
+                    data-csr-swatch="#22c55e"
+                    aria-label="Green"></button>
+                  <button
+                    type="button"
+                    class="csr-swatch"
+                    style="--swatch:#a855f7"
+                    data-csr-swatch="#a855f7"
+                    aria-label="Purple"></button>
+                  <button
+                    type="button"
+                    class="csr-swatch"
+                    style="--swatch:#fb923c"
+                    data-csr-swatch="#fb923c"
+                    aria-label="Orange"></button>
+                  <button
+                    type="button"
+                    class="csr-swatch"
+                    style="--swatch:#94a3b8"
+                    data-csr-swatch="#94a3b8"
+                    aria-label="Slate"></button>
                 </div>
               </div>
 
@@ -703,6 +762,34 @@ const description =
                 </select>
               </label>
 
+              <label class="csr-field csr-field--wide">
+                <span>Original materials</span>
+                <label class="csr-check">
+                  <input type="checkbox" data-csr-original-mats />
+                  <span
+                    >Use the model’s original materials (keeps decals/wrap)</span
+                  >
+                </label>
+              </label>
+
+              <div class="csr-row">
+                <button
+                  type="button"
+                  class="csr-btn csr-btn--ghost"
+                  data-csr-undo
+                >
+                  Undo
+                </button>
+                <button
+                  type="button"
+                  class="csr-btn csr-btn--ghost"
+                  data-csr-redo
+                >
+                  Redo
+                </button>
+                <p class="csr-hint">Ctrl/⌘+Z • Ctrl/⌘+Y</p>
+              </div>
+
               <label class="csr-field">
                 <span>Screenshot scale</span>
                 <select data-csr-shot-scale>
@@ -1025,6 +1112,25 @@ const description =
       flex-wrap: wrap;
     }
 
+    .csr-check {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.05);
+      color: rgba(255, 255, 255, 0.9);
+      line-height: 1.25;
+      user-select: none;
+    }
+
+    .csr-check input {
+      width: 18px;
+      height: 18px;
+      accent-color: rgb(34, 211, 238);
+    }
+
     .csr-tab-btn {
       pointer-events: auto;
       border-radius: 999px;
@@ -1303,6 +1409,8 @@ const description =
         overflow: auto;
         padding-bottom: 2px;
         scroll-snap-type: x proximity;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-x;
       }
 
       .csr-tab-btn {
