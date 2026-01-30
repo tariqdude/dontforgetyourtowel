@@ -10,6 +10,7 @@ import { createAstroMount } from './tower3d/core/astro-mount';
 import { getTowerCaps } from './tower3d/core/caps';
 import { CarShowroomScene } from './car-showroom/CarShowroomScene';
 import { LIGHT_PRESETS, STYLE_PRESETS } from './car-showroom/presets';
+import { MobileGestureHandler } from './car-showroom/MobileGestures';
 
 const ROOT_SELECTOR = '[data-car-showroom-root]';
 
@@ -187,6 +188,44 @@ createAstroMount(ROOT_SELECTOR, () => {
 
   const caps = getTowerCaps();
   const enable3d = caps.webgl;
+
+  // --- Mobile Tutorial ---
+  const TUTORIAL_STORAGE_KEY = 'car-showroom-tutorial-seen';
+  const tutorialEl = root.querySelector<HTMLElement>('[data-csr-tutorial]');
+  const tutorialCloseBtn = root.querySelector<HTMLButtonElement>(
+    '[data-csr-tutorial-close]'
+  );
+
+  const showTutorial = () => {
+    if (!tutorialEl) return;
+    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (!isMobile) return;
+
+    try {
+      const seen = localStorage.getItem(TUTORIAL_STORAGE_KEY);
+      if (!seen) {
+        tutorialEl.hidden = false;
+      }
+    } catch {
+      // localStorage not available, show tutorial anyway
+      tutorialEl.hidden = false;
+    }
+  };
+
+  const hideTutorial = () => {
+    if (!tutorialEl) return;
+    tutorialEl.hidden = true;
+    try {
+      localStorage.setItem(TUTORIAL_STORAGE_KEY, '1');
+    } catch {
+      // Ignore if localStorage not available
+    }
+  };
+
+  tutorialCloseBtn?.addEventListener('click', hideTutorial);
+
+  // Auto-show on first mobile visit
+  showTutorial();
 
   // --- UI wiring (dataset-driven)
   const bumpRevision = () => {
@@ -2689,6 +2728,26 @@ createAstroMount(ROOT_SELECTOR, () => {
     }
 
     url.search = params.toString();
+
+    // Try Web Share API first (mobile-friendly)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'My Car Configuration',
+          text: 'Check out my custom car design!',
+          url: url.toString(),
+        });
+        showToast('Shared successfully!');
+        return;
+      } catch (err) {
+        // User cancelled or share failed, fall back to clipboard
+        if ((err as Error).name !== 'AbortError') {
+          console.warn('Share failed:', err);
+        }
+      }
+    }
+
+    // Fallback to clipboard
     const ok = await copyToClipboard(url.toString());
     showToast(ok ? 'Link copied.' : 'Could not copy link.');
   };
@@ -3441,7 +3500,63 @@ createAstroMount(ROOT_SELECTOR, () => {
       }
     };
 
+    // Enhanced mobile gesture handler
+    let mobileGestures: MobileGestureHandler | null = null;
+
+    const isMobileDevice = () => {
+      return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    };
+
+    if (isMobileDevice()) {
+      mobileGestures = new MobileGestureHandler(canvas, {
+        onPinchZoom: (_scale, delta) => {
+          const sensitivity = 0.8;
+          zoomTarget = clamp(zoomTarget - delta * sensitivity, 0, 1);
+
+          if (zoomRange) {
+            zoomRange.value = zoomTarget.toFixed(2);
+            root.dataset.carShowroomZoom = zoomRange.value;
+            bumpRevision();
+          }
+        },
+
+        onRotate: (deltaX, deltaY, velocity) => {
+          const rect = canvas.getBoundingClientRect();
+          if (rect.width <= 0 || rect.height <= 0) return;
+
+          const normalizedX = (deltaX / rect.width) * 2;
+          const normalizedY = (deltaY / rect.height) * 2;
+
+          rawPointer.x += normalizedX;
+          rawPointer.y -= normalizedY;
+
+          // Apply velocity for momentum
+          if (!caps.reducedMotion) {
+            const momentumX = (velocity.x / rect.width) * 0.5;
+            const momentumY = (velocity.y / rect.height) * 0.5;
+            pointer.x += momentumX * 0.1;
+            pointer.y -= momentumY * 0.1;
+          }
+        },
+
+        onDoubleTap: () => {
+          // Double-tap to frame the model
+          const rec = showroomInstance.getFrameRecommendation();
+          if (rec) {
+            applyCameraFrame(rec, 'Framed model.');
+          }
+        },
+
+        onLongPress: (x, y) => {
+          // Long-press to pick part
+          pickPartAt(x, y);
+        },
+      });
+    }
+
+    // Legacy touch handlers for pinch (as fallback)
     onTouchStart = (e: TouchEvent) => {
+      if (mobileGestures) return; // Use enhanced gestures instead
       if (e.touches.length !== 2) return;
       pinchActive = true;
       const dx = e.touches[0].clientX - e.touches[1].clientX;
@@ -3451,6 +3566,7 @@ createAstroMount(ROOT_SELECTOR, () => {
     };
 
     onTouchMove = (e: TouchEvent) => {
+      if (mobileGestures) return; // Use enhanced gestures instead
       if (!pinchActive || e.touches.length !== 2) return;
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
@@ -3467,6 +3583,7 @@ createAstroMount(ROOT_SELECTOR, () => {
     };
 
     onTouchEnd = () => {
+      if (mobileGestures) return; // Use enhanced gestures instead
       pinchActive = false;
     };
 
@@ -3513,10 +3630,18 @@ createAstroMount(ROOT_SELECTOR, () => {
         const currentQuality = root.dataset.carShowroomQuality || 'balanced';
         const cooldown = now - lastQualityShift;
 
-        if (fpsSmoothed < 40) {
+        // More aggressive thresholds on mobile
+        const isMobile = isMobileDevice();
+        const lowFpsThreshold = isMobile ? 35 : 40;
+        const highFpsThreshold = isMobile ? 50 : 58;
+        const lowFpsDuration = isMobile ? 1.5 : 2.5;
+        const highFpsDuration = isMobile ? 3.0 : 4.0;
+        const cooldownTime = isMobile ? 2000 : 2500;
+
+        if (fpsSmoothed < lowFpsThreshold) {
           lowFpsTime += dtRaw;
           highFpsTime = 0;
-        } else if (fpsSmoothed > 58) {
+        } else if (fpsSmoothed > highFpsThreshold) {
           highFpsTime += dtRaw;
           lowFpsTime = 0;
         } else {
@@ -3524,15 +3649,34 @@ createAstroMount(ROOT_SELECTOR, () => {
           highFpsTime = 0;
         }
 
-        if (lowFpsTime > 2.5 && cooldown > 2500) {
+        if (lowFpsTime > lowFpsDuration && cooldown > cooldownTime) {
           if (currentQuality === 'ultra') setQuality('balanced', true);
           else if (currentQuality === 'balanced')
             setQuality('performance', true);
           lowFpsTime = 0;
-        } else if (highFpsTime > 4 && cooldown > 3500) {
+        } else if (
+          highFpsTime > highFpsDuration &&
+          cooldown > cooldownTime + 1000
+        ) {
           if (currentQuality === 'performance') setQuality('balanced', true);
-          else if (currentQuality === 'balanced') setQuality('ultra', true);
+          else if (currentQuality === 'balanced' && !isMobile)
+            setQuality('ultra', true);
           highFpsTime = 0;
+        }
+
+        // Dynamic pixel ratio adjustment on mobile
+        if (isMobile) {
+          const targetDpr =
+            fpsSmoothed > 55 ? 1.5 : fpsSmoothed > 45 ? 1.25 : 1.0;
+          const currentDpr = size.dpr;
+          const maxAllowed = Math.min(caps.devicePixelRatio, qualityDprCap);
+          const adjustedDpr = Math.min(targetDpr, maxAllowed);
+
+          if (Math.abs(currentDpr - adjustedDpr) > 0.15) {
+            size.dpr = adjustedDpr;
+            rendererInstance.setPixelRatio(size.dpr);
+            composerInstance.setPixelRatio(size.dpr);
+          }
         }
       }
 
@@ -3610,6 +3754,7 @@ createAstroMount(ROOT_SELECTOR, () => {
       window.removeEventListener('drop', onDrop);
       window.removeEventListener('keydown', onKeyDown);
       if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
+      mobileGestures?.destroy();
       showroom?.dispose();
       composer?.dispose();
       renderer?.dispose();
