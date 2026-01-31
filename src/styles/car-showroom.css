@@ -1953,3 +1953,424 @@
     background: rgba(0, 0, 0, 0.4);
   }
 }
+
+/* ============================================
+   ADVANCED MOBILE ENHANCEMENTS
+   ============================================ */
+
+/* Swipe Indicator for Tab Navigation */
+.csr-swipe-indicator {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.csr-swipe-indicator__arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: linear-gradient(
+    135deg,
+    rgba(34, 211, 238, 0.3),
+    rgba(6, 182, 212, 0.2)
+  );
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(34, 211, 238, 0.4);
+  color: #22d3ee;
+  opacity: 0;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.csr-swipe-indicator__arrow--left {
+  left: 12px;
+}
+
+.csr-swipe-indicator__arrow--right {
+  right: 12px;
+}
+
+.csr-swipe-indicator__arrow svg {
+  width: 20px;
+  height: 20px;
+}
+
+.csr-swipe-indicator[data-direction='left'] .csr-swipe-indicator__arrow--left {
+  opacity: 1;
+  transform: translateY(-50%) translateX(-5px);
+}
+
+.csr-swipe-indicator[data-direction='right']
+  .csr-swipe-indicator__arrow--right {
+  opacity: 1;
+  transform: translateY(-50%) translateX(5px);
+}
+
+/* Shimmer Loading Effect */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.csr-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.csr-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+  pointer-events: none;
+}
+
+.csr-loading-skeleton {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+.csr-loading-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite ease-in-out;
+}
+
+/* Loading state for the canvas */
+.car-showroom[data-car-showroom-loading='1'] .car-showroom__canvas::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(34, 211, 238, 0.02) 0%,
+    rgba(124, 58, 237, 0.02) 100%
+  );
+  z-index: 10;
+  pointer-events: none;
+}
+
+.car-showroom[data-car-showroom-loading='1'] .car-showroom__canvas::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 48px;
+  height: 48px;
+  margin: -24px 0 0 -24px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #22d3ee;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  z-index: 11;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Micro-interactions for touch feedback */
+@media (max-width: 980px) {
+  /* Ripple effect on buttons */
+  .csr-btn,
+  .csr-tabbar-btn,
+  .csr-color-btn,
+  .csr-fab__trigger {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .csr-btn::before,
+  .csr-tabbar-btn::before,
+  .csr-color-btn::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: radial-gradient(
+      circle,
+      rgba(255, 255, 255, 0.3) 0%,
+      transparent 70%
+    );
+    transform: translate(-50%, -50%);
+    transition:
+      width 0.4s ease,
+      height 0.4s ease,
+      opacity 0.4s ease;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .csr-btn:active::before,
+  .csr-tabbar-btn:active::before,
+  .csr-color-btn:active::before {
+    width: 200%;
+    height: 200%;
+    opacity: 1;
+    transition:
+      width 0s,
+      height 0s,
+      opacity 0s;
+  }
+
+  /* Enhanced press states */
+  .csr-field:active {
+    transform: scale(0.995);
+  }
+
+  .csr-accordion__header:active {
+    transform: scale(0.98);
+  }
+
+  /* Smooth scroll for panels */
+  .csr-tab-panels {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Better scroll snapping */
+  .csr-tab {
+    scroll-snap-align: start;
+  }
+}
+
+/* Focus visible states for accessibility */
+.csr-btn:focus-visible,
+.csr-tabbar-btn:focus-visible,
+.csr-color-btn:focus-visible,
+.csr-accordion__header:focus-visible {
+  outline: 2px solid #22d3ee;
+  outline-offset: 2px;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .csr-shimmer::after,
+  .csr-loading-skeleton::after {
+    animation: none;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .csr-swipe-indicator {
+    display: none;
+  }
+}
+
+/* Pull-to-expand indicator */
+.csr-pull-indicator {
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+  pointer-events: none;
+}
+
+.csr-pull-indicator__icon {
+  width: 24px;
+  height: 24px;
+  color: #22d3ee;
+  transition: transform 0.3s ease;
+}
+
+.csr-pull-indicator__text {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.car-showroom__panel[data-pull-state='pulling'] .csr-pull-indicator {
+  opacity: 1;
+  transform: translateX(-50%) translateY(10px);
+}
+
+.car-showroom__panel[data-pull-state='ready'] .csr-pull-indicator__icon {
+  transform: rotate(180deg);
+}
+
+/* Improved scrollbar styling for mobile */
+@media (max-width: 980px) {
+  .csr-tab-panels::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .csr-tab-panels::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .csr-tab-panels::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+  }
+
+  .csr-tab-panels::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+  }
+}
+
+/* Edge glow effect when at boundaries */
+.csr-tab-panels::before,
+.csr-tab-panels::after {
+  content: '';
+  position: sticky;
+  left: 0;
+  right: 0;
+  height: 20px;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.csr-tab-panels::before {
+  top: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(34, 211, 238, 0.1) 0%,
+    transparent 100%
+  );
+}
+
+.csr-tab-panels::after {
+  bottom: 0;
+  background: linear-gradient(
+    0deg,
+    rgba(34, 211, 238, 0.1) 0%,
+    transparent 100%
+  );
+}
+
+.csr-tab-panels[data-scroll='top']::before {
+  opacity: 1;
+}
+
+.csr-tab-panels[data-scroll='bottom']::after {
+  opacity: 1;
+}
+
+/* Toast notification improvements */
+.csr-toast {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  padding: 12px 20px;
+  background: linear-gradient(
+    135deg,
+    rgba(20, 25, 40, 0.95),
+    rgba(10, 15, 30, 0.98)
+  );
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  border-radius: 12px;
+  color: #fff;
+  font-size: 14px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 10000;
+}
+
+.csr-toast.is-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+}
+
+@media (max-width: 980px) {
+  .csr-toast {
+    bottom: 140px; /* Above the tab bar */
+    max-width: calc(100vw - 32px);
+  }
+}
+
+/* Success/error toast variants */
+.csr-toast--success {
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.csr-toast--error {
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+/* Tab transition animations */
+@media (max-width: 980px) {
+  .csr-tab[data-csr-tab-panel] {
+    transition:
+      opacity 0.2s ease,
+      transform 0.2s ease;
+  }
+
+  .csr-tab[data-csr-tab-panel][hidden] {
+    display: none;
+  }
+
+  .csr-tab[data-csr-tab-panel]:not([hidden]) {
+    animation: tab-enter 0.25s ease forwards;
+  }
+
+  @keyframes tab-enter {
+    from {
+      opacity: 0;
+      transform: translateX(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+}

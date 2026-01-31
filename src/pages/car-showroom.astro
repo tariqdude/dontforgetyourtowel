@@ -317,6 +317,20 @@ const description =
             aria-label="Resize options panel"
             title="Drag to resize"></button>
 
+          <!-- Pull indicator for expand gesture -->
+          <div class="csr-pull-indicator" aria-hidden="true">
+            <svg
+              class="csr-pull-indicator__icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M18 15l-6-6-6 6"></path>
+            </svg>
+            <span class="csr-pull-indicator__text">Pull to expand</span>
+          </div>
+
           <label class="csr-tab-select">
             <span>Section</span>
             <select data-csr-tab-select>

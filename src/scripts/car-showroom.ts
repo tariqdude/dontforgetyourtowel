@@ -987,6 +987,51 @@ createAstroMount(ROOT_SELECTOR, () => {
 
   if (tabPanelsContainer && isMobileDevice()) {
     tabSwipeHandler = new TabSwipeHandler(tabPanelsContainer, navigateTab);
+
+    // Update tab edge state when tab changes for rubber band effect
+    const updateTabEdgeState = () => {
+      if (!tabSwipeHandler) return;
+      let currentIndex = 0;
+      for (let i = 0; i < tabButtons.length; i++) {
+        if (tabButtons[i].getAttribute('aria-selected') === 'true') {
+          currentIndex = i;
+          break;
+        }
+      }
+      const isAtStart = currentIndex === 0;
+      const isAtEnd = currentIndex === tabButtons.length - 1;
+      tabSwipeHandler.setEdgeState(isAtStart, isAtEnd);
+    };
+
+    // Update on tab change - attach listeners to update edge state
+    for (const btn of tabButtons) {
+      btn.addEventListener('click', () => updateTabEdgeState());
+    }
+    for (const mobileBtn of mobileTabBtns) {
+      mobileBtn.addEventListener('click', () => updateTabEdgeState());
+    }
+    updateTabEdgeState();
+
+    // Add scroll position tracking for edge glow effects
+    tabPanelsContainer.addEventListener(
+      'scroll',
+      () => {
+        const scrollTop = tabPanelsContainer.scrollTop;
+        const scrollHeight = tabPanelsContainer.scrollHeight;
+        const clientHeight = tabPanelsContainer.clientHeight;
+        const isAtTop = scrollTop <= 5;
+        const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5;
+
+        if (isAtTop) {
+          tabPanelsContainer.setAttribute('data-scroll', 'top');
+        } else if (isAtBottom) {
+          tabPanelsContainer.setAttribute('data-scroll', 'bottom');
+        } else {
+          tabPanelsContainer.removeAttribute('data-scroll');
+        }
+      },
+      { passive: true }
+    );
   }
 
   const filterTargets = Array.from(
@@ -1038,10 +1083,50 @@ createAstroMount(ROOT_SELECTOR, () => {
     filterInput.focus();
   });
 
-  const showToast = (message: string) => {
+  // Create ARIA live region for screen reader announcements
+  let liveRegion = document.getElementById('csr-live-region');
+  if (!liveRegion) {
+    liveRegion = document.createElement('div');
+    liveRegion.id = 'csr-live-region';
+    liveRegion.setAttribute('role', 'status');
+    liveRegion.setAttribute('aria-live', 'polite');
+    liveRegion.setAttribute('aria-atomic', 'true');
+    liveRegion.className = 'sr-only';
+    liveRegion.style.cssText =
+      'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;';
+    document.body.appendChild(liveRegion);
+  }
+
+  const showToast = (
+    message: string,
+    type: 'info' | 'success' | 'error' = 'info'
+  ) => {
     root.dataset.carShowroomLoadError = message;
     syncStatus();
+
+    // Announce to screen readers
+    if (liveRegion) {
+      liveRegion.textContent = message;
+    }
+
+    // Create visual toast element if it doesn't exist
+    let toast = document.querySelector('.csr-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.className = 'csr-toast';
+      toast.setAttribute('role', 'alert');
+      document.body.appendChild(toast);
+    }
+
+    // Update toast content and show
+    toast.textContent = message;
+    toast.className = `csr-toast csr-toast--${type}`;
+    requestAnimationFrame(() => {
+      toast?.classList.add('is-visible');
+    });
+
     window.setTimeout(() => {
+      toast?.classList.remove('is-visible');
       if ((root.dataset.carShowroomLoadError || '') === message) {
         root.dataset.carShowroomLoadError = '';
       }
@@ -1855,11 +1940,17 @@ createAstroMount(ROOT_SELECTOR, () => {
     if (!panel || !isMobilePanel()) return;
     dragActive = true;
     panel.classList.add('is-dragging');
+    panel.removeAttribute('data-pull-state');
     dragStartY = clientY;
     dragStartHeight = panel.getBoundingClientRect().height;
     dragStartTime = performance.now();
     lastDragY = clientY;
     lastDragTime = dragStartTime;
+
+    // Light haptic feedback when starting drag
+    if ('vibrate' in navigator) {
+      navigator.vibrate(5);
+    }
   };
 
   const onDragMove = (e: PointerEvent) => {
@@ -1877,6 +1968,23 @@ createAstroMount(ROOT_SELECTOR, () => {
       `${Math.round(nextHeight)}px`
     );
     panel.classList.toggle('is-collapsed', nextHeight <= heights.collapsed + 4);
+
+    // Update pull state for visual feedback
+    const pullThreshold = 30;
+    const pullDistance = dragStartY - e.clientY;
+    if (pullDistance > pullThreshold && dragStartHeight < heights.half) {
+      panel.setAttribute('data-pull-state', 'ready');
+    } else if (pullDistance > 10 && dragStartHeight < heights.half) {
+      panel.setAttribute('data-pull-state', 'pulling');
+    } else if (
+      pullDistance < -pullThreshold &&
+      dragStartHeight > heights.peek
+    ) {
+      panel.setAttribute('data-pull-state', 'collapsing');
+    } else {
+      panel.removeAttribute('data-pull-state');
+    }
+
     lastDragY = e.clientY;
     lastDragTime = performance.now();
   };
@@ -1885,6 +1993,8 @@ createAstroMount(ROOT_SELECTOR, () => {
     if (!dragActive || !panel) return;
     dragActive = false;
     panel.classList.remove('is-dragging');
+    panel.removeAttribute('data-pull-state');
+
     const heights = getSnapHeights();
     const rectNow = panel.getBoundingClientRect();
     const height = rectNow.height;
@@ -1902,6 +2012,18 @@ createAstroMount(ROOT_SELECTOR, () => {
       }
     }
     setPanelSnap(nextSnap, true);
+
+    // Haptic feedback on snap
+    if ('vibrate' in navigator) {
+      if (nextSnap === 'full') {
+        navigator.vibrate([10, 30, 10]); // Double tap for full expand
+      } else if (nextSnap === 'collapsed') {
+        navigator.vibrate(15); // Single for collapse
+      } else {
+        navigator.vibrate(8); // Light for partial snap
+      }
+    }
+
     try {
       sheetHandle?.releasePointerCapture?.(e.pointerId);
       panelHead?.releasePointerCapture?.(e.pointerId);
