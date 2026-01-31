@@ -721,9 +721,19 @@ createAstroMount(ROOT_SELECTOR, () => {
   const swatches = Array.from(
     root.querySelectorAll<HTMLButtonElement>('[data-csr-swatch]')
   );
+  const colorPreviewSwatch = root.querySelector<HTMLElement>(
+    '[data-csr-color-preview]'
+  );
   const randomizeLookBtn = root.querySelector<HTMLButtonElement>(
     '[data-csr-randomize-look]'
   );
+
+  // Update the accordion preview swatch to show current body color
+  const updateColorPreview = (hex: string) => {
+    if (colorPreviewSwatch) {
+      colorPreviewSwatch.style.background = hex;
+    }
+  };
 
   const selectedPartEl = root.querySelector<HTMLElement>(
     '[data-csr-selected-part]'
@@ -2244,6 +2254,7 @@ createAstroMount(ROOT_SELECTOR, () => {
         } else {
           if (colorInp) colorInp.value = hex;
           root.dataset.carShowroomColor = hex;
+          updateColorPreview(hex);
         }
         bumpRevision();
       },
@@ -2564,7 +2575,10 @@ createAstroMount(ROOT_SELECTOR, () => {
       root.dataset.carShowroomCamDistance = camDistanceRange.value;
     if (fovRange) root.dataset.carShowroomFov = fovRange.value;
     if (modeSel) root.dataset.carShowroomMode = modeSel.value;
-    if (colorInp) root.dataset.carShowroomColor = colorInp.value;
+    if (colorInp) {
+      root.dataset.carShowroomColor = colorInp.value;
+      updateColorPreview(colorInp.value);
+    }
     if (wrapColorInp) root.dataset.carShowroomWrapColor = wrapColorInp.value;
     if (wrapPatternSel)
       root.dataset.carShowroomWrapPattern = wrapPatternSel.value;

@@ -641,335 +641,507 @@ const description =
             data-csr-tab-panel="look"
           >
             <div class="csr-grid">
-              <label class="csr-field">
-                <span>Mode</span>
-                <select data-csr-mode>
-                  <option value="paint">Paint</option>
-                  <option value="factory">Factory</option>
-                  <option value="wrap">Wrap</option>
-                  <option value="glass">Glass</option>
-                  <option value="wireframe">Wireframe</option>
-                </select>
-              </label>
+              <!-- Quick Settings Section -->
+              <div class="csr-section csr-section--full">
+                <div class="csr-section__header">
+                  <svg
+                    class="csr-section__icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"
+                    ></path>
+                    <circle cx="12" cy="12" r="4"></circle>
+                  </svg>
+                  <span class="csr-section__title">Quick Setup</span>
+                </div>
+                <div class="csr-section__content csr-grid">
+                  <label class="csr-field">
+                    <span>Mode</span>
+                    <select data-csr-mode>
+                      <option value="paint">Paint</option>
+                      <option value="factory">Factory</option>
+                      <option value="wrap">Wrap</option>
+                      <option value="glass">Glass</option>
+                      <option value="wireframe">Wireframe</option>
+                    </select>
+                  </label>
 
-              <label class="csr-field">
-                <span>Style preset</span>
-                <select data-csr-style-preset>
-                  <option value="">Choose…</option>
-                  <option value="stealth">Stealth</option>
-                  <option value="track">Track weapon</option>
-                  <option value="lux">Executive luxe</option>
-                  <option value="neo">Neo neon</option>
-                  <option value="classic">Classic sport</option>
-                </select>
-              </label>
-
-              <label class="csr-field">
-                <span>Body color</span>
-                <input type="color" value="#00d1b2" data-csr-color />
-              </label>
-
-              <label class="csr-field">
-                <span>Wrap color</span>
-                <input type="color" value="#00d1b2" data-csr-wrap-color />
-              </label>
-
-              <label class="csr-field">
-                <span>Wrap style</span>
-                <select data-csr-wrap-style>
-                  <option value="oem">OEM (preserve model wrap)</option>
-                  <option value="procedural">Procedural</option>
-                </select>
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Wrap tint</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value="0.92"
-                  data-csr-wrap-tint
-                />
-              </label>
-
-              <label class="csr-field">
-                <span>Wrap pattern</span>
-                <select data-csr-wrap-pattern>
-                  <option value="solid">Solid</option>
-                  <option value="stripes">Stripes</option>
-                  <option value="carbon">Carbon</option>
-                  <option value="camo">Camo</option>
-                  <option value="checker">Checker</option>
-                  <option value="hex">Hex</option>
-                  <option value="race">Race numbers</option>
-                </select>
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Wrap scale</span>
-                <input
-                  type="range"
-                  min="0.2"
-                  max="6"
-                  step="0.01"
-                  value="1.6"
-                  data-csr-wrap-scale
-                />
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Wrap rotation</span>
-                <input
-                  type="range"
-                  min="-180"
-                  max="180"
-                  step="1"
-                  value="0"
-                  data-csr-wrap-rot
-                />
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Wrap offset X</span>
-                <input
-                  type="range"
-                  min="-1"
-                  max="1"
-                  step="0.01"
-                  value="0"
-                  data-csr-wrap-ox
-                />
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Wrap offset Y</span>
-                <input
-                  type="range"
-                  min="-1"
-                  max="1"
-                  step="0.01"
-                  value="0"
-                  data-csr-wrap-oy
-                />
-              </label>
-
-              <div class="csr-field csr-field--wide">
-                <span>Color presets</span>
-                <div class="csr-swatches" role="list">
-                  <button
-                    type="button"
-                    class="csr-swatch"
-                    style="--swatch:#00d1b2"
-                    data-csr-swatch="#00d1b2"
-                    aria-label="Teal"></button>
-                  <button
-                    type="button"
-                    class="csr-swatch"
-                    style="--swatch:#60a5fa"
-                    data-csr-swatch="#60a5fa"
-                    aria-label="Blue"></button>
-                  <button
-                    type="button"
-                    class="csr-swatch"
-                    style="--swatch:#f472b6"
-                    data-csr-swatch="#f472b6"
-                    aria-label="Pink"></button>
-                  <button
-                    type="button"
-                    class="csr-swatch"
-                    style="--swatch:#fbbf24"
-                    data-csr-swatch="#fbbf24"
-                    aria-label="Gold"></button>
-                  <button
-                    type="button"
-                    class="csr-swatch"
-                    style="--swatch:#f87171"
-                    data-csr-swatch="#f87171"
-                    aria-label="Red"></button>
-                  <button
-                    type="button"
-                    class="csr-swatch"
-                    style="--swatch:#e5e7eb"
-                    data-csr-swatch="#e5e7eb"
-                    aria-label="Silver"></button>
-                  <button
-                    type="button"
-                    class="csr-swatch"
-                    style="--swatch:#0b0f1a"
-                    data-csr-swatch="#0b0f1a"
-                    aria-label="Black"></button>
-                  <button
-                    type="button"
-                    class="csr-swatch"
-                    style="--swatch:#ffffff"
-                    data-csr-swatch="#ffffff"
-                    aria-label="White"></button>
-                  <button
-                    type="button"
-                    class="csr-swatch"
-                    style="--swatch:#22c55e"
-                    data-csr-swatch="#22c55e"
-                    aria-label="Green"></button>
-                  <button
-                    type="button"
-                    class="csr-swatch"
-                    style="--swatch:#a855f7"
-                    data-csr-swatch="#a855f7"
-                    aria-label="Purple"></button>
-                  <button
-                    type="button"
-                    class="csr-swatch"
-                    style="--swatch:#fb923c"
-                    data-csr-swatch="#fb923c"
-                    aria-label="Orange"></button>
-                  <button
-                    type="button"
-                    class="csr-swatch"
-                    style="--swatch:#94a3b8"
-                    data-csr-swatch="#94a3b8"
-                    aria-label="Slate"></button>
+                  <label class="csr-field">
+                    <span>Style preset</span>
+                    <select data-csr-style-preset>
+                      <option value="">Choose…</option>
+                      <option value="stealth">Stealth</option>
+                      <option value="track">Track weapon</option>
+                      <option value="lux">Executive luxe</option>
+                      <option value="neo">Neo neon</option>
+                      <option value="classic">Classic sport</option>
+                    </select>
+                  </label>
                 </div>
               </div>
 
-              <div class="csr-row">
-                <button type="button" class="csr-btn" data-csr-randomize-look>
-                  Randomize look
-                </button>
-                <p class="csr-hint">Fresh paint + accent combo every click</p>
+              <div class="csr-divider"></div>
+
+              <!-- Body Color Section -->
+              <div class="csr-section csr-section--full">
+                <div class="csr-section__header">
+                  <svg
+                    class="csr-section__icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                    ></path>
+                  </svg>
+                  <span class="csr-section__title">Body Color</span>
+                </div>
+                <div class="csr-section__content">
+                  <!-- Expandable Color Palette Accordion -->
+                  <details class="csr-accordion" data-csr-color-accordion>
+                    <summary class="csr-accordion__header">
+                      <div class="csr-accordion__preview">
+                        <span
+                          class="csr-accordion__swatch"
+                          data-csr-color-preview
+                          style="background: #00d1b2;"></span>
+                        <span class="csr-accordion__label">Body Color</span>
+                      </div>
+                      <svg
+                        class="csr-accordion__icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <path d="M6 9l6 6 6-6"></path>
+                      </svg>
+                    </summary>
+                    <div class="csr-accordion__content">
+                      <label class="csr-field csr-field--color">
+                        <span>Custom color</span>
+                        <input type="color" value="#00d1b2" data-csr-color />
+                      </label>
+
+                      <div class="csr-color-grid">
+                        <div class="csr-color-category">
+                          <span class="csr-color-category__label">Neutrals</span
+                          >
+                          <div class="csr-color-category__swatches">
+                            <button
+                              type="button"
+                              class="csr-color-btn"
+                              style="--swatch:#ffffff"
+                              data-csr-swatch="#ffffff"
+                              aria-label="White"></button>
+                            <button
+                              type="button"
+                              class="csr-color-btn"
+                              style="--swatch:#e5e7eb"
+                              data-csr-swatch="#e5e7eb"
+                              aria-label="Silver"></button>
+                            <button
+                              type="button"
+                              class="csr-color-btn"
+                              style="--swatch:#94a3b8"
+                              data-csr-swatch="#94a3b8"
+                              aria-label="Slate"></button>
+                            <button
+                              type="button"
+                              class="csr-color-btn"
+                              style="--swatch:#374151"
+                              data-csr-swatch="#374151"
+                              aria-label="Charcoal"></button>
+                            <button
+                              type="button"
+                              class="csr-color-btn"
+                              style="--swatch:#0b0f1a"
+                              data-csr-swatch="#0b0f1a"
+                              aria-label="Black"></button>
+                          </div>
+                        </div>
+                        <div class="csr-color-category">
+                          <span class="csr-color-category__label">Warm</span>
+                          <div class="csr-color-category__swatches">
+                            <button
+                              type="button"
+                              class="csr-color-btn"
+                              style="--swatch:#f87171"
+                              data-csr-swatch="#f87171"
+                              aria-label="Red"></button>
+                            <button
+                              type="button"
+                              class="csr-color-btn"
+                              style="--swatch:#fb923c"
+                              data-csr-swatch="#fb923c"
+                              aria-label="Orange"></button>
+                            <button
+                              type="button"
+                              class="csr-color-btn"
+                              style="--swatch:#fbbf24"
+                              data-csr-swatch="#fbbf24"
+                              aria-label="Gold"></button>
+                            <button
+                              type="button"
+                              class="csr-color-btn"
+                              style="--swatch:#f472b6"
+                              data-csr-swatch="#f472b6"
+                              aria-label="Pink"></button>
+                            <button
+                              type="button"
+                              class="csr-color-btn"
+                              style="--swatch:#dc2626"
+                              data-csr-swatch="#dc2626"
+                              aria-label="Racing Red"></button>
+                          </div>
+                        </div>
+                        <div class="csr-color-category">
+                          <span class="csr-color-category__label">Cool</span>
+                          <div class="csr-color-category__swatches">
+                            <button
+                              type="button"
+                              class="csr-color-btn"
+                              style="--swatch:#00d1b2"
+                              data-csr-swatch="#00d1b2"
+                              aria-label="Teal"></button>
+                            <button
+                              type="button"
+                              class="csr-color-btn"
+                              style="--swatch:#60a5fa"
+                              data-csr-swatch="#60a5fa"
+                              aria-label="Blue"></button>
+                            <button
+                              type="button"
+                              class="csr-color-btn"
+                              style="--swatch:#22c55e"
+                              data-csr-swatch="#22c55e"
+                              aria-label="Green"></button>
+                            <button
+                              type="button"
+                              class="csr-color-btn"
+                              style="--swatch:#a855f7"
+                              data-csr-swatch="#a855f7"
+                              aria-label="Purple"></button>
+                            <button
+                              type="button"
+                              class="csr-color-btn"
+                              style="--swatch:#0ea5e9"
+                              data-csr-swatch="#0ea5e9"
+                              aria-label="Sky"></button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </details>
+                </div>
               </div>
 
-              <label class="csr-field">
-                <span>Body finish</span>
-                <select data-csr-finish>
-                  <option value="gloss">Gloss</option>
-                  <option value="satin">Satin</option>
-                  <option value="matte">Matte</option>
-                </select>
-              </label>
+              <div class="csr-divider"></div>
 
-              <label class="csr-field csr-field--wide">
-                <span>Clearcoat depth</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value="1"
-                  data-csr-clearcoat
-                />
-              </label>
+              <!-- Wrap Section -->
+              <div class="csr-section csr-section--full">
+                <div class="csr-section__header">
+                  <svg
+                    class="csr-section__icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    ></path>
+                  </svg>
+                  <span class="csr-section__title">Wrap</span>
+                </div>
+                <div class="csr-section__content csr-grid">
+                  <label class="csr-field">
+                    <span>Wrap color</span>
+                    <input type="color" value="#00d1b2" data-csr-wrap-color />
+                  </label>
 
-              <label class="csr-field csr-field--wide">
-                <span>Paint flake intensity</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value="0.25"
-                  data-csr-flake-intensity
-                />
-              </label>
+                  <label class="csr-field">
+                    <span>Wrap style</span>
+                    <select data-csr-wrap-style>
+                      <option value="oem">OEM (preserve model wrap)</option>
+                      <option value="procedural">Procedural</option>
+                    </select>
+                  </label>
 
-              <label class="csr-field csr-field--wide">
-                <span>Paint flake scale</span>
-                <input
-                  type="range"
-                  min="0.5"
-                  max="8"
-                  step="0.1"
-                  value="2.5"
-                  data-csr-flake-scale
-                />
-              </label>
+                  <label class="csr-field csr-field--wide">
+                    <span>Wrap tint</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value="0.92"
+                      data-csr-wrap-tint
+                    />
+                  </label>
 
-              <label class="csr-field csr-field--wide">
-                <span>Pearl shift</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value="0"
-                  data-csr-pearl
-                />
-              </label>
+                  <label class="csr-field">
+                    <span>Wrap pattern</span>
+                    <select data-csr-wrap-pattern>
+                      <option value="solid">Solid</option>
+                      <option value="stripes">Stripes</option>
+                      <option value="carbon">Carbon</option>
+                      <option value="camo">Camo</option>
+                      <option value="checker">Checker</option>
+                      <option value="hex">Hex</option>
+                      <option value="race">Race numbers</option>
+                    </select>
+                  </label>
 
-              <label class="csr-field csr-field--wide">
-                <span>Pearl thickness</span>
-                <input
-                  type="range"
-                  min="100"
-                  max="800"
-                  step="10"
-                  value="320"
-                  data-csr-pearl-thickness
-                />
-              </label>
+                  <label class="csr-field csr-field--wide">
+                    <span>Wrap scale</span>
+                    <input
+                      type="range"
+                      min="0.2"
+                      max="6"
+                      step="0.01"
+                      value="1.6"
+                      data-csr-wrap-scale
+                    />
+                  </label>
 
-              <label class="csr-field">
-                <span>Wheel finish</span>
-                <select data-csr-wheel-finish>
-                  <option value="graphite">Graphite</option>
-                  <option value="chrome">Chrome</option>
-                  <option value="black">Black</option>
-                </select>
-              </label>
+                  <label class="csr-field csr-field--wide">
+                    <span>Wrap rotation</span>
+                    <input
+                      type="range"
+                      min="-180"
+                      max="180"
+                      step="1"
+                      value="0"
+                      data-csr-wrap-rot
+                    />
+                  </label>
 
-              <label class="csr-field">
-                <span>Wheel color</span>
-                <input type="color" value="#1f2937" data-csr-wheel-color />
-              </label>
+                  <label class="csr-field csr-field--wide">
+                    <span>Wrap offset X</span>
+                    <input
+                      type="range"
+                      min="-1"
+                      max="1"
+                      step="0.01"
+                      value="0"
+                      data-csr-wrap-ox
+                    />
+                  </label>
 
-              <label class="csr-field">
-                <span>Trim finish</span>
-                <select data-csr-trim-finish>
-                  <option value="black">Black</option>
-                  <option value="chrome">Chrome</option>
-                  <option value="brushed">Brushed</option>
-                </select>
-              </label>
+                  <label class="csr-field csr-field--wide">
+                    <span>Wrap offset Y</span>
+                    <input
+                      type="range"
+                      min="-1"
+                      max="1"
+                      step="0.01"
+                      value="0"
+                      data-csr-wrap-oy
+                    />
+                  </label>
+                </div>
+              </div>
 
-              <label class="csr-field">
-                <span>Trim color</span>
-                <input type="color" value="#0b0f1a" data-csr-trim-color />
-              </label>
+              <div class="csr-divider"></div>
 
-              <label class="csr-field">
-                <span>Caliper color</span>
-                <input type="color" value="#ef4444" data-csr-caliper-color />
-              </label>
+              <!-- Finish & Effects Section -->
+              <div class="csr-section csr-section--full">
+                <div class="csr-section__header">
+                  <svg
+                    class="csr-section__icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                    ></path>
+                  </svg>
+                  <span class="csr-section__title">Finish & Effects</span>
+                </div>
+                <div class="csr-section__content csr-grid">
+                  <label class="csr-field">
+                    <span>Body finish</span>
+                    <select data-csr-finish>
+                      <option value="gloss">Gloss</option>
+                      <option value="satin">Satin</option>
+                      <option value="matte">Matte</option>
+                    </select>
+                  </label>
 
-              <label class="csr-field">
-                <span>Headlight color</span>
-                <input type="color" value="#dbeafe" data-csr-light-color />
-              </label>
+                  <label class="csr-field csr-field--wide">
+                    <span>Clearcoat depth</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value="1"
+                      data-csr-clearcoat
+                    />
+                  </label>
 
-              <label class="csr-field csr-field--wide">
-                <span>Headlight glow</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="4"
-                  step="0.01"
-                  value="1.25"
-                  data-csr-light-glow
-                />
-              </label>
+                  <label class="csr-field csr-field--wide">
+                    <span>Paint flake intensity</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value="0.25"
+                      data-csr-flake-intensity
+                    />
+                  </label>
 
-              <label class="csr-field csr-field--wide">
-                <span>Glass tint</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value="0.15"
-                  data-csr-glass-tint
-                />
-              </label>
+                  <label class="csr-field csr-field--wide">
+                    <span>Paint flake scale</span>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="8"
+                      step="0.1"
+                      value="2.5"
+                      data-csr-flake-scale
+                    />
+                  </label>
+
+                  <label class="csr-field csr-field--wide">
+                    <span>Pearl shift</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value="0"
+                      data-csr-pearl
+                    />
+                  </label>
+
+                  <label class="csr-field csr-field--wide">
+                    <span>Pearl thickness</span>
+                    <input
+                      type="range"
+                      min="100"
+                      max="800"
+                      step="10"
+                      value="320"
+                      data-csr-pearl-thickness
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div class="csr-divider"></div>
+
+              <!-- Materials Section -->
+              <div class="csr-section csr-section--full">
+                <div class="csr-section__header">
+                  <svg
+                    class="csr-section__icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path
+                      d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"
+                    ></path>
+                  </svg>
+                  <span class="csr-section__title">Materials</span>
+                </div>
+                <div class="csr-section__content csr-grid">
+                  <label class="csr-field">
+                    <span>Wheel finish</span>
+                    <select data-csr-wheel-finish>
+                      <option value="graphite">Graphite</option>
+                      <option value="chrome">Chrome</option>
+                      <option value="black">Black</option>
+                    </select>
+                  </label>
+
+                  <label class="csr-field">
+                    <span>Wheel color</span>
+                    <input type="color" value="#1f2937" data-csr-wheel-color />
+                  </label>
+
+                  <label class="csr-field">
+                    <span>Trim finish</span>
+                    <select data-csr-trim-finish>
+                      <option value="black">Black</option>
+                      <option value="chrome">Chrome</option>
+                      <option value="brushed">Brushed</option>
+                    </select>
+                  </label>
+
+                  <label class="csr-field">
+                    <span>Trim color</span>
+                    <input type="color" value="#0b0f1a" data-csr-trim-color />
+                  </label>
+
+                  <label class="csr-field">
+                    <span>Caliper color</span>
+                    <input
+                      type="color"
+                      value="#ef4444"
+                      data-csr-caliper-color
+                    />
+                  </label>
+
+                  <label class="csr-field">
+                    <span>Headlight color</span>
+                    <input type="color" value="#dbeafe" data-csr-light-color />
+                  </label>
+
+                  <label class="csr-field csr-field--wide">
+                    <span>Headlight glow</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="4"
+                      step="0.01"
+                      value="1.25"
+                      data-csr-light-glow
+                    />
+                  </label>
+
+                  <label class="csr-field csr-field--wide">
+                    <span>Glass tint</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value="0.15"
+                      data-csr-glass-tint
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div class="csr-divider"></div>
+
+              <!-- Actions Section -->
+              <div class="csr-section csr-section--full">
+                <div class="csr-row">
+                  <button
+                    type="button"
+                    class="csr-btn csr-btn--accent"
+                    data-csr-randomize-look
+                  >
+                    Randomize look
+                  </button>
+                  <p class="csr-hint">Fresh paint + accent combo every click</p>
+                </div>
+              </div>
             </div>
           </div>
 
