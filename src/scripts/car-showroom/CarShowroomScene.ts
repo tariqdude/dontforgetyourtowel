@@ -1,9 +1,51 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
-import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { withBasePath } from '../../utils/helpers';
+
+const getShowroomLoadTimeouts = () => {
+  // In automation/headless (Playwright), fail fast so we don’t sit in an
+  // infinite “Loading…” state.
+  const isAutomation = (() => {
+    try {
+      const nav = navigator as unknown as { webdriver?: boolean };
+      if (nav.webdriver) return true;
+      const ua = String(navigator.userAgent || '');
+      return /headless/i.test(ua);
+    } catch {
+      return false;
+    }
+  })();
+
+  return {
+    fetchMs: isAutomation ? 12_000 : 30_000,
+    parseMs: isAutomation ? 12_000 : 30_000,
+  };
+};
+
+const fetchArrayBufferWithTimeout = async (url: string, timeoutMs: number) => {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      // Avoid SW/http cache oddities causing stuck loads across deployments.
+      cache: 'no-store',
+    });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+    return await res.arrayBuffer();
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      throw new Error(`Fetch timeout after ${timeoutMs}ms`);
+    }
+    throw e;
+  } finally {
+    window.clearTimeout(timer);
+  }
+};
 
 type ShowroomMode = 'paint' | 'wrap' | 'glass' | 'wireframe' | 'factory';
 type ShowroomFinish = 'gloss' | 'satin' | 'matte';
@@ -129,7 +171,7 @@ const radToDeg = (r: number) => (r * 180) / Math.PI;
 const resolveModelUrl = (raw: string): string => {
   const v = (raw || '').trim();
   if (!v) {
-    const fallback = withBasePath('/models/porsche-911-gt3rs.glb');
+    const fallback = withBasePath(FALLBACK_NON_DRACO_MODEL);
     return fallback;
   }
   if (
@@ -141,9 +183,57 @@ const resolveModelUrl = (raw: string): string => {
     return v;
 
   const normalized = v.startsWith('/') ? v : `/${v}`;
-  const final = withBasePath(normalized);
-  return final;
+
+  // If callers already provided a base-prefixed path (e.g. from an older share link),
+  // avoid double-prefixing (/repo/repo/models/...).
+  const basePrefix = withBasePath('/');
+  if (basePrefix !== '/' && normalized.startsWith(basePrefix)) {
+    return normalized;
+  }
+
+  return withBasePath(normalized);
 };
+
+const probeSameOriginAsset = async (url: string) => {
+  try {
+    const u = new URL(url, document.baseURI);
+    if (u.origin !== window.location.origin) {
+      return {
+        url: u.toString(),
+        ok: false,
+        status: -1,
+        statusText: 'cross-origin',
+      };
+    }
+
+    // Prefer HEAD to avoid pulling large bodies.
+    const head = await fetch(u.toString(), {
+      method: 'HEAD',
+      cache: 'no-store',
+    });
+    return {
+      url: u.toString(),
+      ok: head.ok,
+      status: head.status,
+      statusText: head.statusText,
+      contentType: head.headers.get('content-type') || '',
+    };
+  } catch (e) {
+    const message =
+      e instanceof Error
+        ? e.message
+        : typeof e === 'string'
+          ? e
+          : 'unknown error';
+    return { url, ok: false, status: -1, statusText: message, contentType: '' };
+  }
+};
+
+const DEFAULT_DRACO_MODEL = '/models/porsche-911-gt3rs.glb';
+// A lightweight model variant that does NOT appear to use Draco compression.
+// Used as a last-resort fallback if decoder init fails in production.
+const FALLBACK_NON_DRACO_MODEL =
+  '/models/free_porsche_911_carrera_4s_LOD3_low.glb';
 
 const createContactShadowTexture = (size = 256): THREE.CanvasTexture => {
   const canvas = document.createElement('canvas');
@@ -702,7 +792,9 @@ export class CarShowroomScene {
     draco.setDecoderPath(withBasePath('/draco/gltf/'));
     this.loader = new GLTFLoader();
     this.loader.setDRACOLoader(draco);
-    this.loader.setMeshoptDecoder(MeshoptDecoder);
+    // None of our shipped models currently use EXT_meshopt_compression.
+    // Avoid setting MeshoptDecoder: it can introduce production-only issues
+    // (WASM asset resolution) and cause hangs in some environments.
 
     this.pmrem = new THREE.PMREMGenerator(renderer);
     try {
@@ -2104,11 +2196,8 @@ export class CarShowroomScene {
     this.root.dataset.carShowroomModelTris = '';
 
     try {
-      const res = await fetch(normalized);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      }
-      const buffer = await res.arrayBuffer();
+      const { fetchMs, parseMs } = getShowroomLoadTimeouts();
+      const buffer = await fetchArrayBufferWithTimeout(normalized, fetchMs);
 
       // Check if we were cancelled during fetch
       if (this.loadingUrl !== normalized) {
@@ -2121,7 +2210,16 @@ export class CarShowroomScene {
 
       console.time(`[CarShowroom] Parse ${normalized}`);
       const basePath = normalized.substring(0, normalized.lastIndexOf('/') + 1);
-      const gltf = await this.loader.parseAsync(buffer, basePath);
+      const gltf = await Promise.race([
+        this.loader.parseAsync(buffer, basePath),
+        new Promise<never>((_, reject) => {
+          window.setTimeout(() => {
+            // Mark this load as stale so a late parse result gets discarded.
+            if (this.loadingUrl === normalized) this.loadingUrl = '';
+            reject(new Error(`Parse timeout after ${parseMs}ms`));
+          }, parseMs);
+        }),
+      ]);
       console.timeEnd(`[CarShowroom] Parse ${normalized}`);
 
       if (this.loadingUrl !== normalized) {
@@ -2233,7 +2331,50 @@ export class CarShowroomScene {
           : typeof e === 'string'
             ? e
             : 'Unknown error';
-      this.root.dataset.carShowroomLoadError = `Failed to load model from ${normalized}: ${message}`;
+
+      // One-time automatic fallback if the default Draco model fails.
+      // This keeps the showroom usable (and avoids infinite “Loading…”) even if
+      // decoder assets / WASM initialization fail on some static hosts.
+      try {
+        const basePrefixedDefault = withBasePath(DEFAULT_DRACO_MODEL);
+        const triedFallback =
+          this.root.dataset.carShowroomTriedFallback === '1';
+        if (!triedFallback && normalized === basePrefixedDefault) {
+          this.root.dataset.carShowroomTriedFallback = '1';
+          this.root.dataset.carShowroomLoadError =
+            `Failed to load default model (${normalized}). Attempting fallback model…\n` +
+            `Original error: ${message}`;
+
+          // Switch the UI dataset model so share links and selects reflect reality.
+          this.root.dataset.carShowroomModel = FALLBACK_NON_DRACO_MODEL;
+
+          await this.loadModel(FALLBACK_NON_DRACO_MODEL);
+          return;
+        }
+      } catch {
+        // ignore
+      }
+
+      // Add Draco decoder visibility for production-only failures (common on static hosts).
+      // This keeps the error actionable without requiring DevTools.
+      let dracoDiag = '';
+      try {
+        const decoderBase = withBasePath('/draco/gltf/');
+        const [js, wasm, wrapper] = await Promise.all([
+          probeSameOriginAsset(`${decoderBase}draco_decoder.js`),
+          probeSameOriginAsset(`${decoderBase}draco_decoder.wasm`),
+          probeSameOriginAsset(`${decoderBase}draco_wasm_wrapper.js`),
+        ]);
+        dracoDiag =
+          `\n\nDraco decoder probe:` +
+          `\n- ${js.status} ${js.statusText} (${js.contentType || 'no content-type'}) ${js.url}` +
+          `\n- ${wrapper.status} ${wrapper.statusText} (${wrapper.contentType || 'no content-type'}) ${wrapper.url}` +
+          `\n- ${wasm.status} ${wasm.statusText} (${wasm.contentType || 'no content-type'}) ${wasm.url}`;
+      } catch {
+        // ignore
+      }
+
+      this.root.dataset.carShowroomLoadError = `Failed to load model from ${normalized}: ${message}${dracoDiag}`;
     }
   }
 

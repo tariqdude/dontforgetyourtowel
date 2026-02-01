@@ -39,13 +39,31 @@ export default defineConfig({
     ? [
         {
           name: 'chromium',
-          use: { ...devices['Desktop Chrome'] },
+          use: {
+            ...devices['Desktop Chrome'],
+            launchOptions: {
+              args: [
+                '--enable-webgl',
+                '--ignore-gpu-blocklist',
+                '--use-gl=swiftshader',
+              ],
+            },
+          },
         },
       ]
     : [
         {
           name: 'chromium',
-          use: { ...devices['Desktop Chrome'] },
+          use: {
+            ...devices['Desktop Chrome'],
+            launchOptions: {
+              args: [
+                '--enable-webgl',
+                '--ignore-gpu-blocklist',
+                '--use-gl=swiftshader',
+              ],
+            },
+          },
         },
         {
           name: 'firefox',

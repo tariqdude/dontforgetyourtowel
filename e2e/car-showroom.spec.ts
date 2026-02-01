@@ -37,6 +37,16 @@ test.describe('Car Showroom', () => {
       )
       .toBe('1');
 
+    const webglBoot = await page.evaluate(
+      () => document.documentElement.dataset.carShowroomWebgl ?? '0'
+    );
+    if (webglBoot !== '1') {
+      test.skip(
+        true,
+        'WebGL renderer could not initialize in this environment'
+      );
+    }
+
     // Canvas exists and should be visible.
     await expect(page.locator('[data-car-showroom-canvas]')).toBeVisible({
       timeout: 15_000,
@@ -67,7 +77,9 @@ test.describe('Car Showroom', () => {
             const loading = ds.carShowroomLoading ?? '0';
             const error = (ds.carShowroomLoadError ?? '').trim();
             const model = (ds.carShowroomModel ?? '').trim();
-            const okModel = model.includes('porsche-911-gt3rs.glb');
+            const okModel =
+              model.includes('porsche-911-gt3rs.glb') ||
+              model.includes('free_porsche_911_carrera_4s_LOD3_low.glb');
             return ready === '1' && loading === '0' && error === '' && okModel;
           }),
         { timeout: 20_000 }

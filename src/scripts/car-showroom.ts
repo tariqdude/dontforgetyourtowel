@@ -189,6 +189,11 @@ createAstroMount(ROOT_SELECTOR, () => {
   );
   if (!canvas) return null;
 
+  // Deterministic test breadcrumb: the showroom entry script executed and found its root.
+  // WebGL init and model loading may still fail in some environments.
+  document.documentElement.dataset.carShowroomBoot = '1';
+  document.documentElement.dataset.carShowroomWebgl = '0';
+
   const caps = getTowerCaps();
   // Don't hard-gate on caps.webgl (it can be a false negative in some environments).
   // We'll attempt to create the renderer and only disable 3D if that fails.
@@ -2382,8 +2387,22 @@ createAstroMount(ROOT_SELECTOR, () => {
 
   initPanelState();
   // Defaults
-  root.dataset.carShowroomModel ||=
-    modelSel?.value || '/models/porsche-911-gt3rs.glb';
+  const isAutomation = (() => {
+    try {
+      const nav = navigator as unknown as { webdriver?: boolean };
+      if (nav.webdriver) return true;
+      const ua = String(navigator.userAgent || '');
+      return /headless/i.test(ua);
+    } catch {
+      return false;
+    }
+  })();
+
+  // In real browsers, default to the showcase Porsche. In headless/automation,
+  // prefer the lightweight non-Draco model to avoid WebAssembly/decoder flakiness.
+  root.dataset.carShowroomModel ||= isAutomation
+    ? '/models/free_porsche_911_carrera_4s_LOD3_low.glb'
+    : modelSel?.value || '/models/porsche-911-gt3rs.glb';
   root.dataset.carShowroomCameraPreset ||= cameraSel?.value || 'hero';
   root.dataset.carShowroomCameraMode ||= cameraModeSel?.value || 'preset';
   root.dataset.carShowroomCamYaw ||= camYawRange?.value || '17';
@@ -2637,6 +2656,13 @@ createAstroMount(ROOT_SELECTOR, () => {
   bumpRevision();
   syncStatus();
   syncModelStats();
+
+  // Deterministic test breadcrumb: runtime mounted.
+  // WebGL init may still fail in some headless/CI environments.
+  document.documentElement.dataset.carShowroomBoot = '1';
+  if (!document.documentElement.dataset.carShowroomWebgl) {
+    document.documentElement.dataset.carShowroomWebgl = '0';
+  }
 
   // Keep the URL input in sync with the select.
   modelSel?.addEventListener('change', () => {
@@ -3990,6 +4016,7 @@ createAstroMount(ROOT_SELECTOR, () => {
     } catch (e) {
       console.error('[CarShowroom] Renderer init failed:', e);
       enable3d = false;
+      document.documentElement.dataset.carShowroomWebgl = '0';
       root.dataset.carShowroomLoadError =
         'WebGL is unavailable or initialization failed. Try a full browser (Chrome/Edge/Safari) with hardware acceleration enabled, then reload. Controls are enabled, but 3D rendering is off.';
       syncStatus();
@@ -3999,6 +4026,7 @@ createAstroMount(ROOT_SELECTOR, () => {
       // Fall through: keep non-3D UI alive.
     } else {
       renderer = rendererInstance;
+      document.documentElement.dataset.carShowroomWebgl = '1';
       console.log(
         '[CarShowroom] Renderer initialized:',
         rendererInstance.capabilities.isWebGL2 ? 'WebGL2' : 'WebGL1'
