@@ -1747,7 +1747,7 @@ createAstroMount(ROOT_SELECTOR, () => {
 
   if (!enable3d) {
     root.dataset.carShowroomLoadError =
-      'WebGL is unavailable. Controls are enabled, but 3D rendering is off.';
+      'WebGL is unavailable. Try a full browser (Chrome/Edge/Safari) with hardware acceleration enabled, then reload. Controls are enabled, but 3D rendering is off.';
   }
 
   const syncStatus = () => {

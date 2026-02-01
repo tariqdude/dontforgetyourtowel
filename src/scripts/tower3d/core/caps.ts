@@ -118,9 +118,25 @@ export const getTowerCaps = (): TowerCaps => {
 
   try {
     const canvas = document.createElement('canvas');
-    const gl2 = canvas.getContext('webgl2');
+    // Some browsers/GPUs behave better with explicit attributes.
+    // We avoid `failIfMajorPerformanceCaveat` so software fallbacks can still work.
+    const gl2 = canvas.getContext('webgl2', {
+      powerPreference: 'high-performance',
+      alpha: false,
+      antialias: false,
+      depth: true,
+      stencil: false,
+    });
     webgl2 = Boolean(gl2);
-    webgl = webgl2 || Boolean(canvas.getContext('webgl'));
+    const gl1 =
+      canvas.getContext('webgl', {
+        powerPreference: 'high-performance',
+        alpha: false,
+        antialias: false,
+        depth: true,
+        stencil: false,
+      }) || canvas.getContext('experimental-webgl');
+    webgl = webgl2 || Boolean(gl1);
 
     // GPU tier detection using WebGL renderer info
     if (gl2) {

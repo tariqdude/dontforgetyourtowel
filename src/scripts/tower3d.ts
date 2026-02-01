@@ -14,9 +14,102 @@ createAstroMount(ROOT_SELECTOR, () => {
   if (!canvas) return null;
 
   const caps = getTowerCaps();
-  if (!caps.webgl) return null;
+  if (!caps.webgl) {
+    let overlay = root.querySelector<HTMLElement>('.tower3d-error-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'tower3d-error-overlay';
+      overlay.style.cssText =
+        'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(2,4,10,0.92);color:#e5e7eb;z-index:9999;text-align:center;';
+      overlay.innerHTML = `
+        <div style="max-width:680px">
+          <div style="font-weight:800;font-size:18px;margin-bottom:10px">WebGL is unavailable</div>
+          <div style="opacity:0.9;font-size:14px;line-height:1.5">
+            This 3D experience requires WebGL. If you’re on desktop, enable <b>hardware acceleration</b>
+            in your browser (Chrome/Edge: Settings → System), update GPU drivers, and reload.
+            If you’re using an embedded/in-app browser or VS Code preview, try opening the site in
+            a full browser.
+          </div>
+        </div>
+      `;
+      root.appendChild(overlay);
+    }
 
-  const director = new SceneDirector(root, canvas, caps);
+    return {
+      destroy: () => {
+        overlay?.remove();
+      },
+    };
+  }
+
+  const showBootError = (title: string, details?: string) => {
+    let overlay = root.querySelector<HTMLElement>('.tower3d-error-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'tower3d-error-overlay';
+      overlay.style.cssText =
+        'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(2,4,10,0.92);color:#e5e7eb;z-index:9999;text-align:center;';
+      root.appendChild(overlay);
+    }
+
+    const debug = {
+      url: typeof location !== 'undefined' ? location.href : '',
+      ua: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+      webdriver:
+        typeof navigator !== 'undefined' &&
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        Boolean((navigator as any).webdriver),
+      caps,
+    };
+
+    const debugText = JSON.stringify(debug, null, 2);
+
+    overlay.innerHTML = `
+      <div style="max-width:720px;text-align:left">
+        <div style="font-weight:800;font-size:18px;margin-bottom:10px">${title}</div>
+        <div style="opacity:0.9;font-size:14px;line-height:1.5;margin-bottom:12px">
+          ${details ? details : 'The 3D experience failed to start on this device.'}
+        </div>
+        <button type="button" data-copy style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.14);color:#e5e7eb;padding:8px 10px;border-radius:10px;cursor:pointer">
+          Copy diagnostics
+        </button>
+        <pre style="margin-top:12px;max-height:220px;overflow:auto;padding:12px;border-radius:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.10);font-size:12px;line-height:1.4;white-space:pre-wrap">${debugText}</pre>
+      </div>
+    `;
+
+    const btn = overlay.querySelector<HTMLButtonElement>('[data-copy]');
+    btn?.addEventListener(
+      'click',
+      async () => {
+        try {
+          await navigator.clipboard.writeText(debugText);
+          btn.textContent = 'Copied';
+          window.setTimeout(() => {
+            btn.textContent = 'Copy diagnostics';
+          }, 1200);
+        } catch {
+          // ignore
+        }
+      },
+      { once: true }
+    );
+  };
+
+  let director: SceneDirector;
+  try {
+    director = new SceneDirector(root, canvas, caps);
+  } catch (e) {
+    console.error('[Tower3D] Boot failed:', e);
+    showBootError(
+      '3D failed to start',
+      'WebGL exists, but initialization failed. This is usually driver/GPU/feature related; the app will fall back where possible.'
+    );
+    return {
+      destroy: () => {
+        root.querySelector<HTMLElement>('.tower3d-error-overlay')?.remove();
+      },
+    };
+  }
 
   let raf = 0;
   const isActive = () => {

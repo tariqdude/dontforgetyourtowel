@@ -27,7 +27,32 @@ export function createHeroScene(
   options: { variant?: HeroSceneVariant } = {}
 ) {
   const caps = getTowerCaps();
-  if (!caps.webgl) return () => {};
+  if (!caps.webgl) {
+    const parent =
+      (canvas.parentElement as HTMLElement | null) ?? document.body;
+    // Avoid stacking multiple overlays if Astro re-mounts.
+    let overlay = parent.querySelector<HTMLElement>('.tower3d-error-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'tower3d-error-overlay';
+      overlay.style.cssText =
+        'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(2,4,10,0.82);color:#e5e7eb;z-index:20;text-align:center;pointer-events:auto;';
+      overlay.innerHTML = `
+        <div style="max-width:620px">
+          <div style="font-weight:800;font-size:16px;margin-bottom:8px">WebGL is unavailable</div>
+          <div style="opacity:0.9;font-size:13px;line-height:1.45">
+            Enable hardware acceleration in your browser and reload.
+          </div>
+        </div>
+      `;
+      parent.style.position = parent.style.position || 'relative';
+      parent.appendChild(overlay);
+    }
+
+    return () => {
+      overlay?.remove();
+    };
+  }
 
   const variant = options.variant ?? 'auto';
 

@@ -350,7 +350,9 @@ createAstroMount(ROOT_SELECTOR, () => {
   const caps = getTowerCaps();
   galleryCaps = caps;
   if (!caps.webgl) {
-    showBootError('WebGL is unavailable in this browser/device.');
+    showBootError(
+      'WebGL is unavailable. Try a full browser with hardware acceleration enabled, then reload.'
+    );
     return {
       destroy: () => {
         runGalleryCleanups();

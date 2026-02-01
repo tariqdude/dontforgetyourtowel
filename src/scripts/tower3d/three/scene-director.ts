@@ -54,6 +54,7 @@ export class SceneDirector {
   private root: HTMLElement;
   private canvas: HTMLCanvasElement;
   private caps: TowerCaps;
+  private postEnabled: boolean;
   public renderer: THREE.WebGLRenderer;
   private scenes: TowerScene[];
   private sceneById: Map<string, TowerScene>;
@@ -73,7 +74,7 @@ export class SceneDirector {
 
   private pmremGenerator: THREE.PMREMGenerator | null = null;
   private environmentTexture: THREE.Texture | null = null;
-  private renderTarget: THREE.WebGLRenderTarget;
+  private renderTarget: THREE.WebGLRenderTarget | null = null;
 
   private supportsDepthTexture = false;
 
@@ -83,14 +84,14 @@ export class SceneDirector {
   // Short transition mask when the active chapter/scene changes.
   private cutFade = 0;
   // Render pipeline
-  private composer: EffectComposer;
+  private composer: EffectComposer | null = null;
   private renderPass: RenderPass;
-  public bloomPass: UnrealBloomPass;
-  public bokehPass: BokehPass;
-  public afterimagePass: AfterimagePass;
-  private finalPass: ShaderPass;
-  private outputPass: OutputPass;
-  private fxaaPass: ShaderPass;
+  public bloomPass: UnrealBloomPass | null = null;
+  public bokehPass: BokehPass | null = null;
+  public afterimagePass: AfterimagePass | null = null;
+  private finalPass: ShaderPass | null = null;
+  private outputPass: OutputPass | null = null;
+  private fxaaPass: ShaderPass | null = null;
 
   // Visibility & Observer
   private resizeObserver: ResizeObserver;
@@ -174,31 +175,39 @@ export class SceneDirector {
     const k = 0.88 + 0.12 * settle;
 
     // Bloom
-    this.bloomPass.enabled = this.lookBloomEnabled;
-    this.bloomPass.strength = this.lookBloomStrength * k;
-    this.bloomPass.threshold = this.lookBloomThreshold;
-    this.bloomPass.radius = this.lookBloomRadius;
+    if (this.bloomPass) {
+      this.bloomPass.enabled = this.lookBloomEnabled;
+      this.bloomPass.strength = this.lookBloomStrength * k;
+      this.bloomPass.threshold = this.lookBloomThreshold;
+      this.bloomPass.radius = this.lookBloomRadius;
+    }
 
     // Bokeh
-    this.bokehPass.enabled = this.lookBokehEnabled;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (this.bokehPass.uniforms as any)['aperture'].value =
-      this.lookBokehAperture * (0.9 + 0.1 * settle);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (this.bokehPass.uniforms as any)['maxblur'].value =
-      this.lookBokehMaxblur * (0.9 + 0.1 * settle);
+    if (this.bokehPass) {
+      this.bokehPass.enabled = this.lookBokehEnabled;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (this.bokehPass.uniforms as any)['aperture'].value =
+        this.lookBokehAperture * (0.9 + 0.1 * settle);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (this.bokehPass.uniforms as any)['maxblur'].value =
+        this.lookBokehMaxblur * (0.9 + 0.1 * settle);
+    }
 
     // Trails
-    this.afterimagePass.enabled = this.lookTrailsEnabled;
-    this.afterimagePass.uniforms['damp'].value = this.lookTrailsDamp * settle;
+    if (this.afterimagePass) {
+      this.afterimagePass.enabled = this.lookTrailsEnabled;
+      this.afterimagePass.uniforms['damp'].value = this.lookTrailsDamp * settle;
+    }
 
     // Final composite
-    this.finalPass.uniforms.uVignette.value =
-      this.lookVignette * (0.92 + 0.08 * settle);
-    this.finalPass.uniforms.uGrain.value =
-      this.lookGrain * (0.9 + 0.1 * settle);
-    this.finalPass.uniforms.uChromatic.value =
-      this.lookChromatic * (0.9 + 0.1 * settle);
+    if (this.finalPass) {
+      this.finalPass.uniforms.uVignette.value =
+        this.lookVignette * (0.92 + 0.08 * settle);
+      this.finalPass.uniforms.uGrain.value =
+        this.lookGrain * (0.9 + 0.1 * settle);
+      this.finalPass.uniforms.uChromatic.value =
+        this.lookChromatic * (0.9 + 0.1 * settle);
+    }
   }
 
   private pointer = new THREE.Vector2();
@@ -253,6 +262,7 @@ export class SceneDirector {
     this.root = root;
     this.canvas = canvas;
     this.caps = caps;
+    this.postEnabled = Boolean(caps.enablePostProcessing);
     this.galleryMode = options?.galleryMode ?? false;
 
     try {
@@ -335,33 +345,89 @@ export class SceneDirector {
     // However, RenderPass takes a scene.
     // Trick: We will inject the GPGPU group into the *Active Scene* group when switching.
 
-    // --- Post Processing Stack (EffectComposer) ---
-    // Depth texture is optional and can crash on unsupported contexts.
-    this.renderTarget = this.supportsDepthTexture
-      ? new THREE.WebGLRenderTarget(
-          window.innerWidth * this.size.dpr,
-          window.innerHeight * this.size.dpr,
-          {
-            depthTexture: new THREE.DepthTexture(
-              window.innerWidth,
-              window.innerHeight
-            ),
-            depthBuffer: true,
-          }
-        )
-      : new THREE.WebGLRenderTarget(
-          window.innerWidth * this.size.dpr,
-          window.innerHeight * this.size.dpr,
-          {
-            depthBuffer: true,
-          }
-        );
-    this.composer = new EffectComposer(this.renderer, this.renderTarget);
-
-    // 1. Render Pass: Renders the active 3D scene
-
     // Create a persistent Scene container to hold the Environment Map
     this.mainScene = new THREE.Scene();
+
+    // Always create RenderPass for the raw-render fallback path.
+    // (We still update it per-frame and can pass its scene/camera to renderer.render.)
+    this.renderPass = new RenderPass(this.mainScene, new THREE.Camera());
+
+    // --- Post Processing Stack (EffectComposer) ---
+    // Post-FX is optional. If anything in the stack fails (common on older GPUs / WebGL1 / odd drivers),
+    // we keep the experience alive by falling back to raw renderer rendering.
+    if (this.postEnabled) {
+      try {
+        // Depth texture is optional and can crash on unsupported contexts.
+        this.renderTarget = this.supportsDepthTexture
+          ? new THREE.WebGLRenderTarget(
+              window.innerWidth * this.size.dpr,
+              window.innerHeight * this.size.dpr,
+              {
+                depthTexture: new THREE.DepthTexture(
+                  window.innerWidth,
+                  window.innerHeight
+                ),
+                depthBuffer: true,
+              }
+            )
+          : new THREE.WebGLRenderTarget(
+              window.innerWidth * this.size.dpr,
+              window.innerHeight * this.size.dpr,
+              {
+                depthBuffer: true,
+              }
+            );
+
+        this.composer = new EffectComposer(this.renderer, this.renderTarget);
+        this.composer.addPass(this.renderPass);
+
+        // 2. Bokeh Pass (Depth of Field) - Must be before Bloom/ToneMapping
+        // Only create if we can actually support depth textures.
+        if (this.supportsDepthTexture) {
+          this.bokehPass = new BokehPass(
+            new THREE.Scene(),
+            new THREE.Camera(),
+            {
+              focus: 10.0,
+              aperture: 0.0001, // Start sharp
+              maxblur: 0.01,
+            }
+          );
+          this.composer.addPass(this.bokehPass);
+        }
+
+        // 3. Unreal Bloom Pass: High-quality glow for neon cities
+        const vecRes = new THREE.Vector2(window.innerWidth, window.innerHeight);
+        this.bloomPass = new UnrealBloomPass(vecRes, 1.2, 0.4, 0.85);
+        this.bloomPass.threshold = 0.85; // High threshold: Only very bright things glow
+        this.bloomPass.strength = 0.6; // Moderate strength
+        this.bloomPass.radius = 0.4;
+        this.composer.addPass(this.bloomPass);
+
+        // 4. Afterimage (Trails) for motion blur effect
+        this.afterimagePass = new AfterimagePass(0.0); // Start disabled (0 damp)
+        this.composer.addPass(this.afterimagePass);
+      } catch (e) {
+        this.reportError('Post FX Init', e);
+        this.postEnabled = false;
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (this.composer as any)?.dispose?.();
+        } catch {
+          // ignore
+        }
+        try {
+          this.renderTarget?.dispose?.();
+        } catch {
+          // ignore
+        }
+        this.composer = null;
+        this.renderTarget = null;
+        this.bokehPass = null;
+        this.bloomPass = null;
+        this.afterimagePass = null;
+      }
+    }
 
     // Generate High-Quality PBR Environment (optional; can fail on some headless/old GPUs)
     try {
@@ -380,29 +446,6 @@ export class SceneDirector {
     }
 
     // Initialized with empty scene/camera; updated per-frame in tick()
-    this.renderPass = new RenderPass(this.mainScene, new THREE.Camera());
-    this.composer.addPass(this.renderPass);
-
-    // 2. Bokeh Pass (Depth of Field) - Must be before Bloom/ToneMapping
-    this.bokehPass = new BokehPass(new THREE.Scene(), new THREE.Camera(), {
-      focus: 10.0,
-      aperture: 0.0001, // Start sharp
-      maxblur: 0.01,
-    });
-    // The Bokeh pass needs the scene/camera updated every frame like RenderPass
-    this.composer.addPass(this.bokehPass);
-
-    // 3. Unreal Bloom Pass: High-quality glow for neon cities
-    const vecRes = new THREE.Vector2(window.innerWidth, window.innerHeight);
-    this.bloomPass = new UnrealBloomPass(vecRes, 1.2, 0.4, 0.85);
-    this.bloomPass.threshold = 0.85; // High threshold: Only very bright things glow
-    this.bloomPass.strength = 0.6; // Moderate strength
-    this.bloomPass.radius = 0.4;
-    this.composer.addPass(this.bloomPass);
-
-    // 4. Afterimage (Trails) for motion blur effect
-    this.afterimagePass = new AfterimagePass(0.0); // Start disabled (0 damp)
-    this.composer.addPass(this.afterimagePass);
 
     // 5. Final Composite Pass: Transitions, Glitch, Grain, Vignette, CA
     const finalParams = {
@@ -582,52 +625,88 @@ export class SceneDirector {
       `,
     };
 
-    this.finalPass = new ShaderPass(new THREE.ShaderMaterial(finalParams));
-    this.composer.addPass(this.finalPass);
+    if (this.postEnabled && this.composer) {
+      try {
+        this.finalPass = new ShaderPass(new THREE.ShaderMaterial(finalParams));
+        this.composer.addPass(this.finalPass);
 
-    // 6. Output Pass: Tone Mapping & Color Space Conversion
-    this.outputPass = new OutputPass();
-    this.composer.addPass(this.outputPass);
+        // 6. Output Pass: Tone Mapping & Color Space Conversion
+        this.outputPass = new OutputPass();
+        this.composer.addPass(this.outputPass);
 
-    // 7. FXAA: Antialiasing since default MSAA is off for offscreen buffers
-    this.fxaaPass = new ShaderPass(FXAAShader);
-    this.composer.addPass(this.fxaaPass);
+        // 7. FXAA: Antialiasing since default MSAA is off for offscreen buffers
+        this.fxaaPass = new ShaderPass(FXAAShader);
+        this.composer.addPass(this.fxaaPass);
+      } catch (e) {
+        this.reportError('Post FX Pass Init', e);
+        this.postEnabled = false;
+        this.finalPass = null;
+        this.outputPass = null;
+        this.fxaaPass = null;
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (this.composer as any)?.dispose?.();
+        } catch {
+          // ignore
+        }
+        try {
+          this.renderTarget?.dispose?.();
+        } catch {
+          // ignore
+        }
+        this.composer = null;
+        this.renderTarget = null;
+        this.bokehPass = null;
+        this.bloomPass = null;
+        this.afterimagePass = null;
+      }
+    }
 
     // Performance / preference-based post settings
-    const postEnabled = this.caps.enablePostProcessing;
+    const postEnabled = this.postEnabled && Boolean(this.composer);
     const highTier = this.caps.performanceTier === 'high';
 
     // Depth-of-field is expensive; reserve for high-tier, non-touch, non-reduced-motion.
-    this.bokehPass.enabled =
-      postEnabled &&
-      this.supportsDepthTexture &&
-      highTier &&
-      !this.caps.coarsePointer &&
-      !this.caps.reducedMotion;
+    if (this.bokehPass) {
+      this.bokehPass.enabled =
+        postEnabled &&
+        this.supportsDepthTexture &&
+        highTier &&
+        !this.caps.coarsePointer &&
+        !this.caps.reducedMotion;
+    }
 
     // Bloom is the primary "wow" pass; keep it for medium/high, but soften on mobile.
-    this.bloomPass.enabled = postEnabled;
-    if (this.caps.coarsePointer) {
-      this.bloomPass.strength *= 0.85;
-      this.bloomPass.radius *= 0.9;
+    if (this.bloomPass) {
+      this.bloomPass.enabled = postEnabled;
+      if (this.caps.coarsePointer) {
+        this.bloomPass.strength *= 0.85;
+        this.bloomPass.radius *= 0.9;
+      }
     }
 
     // Trails can read as motion/blur; disable for reduced motion and low tier.
-    this.afterimagePass.enabled =
-      postEnabled && !this.caps.reducedMotion && highTier;
+    if (this.afterimagePass) {
+      this.afterimagePass.enabled =
+        postEnabled && !this.caps.reducedMotion && highTier;
+    }
 
     // FXAA is useful but still a pass; disable on low tier.
-    this.fxaaPass.enabled = postEnabled;
+    if (this.fxaaPass) {
+      this.fxaaPass.enabled = postEnabled;
+    }
 
     // Subtle grade defaults per tier.
-    this.finalPass.uniforms.uGrain.value = this.caps.coarsePointer
-      ? 0.035
-      : highTier
-        ? 0.045
-        : 0.04;
-    this.finalPass.uniforms.uChromatic.value = this.caps.coarsePointer
-      ? 0.0025
-      : 0.003;
+    if (this.finalPass) {
+      this.finalPass.uniforms.uGrain.value = this.caps.coarsePointer
+        ? 0.035
+        : highTier
+          ? 0.045
+          : 0.04;
+      this.finalPass.uniforms.uChromatic.value = this.caps.coarsePointer
+        ? 0.0025
+        : 0.003;
+    }
 
     // Visibility Listener to pause rendering when tab is hidden
     document.addEventListener('visibilitychange', this.handleVisibility);
@@ -1087,12 +1166,16 @@ export class SceneDirector {
     this.renderer.setPixelRatio(this.size.dpr);
     this.renderer.setSize(w, h, false);
 
-    this.composer.setSize(w, h);
+    if (this.composer) {
+      this.composer.setSize(w, h);
+    }
 
-    const res = this.finalPass.uniforms.uResolution?.value as
-      | THREE.Vector2
-      | undefined;
-    res?.set(w * this.size.dpr, h * this.size.dpr);
+    if (this.finalPass) {
+      const res = this.finalPass.uniforms.uResolution?.value as
+        | THREE.Vector2
+        | undefined;
+      res?.set(w * this.size.dpr, h * this.size.dpr);
+    }
 
     if (this.bloomPass) {
       this.bloomPass.resolution.set(w * this.size.dpr, h * this.size.dpr);
@@ -1206,7 +1289,9 @@ export class SceneDirector {
 
       this.cutFade = 1;
       this.transitionType = (this.transitionType + 1) % 4;
-      this.finalPass.uniforms.uTransitionType.value = this.transitionType;
+      if (this.finalPass) {
+        this.finalPass.uniforms.uTransitionType.value = this.transitionType;
+      }
     }
 
     if (this.activeScene.group.parent !== this.mainScene) {
@@ -1526,7 +1611,9 @@ export class SceneDirector {
   public resize(): void {
     this.syncSize(true);
     // Resize composer including depth buffers
-    this.composer.setSize(this.size.width, this.size.height);
+    if (this.composer) {
+      this.composer.setSize(this.size.width, this.size.height);
+    }
 
     const runtime = this.buildRuntime(0, this.lastTime);
     this.scenes.forEach(scene => {
@@ -1604,7 +1691,9 @@ export class SceneDirector {
       this.cutFade = 1;
       // Cycle through different transition types for variety
       this.transitionType = (this.transitionType + 1) % 4;
-      this.finalPass.uniforms.uTransitionType.value = this.transitionType;
+      if (this.finalPass) {
+        this.finalPass.uniforms.uTransitionType.value = this.transitionType;
+      }
     }
 
     // Mount Active Content to Main Scene
@@ -1667,39 +1756,46 @@ export class SceneDirector {
     this.root.dataset.towerSceneIndex = String(this.sceneIndex);
 
     const runtime = this.buildRuntime(dt, this._simTime);
-    this.finalPass.uniforms.uTime.value = this._simTime;
-
-    // Post FX interaction pulse
-    this.finalPass.uniforms.uInteract.value = clamp(
-      this.runtimeTap + this.runtimePress * 0.35,
-      0,
-      1
-    );
-
-    // Pass gyro influence to post-processing shader for mobile parallax effects
-    if (this.gyroActive) {
-      this.finalPass.uniforms.uGyroInfluence.value.set(
-        this.runtimeGyro.x,
-        this.runtimeGyro.y
-      );
-    } else {
-      this.finalPass.uniforms.uGyroInfluence.value.set(0, 0);
-    }
-
     // Audio Update
     this.audio.update(realDt);
-    this.finalPass.uniforms.uAudio.value = this.audio.level;
+
+    if (this.finalPass) {
+      this.finalPass.uniforms.uTime.value = this._simTime;
+
+      // Post FX interaction pulse
+      this.finalPass.uniforms.uInteract.value = clamp(
+        this.runtimeTap + this.runtimePress * 0.35,
+        0,
+        1
+      );
+
+      // Pass gyro influence to post-processing shader for mobile parallax effects
+      if (this.gyroActive) {
+        this.finalPass.uniforms.uGyroInfluence.value.set(
+          this.runtimeGyro.x,
+          this.runtimeGyro.y
+        );
+      } else {
+        this.finalPass.uniforms.uGyroInfluence.value.set(0, 0);
+      }
+
+      this.finalPass.uniforms.uAudio.value = this.audio.level;
+    }
     // this.gpgpu.uniforms is unsafe. Removing unsafe access.
     // The gpgpu updates occur via update() method which we fixed in gpgpu-system.ts
 
     // NEW: Update pointer velocity uniform for dynamic chromatic aberration
     const pVel = this.runtimePointerVelocity.length();
-    this.finalPass.uniforms.uPointerVel.value = clamp(pVel, 0, 10.0);
+    if (this.finalPass) {
+      this.finalPass.uniforms.uPointerVel.value = clamp(pVel, 0, 10.0);
+    }
 
     // Decay the cut mask quickly; keep it super short under reduced motion.
     const cutLambda = this.caps.reducedMotion ? 18 : 10;
     this.cutFade = damp(this.cutFade, 0, cutLambda, realDt);
-    this.finalPass.uniforms.uCut.value = this.cutFade;
+    if (this.finalPass) {
+      this.finalPass.uniforms.uCut.value = this.cutFade;
+    }
 
     // Auto Rotate
     if (this.autoRotate) {
@@ -1766,7 +1862,7 @@ export class SceneDirector {
 
     try {
       this.resetViewport();
-      if (this.caps.enablePostProcessing && !this.root.dataset.renderError) {
+      if (this.postEnabled && this.composer && !this.root.dataset.renderError) {
         this.composer.render();
       } else {
         this.renderer.render(this.renderPass.scene, this.renderPass.camera);

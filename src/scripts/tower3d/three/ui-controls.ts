@@ -93,12 +93,14 @@ export class UIControls {
 
     // 3. Glitch / Trails
     this.addSlider('Glitch Damp', 0.0, 0.98, 0.0, 0.01, v => {
+      if (!this.director.afterimagePass) return;
       this.director.afterimagePass.uniforms['damp'].value = v;
     });
 
     // 4. Focus (Aperture)
     this.addSlider('Focus Blur', 0.0001, 0.05, 0.001, 0.0001, v => {
       // 0.05 is very blurry, 0.0001 is crisp
+      if (!this.director.bokehPass) return;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (this.director.bokehPass.uniforms as any)['aperture'].value = v;
     });
@@ -110,6 +112,7 @@ export class UIControls {
 
     // 6. Bloom Strength
     this.addSlider('Bloom', 0.0, 3.0, 0.6, 0.1, v => {
+      if (!this.director.bloomPass) return;
       this.director.bloomPass.strength = v;
     });
 
@@ -131,10 +134,14 @@ export class UIControls {
       const speed = 0.5 + Math.random() * 1.5;
       const focus = 0.0001 + Math.random() * 0.01;
 
-      this.director.bloomPass.strength = bloom;
+      if (this.director.bloomPass) {
+        this.director.bloomPass.strength = bloom;
+      }
       this.director.timeScale = speed;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (this.director.bokehPass.uniforms as any)['aperture'].value = focus;
+      if (this.director.bokehPass) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (this.director.bokehPass.uniforms as any)['aperture'].value = focus;
+      }
 
       // Update UI? (Simple way: force reload checks... not implemented, but user sees effect)
     };
