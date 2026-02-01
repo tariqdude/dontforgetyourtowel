@@ -2037,10 +2037,10 @@ createAstroMount(ROOT_SELECTOR, () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).visualViewport?.height || window.innerHeight;
     const collapsed = 88;
-    // Mobile split-view defaults: keep the model visible.
-    const peek = Math.round(vv * 0.28);
-    const half = Math.round(vv * 0.45);
-    const full = Math.round(vv * 0.65);
+    // Mobile split-view defaults: keep the model visible but show usable controls.
+    const peek = Math.round(vv * 0.38); // Increased from 0.28 to show more controls
+    const half = Math.round(vv * 0.5);
+    const full = Math.round(vv * 0.7);
     const clampHeight = (v: number) =>
       Math.max(collapsed, Math.min(full, Math.round(v)));
     const peekH = clampHeight(peek);
@@ -2113,7 +2113,8 @@ createAstroMount(ROOT_SELECTOR, () => {
     } catch {
       // ignore
     }
-    const initialSnap = savedSnap ?? (isMobilePanel() ? 'collapsed' : 'peek');
+    // Start mobile in 'peek' so users can see controls, not 'collapsed' which hides everything
+    const initialSnap = savedSnap ?? 'peek';
     setPanelSnap(initialSnap, false);
   };
 
@@ -3129,6 +3130,115 @@ createAstroMount(ROOT_SELECTOR, () => {
     el.addEventListener('input', syncFromInputs, { passive: true });
     el.addEventListener('change', syncFromInputs, { passive: true });
   });
+
+  // --- Range slider value tooltips (mobile-friendly)
+  const initSliderTooltips = () => {
+    const rangeInputs = root.querySelectorAll<HTMLInputElement>(
+      '.csr-field input[type="range"], .csr-quick-range input[type="range"]'
+    );
+
+    rangeInputs.forEach(input => {
+      // Skip if already wrapped
+      if (input.parentElement?.classList.contains('csr-slider-wrapper')) return;
+
+      // Create wrapper
+      const wrapper = document.createElement('div');
+      wrapper.className = 'csr-slider-wrapper';
+
+      // Create tooltip
+      const tooltip = document.createElement('div');
+      tooltip.className = 'csr-slider-tooltip';
+      tooltip.setAttribute('aria-hidden', 'true');
+      tooltip.setAttribute('data-position', '');
+
+      // Wrap the input
+      input.parentNode?.insertBefore(wrapper, input);
+      wrapper.appendChild(input);
+      wrapper.appendChild(tooltip);
+
+      // Format value based on label context
+      const formatValue = (value: number, min: number, max: number): string => {
+        const label =
+          input
+            .closest('.csr-field')
+            ?.querySelector('span')
+            ?.textContent?.toLowerCase() || '';
+        const id = input.id || '';
+
+        // Percentage values
+        if (
+          label.includes('intensity') ||
+          label.includes('strength') ||
+          label.includes('opacity') ||
+          label.includes('tint') ||
+          label.includes('zoom') ||
+          label.includes('range') ||
+          id.includes('Range')
+        ) {
+          const pct = ((value - min) / (max - min)) * 100;
+          return `${Math.round(pct)}%`;
+        }
+
+        // Degree values
+        if (
+          label.includes('yaw') ||
+          label.includes('pitch') ||
+          label.includes('rotation')
+        ) {
+          return `${Math.round(value)}°`;
+        }
+
+        // Speed/scale values
+        if (label.includes('speed') || label.includes('scale')) {
+          return `${value.toFixed(1)}x`;
+        }
+
+        // Default: show raw value
+        if (max - min > 10) {
+          return Math.round(value).toString();
+        }
+        return value.toFixed(2);
+      };
+
+      // Update tooltip position and value
+      const updateTooltip = () => {
+        const value = parseFloat(input.value);
+        const min = parseFloat(input.min) || 0;
+        const max = parseFloat(input.max) || 100;
+        const pct = ((value - min) / (max - min)) * 100;
+
+        tooltip.textContent = formatValue(value, min, max);
+        tooltip.style.setProperty('--tooltip-position', `${pct}%`);
+      };
+
+      // Show tooltip
+      const showTooltip = () => {
+        wrapper.classList.add('is-active');
+        updateTooltip();
+      };
+
+      // Hide tooltip
+      const hideTooltip = () => {
+        wrapper.classList.remove('is-active');
+      };
+
+      // Event listeners for mouse/touch
+      input.addEventListener('input', updateTooltip);
+      input.addEventListener('mousedown', showTooltip);
+      input.addEventListener('mouseup', hideTooltip);
+      input.addEventListener('mouseleave', hideTooltip);
+      input.addEventListener('touchstart', showTooltip, { passive: true });
+      input.addEventListener('touchend', hideTooltip, { passive: true });
+      input.addEventListener('touchcancel', hideTooltip, { passive: true });
+
+      // Also show on focus (keyboard nav)
+      input.addEventListener('focus', showTooltip);
+      input.addEventListener('blur', hideTooltip);
+    });
+  };
+
+  // Initialize tooltips
+  initSliderTooltips();
 
   const randomizeLook = () => {
     const pick = <T>(list: T[]) =>

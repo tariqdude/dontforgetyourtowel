@@ -919,21 +919,28 @@
   }
 
   .car-showroom__panel {
-    height: var(--csr-panel-height, 34svh);
-    max-height: var(--csr-panel-height, 34svh);
+    height: var(--csr-panel-height, 38svh);
+    max-height: var(--csr-panel-height, 38svh);
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
   .car-showroom__panel.is-collapsed {
-    height: var(--csr-panel-height, 88px);
-    max-height: var(--csr-panel-height, 88px);
+    height: var(--csr-panel-height, 140px);
+    max-height: var(--csr-panel-height, 140px);
     overflow: hidden;
   }
 
   .car-showroom__panel.is-collapsed .csr-panel-filter,
-  .car-showroom__panel.is-collapsed .csr-panel-inspector,
-  .car-showroom__panel.is-collapsed .csr-tab-panels {
+  .car-showroom__panel.is-collapsed .csr-panel-inspector {
     display: none;
+  }
+
+  /* Keep tab panels visible but scrollable even when collapsed */
+  .car-showroom__panel.is-collapsed .csr-tab-panels {
+    flex: 1;
+    overflow: auto;
   }
 
   .csr-sheet-handle {
@@ -956,12 +963,26 @@
     height: 5px;
     border-radius: 999px;
     margin: 7px auto 0;
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(34, 211, 238, 0.5);
     transition: background 0.2s ease;
+    animation: dragHint 2s ease-in-out infinite;
+  }
+
+  @keyframes dragHint {
+    0%,
+    100% {
+      opacity: 0.5;
+      transform: scaleX(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scaleX(1.1);
+    }
   }
 
   .csr-sheet-handle:active::before {
-    background: rgba(255, 255, 255, 0.5);
+    background: rgba(34, 211, 238, 0.8);
+    animation: none;
   }
 
   .csr-tab-panels {
@@ -2868,5 +2889,91 @@
   .csr-field select,
   .csr-field input[type='color'] {
     font-size: 13px;
+  }
+}
+
+/* ============================================
+   Range Slider Value Tooltip
+   ============================================ */
+
+/* Container for slider + tooltip */
+.csr-slider-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+/* Value tooltip bubble */
+.csr-slider-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) scale(0.85);
+  padding: 4px 10px;
+  background: linear-gradient(
+    135deg,
+    rgba(34, 211, 238, 0.95),
+    rgba(6, 182, 212, 0.95)
+  );
+  color: #000;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+  z-index: 10;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* Tooltip arrow */
+.csr-slider-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: rgba(6, 182, 212, 0.95);
+}
+
+/* Show tooltip when active */
+.csr-slider-wrapper.is-active .csr-slider-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+/* Position tooltip along slider track */
+.csr-slider-tooltip[data-position] {
+  left: var(--tooltip-position, 50%);
+}
+
+/* Mobile: larger tooltip for touch */
+@media (max-width: 980px) {
+  .csr-slider-tooltip {
+    padding: 6px 12px;
+    font-size: 13px;
+    bottom: calc(100% + 12px);
+  }
+
+  .csr-slider-tooltip::after {
+    border-width: 6px;
+  }
+}
+
+/* Reduced motion: disable scale animation */
+@media (prefers-reduced-motion: reduce) {
+  .csr-slider-tooltip {
+    transition: opacity 0.1s ease;
+    transform: translateX(-50%);
+  }
+
+  .csr-slider-wrapper.is-active .csr-slider-tooltip {
+    transform: translateX(-50%);
   }
 }
