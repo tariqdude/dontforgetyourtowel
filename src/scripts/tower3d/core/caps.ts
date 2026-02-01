@@ -118,24 +118,65 @@ export const getTowerCaps = (): TowerCaps => {
 
   try {
     const canvas = document.createElement('canvas');
-    // Some browsers/GPUs behave better with explicit attributes.
-    // We avoid `failIfMajorPerformanceCaveat` so software fallbacks can still work.
-    const gl2 = canvas.getContext('webgl2', {
+    // Be permissive: some browsers/devices fail context creation with certain attributes
+    // (notably alpha/depth combos), even though a default context would succeed.
+    // We intentionally avoid `failIfMajorPerformanceCaveat` so software fallbacks can still work.
+    const tryWebgl2 = (attrs?: WebGLContextAttributes) => {
+      try {
+        return attrs
+          ? canvas.getContext('webgl2', attrs)
+          : canvas.getContext('webgl2');
+      } catch {
+        return null;
+      }
+    };
+    const tryWebgl1 = (
+      name: 'webgl' | 'experimental-webgl',
+      attrs?: WebGLContextAttributes
+    ) => {
+      try {
+        return attrs ? canvas.getContext(name, attrs) : canvas.getContext(name);
+      } catch {
+        return null;
+      }
+    };
+
+    const attrsPreferred: WebGLContextAttributes = {
       powerPreference: 'high-performance',
-      alpha: false,
+      alpha: true,
       antialias: false,
       depth: true,
       stencil: false,
-    });
-    webgl2 = Boolean(gl2);
+      preserveDrawingBuffer: false,
+    };
+    const attrsAlphaFalse: WebGLContextAttributes = {
+      ...attrsPreferred,
+      alpha: false,
+    };
+    const attrsMinimal: WebGLContextAttributes = {
+      alpha: true,
+      depth: true,
+      stencil: false,
+      antialias: false,
+    };
+
+    const gl2 =
+      tryWebgl2() ||
+      tryWebgl2(attrsPreferred) ||
+      tryWebgl2(attrsMinimal) ||
+      tryWebgl2(attrsAlphaFalse);
+
     const gl1 =
-      canvas.getContext('webgl', {
-        powerPreference: 'high-performance',
-        alpha: false,
-        antialias: false,
-        depth: true,
-        stencil: false,
-      }) || canvas.getContext('experimental-webgl');
+      tryWebgl1('webgl') ||
+      tryWebgl1('webgl', attrsPreferred) ||
+      tryWebgl1('webgl', attrsMinimal) ||
+      tryWebgl1('webgl', attrsAlphaFalse) ||
+      tryWebgl1('experimental-webgl') ||
+      tryWebgl1('experimental-webgl', attrsPreferred) ||
+      tryWebgl1('experimental-webgl', attrsMinimal) ||
+      tryWebgl1('experimental-webgl', attrsAlphaFalse);
+
+    webgl2 = Boolean(gl2);
     webgl = webgl2 || Boolean(gl1);
 
     // GPU tier detection using WebGL renderer info
