@@ -33,15 +33,17 @@ const { className = '', variant = 'auto' } = Astro.props;
     const root = document.querySelector(ROOT_SELECTOR);
     if (!root) return;
 
+    const host = root.closest('[data-hero-canvas-shell]') || root;
+
     const show = message => {
-      let overlay = root.querySelector('.tower3d-error-overlay');
+      let overlay = host.querySelector('.tower3d-error-overlay');
       if (!overlay) {
         overlay = document.createElement('div');
         overlay.className = 'tower3d-error-overlay';
         overlay.style.cssText =
-          'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(2,4,10,0.82);color:#e5e7eb;z-index:30;text-align:center;pointer-events:auto;';
-        root.style.position = root.style.position || 'relative';
-        root.appendChild(overlay);
+          'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(2,4,10,0.82);color:#e5e7eb;z-index:9999;text-align:center;pointer-events:auto;';
+        host.style.position = host.style.position || 'relative';
+        host.appendChild(overlay);
       }
 
       overlay.innerHTML = `
@@ -55,13 +57,14 @@ const { className = '', variant = 'auto' } = Astro.props;
         </div>
       `;
 
-      overlay
-        .querySelector('[data-hero-reload]')
-        ?.addEventListener('click', () => window.location.reload());
+      var reloadBtn = overlay.querySelector('[data-hero-reload]');
+      if (reloadBtn) {
+        reloadBtn.addEventListener('click', () => window.location.reload());
+      }
 
-      overlay
-        .querySelector('[data-hero-reset-cache]')
-        ?.addEventListener('click', async () => {
+      var resetBtn = overlay.querySelector('[data-hero-reset-cache]');
+      if (resetBtn) {
+        resetBtn.addEventListener('click', async () => {
           try {
             if ('serviceWorker' in navigator) {
               const regs = await navigator.serviceWorker.getRegistrations();
@@ -81,12 +84,20 @@ const { className = '', variant = 'auto' } = Astro.props;
             window.location.reload();
           }
         });
+      }
     };
 
     window.setTimeout(() => {
-      const booted =
-        document.documentElement?.dataset?.[BOOT_FLAG] === '1' ||
-        root.dataset?.[BOOT_FLAG] === '1';
+      var booted = false;
+      try {
+        booted =
+          (document.documentElement &&
+            document.documentElement.dataset &&
+            document.documentElement.dataset[BOOT_FLAG] === '1') ||
+          (root.dataset && root.dataset[BOOT_FLAG] === '1');
+      } catch {
+        booted = false;
+      }
       if (booted) return;
 
       show(
@@ -107,14 +118,16 @@ const { className = '', variant = 'auto' } = Astro.props;
     title: string,
     details?: string
   ) => {
-    let overlay = root.querySelector<HTMLElement>('.tower3d-error-overlay');
+    const host = root.closest<HTMLElement>('[data-hero-canvas-shell]') ?? root;
+
+    let overlay = host.querySelector<HTMLElement>('.tower3d-error-overlay');
     if (!overlay) {
       overlay = document.createElement('div');
       overlay.className = 'tower3d-error-overlay';
       overlay.style.cssText =
-        'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(2,4,10,0.82);color:#e5e7eb;z-index:30;text-align:center;pointer-events:auto;';
-      root.style.position = root.style.position || 'relative';
-      root.appendChild(overlay);
+        'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(2,4,10,0.82);color:#e5e7eb;z-index:9999;text-align:center;pointer-events:auto;';
+      host.style.position = host.style.position || 'relative';
+      host.appendChild(overlay);
     }
 
     const debug = {
@@ -191,7 +204,9 @@ const { className = '', variant = 'auto' } = Astro.props;
           const cleanup = createHeroScene(canvas, { variant });
           (canvas as unknown as WithCleanup).__heroCleanup = cleanup;
           // If we successfully mounted, ensure any previous overlay is removed.
-          root.querySelector<HTMLElement>('.tower3d-error-overlay')?.remove();
+          const host =
+            root.closest<HTMLElement>('[data-hero-canvas-shell]') ?? root;
+          host.querySelector<HTMLElement>('.tower3d-error-overlay')?.remove();
         } catch (e) {
           console.error('[HeroCanvas] createHeroScene failed:', e);
           showHeroBootError(

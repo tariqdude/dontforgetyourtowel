@@ -26,18 +26,20 @@ export function createHeroScene(
   canvas: HTMLCanvasElement,
   options: { variant?: HeroSceneVariant } = {}
 ) {
-  const parent = (canvas.parentElement as HTMLElement | null) ?? document.body;
+  const shell = canvas.closest<HTMLElement>('[data-hero-canvas-shell]');
+  const host =
+    shell ?? (canvas.parentElement as HTMLElement | null) ?? document.body;
 
   const showOverlay = (title: string, details: string) => {
     // Avoid stacking multiple overlays if Astro re-mounts.
-    let overlay = parent.querySelector<HTMLElement>('.tower3d-error-overlay');
+    let overlay = host.querySelector<HTMLElement>('.tower3d-error-overlay');
     if (!overlay) {
       overlay = document.createElement('div');
       overlay.className = 'tower3d-error-overlay';
       overlay.style.cssText =
-        'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(2,4,10,0.82);color:#e5e7eb;z-index:20;text-align:center;pointer-events:auto;';
-      parent.style.position = parent.style.position || 'relative';
-      parent.appendChild(overlay);
+        'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(2,4,10,0.82);color:#e5e7eb;z-index:9999;text-align:center;pointer-events:auto;';
+      host.style.position = host.style.position || 'relative';
+      host.appendChild(overlay);
     }
 
     overlay.innerHTML = `
@@ -83,7 +85,7 @@ export function createHeroScene(
     };
   }
 
-  let root = canvas.parentElement as HTMLElement | null;
+  let root = shell ?? (canvas.parentElement as HTMLElement | null);
   if (!root) root = document.body;
 
   let width = Math.max(1, canvas.clientWidth || root.clientWidth || 1);
