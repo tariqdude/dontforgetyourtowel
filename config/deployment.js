@@ -78,6 +78,16 @@ export const deriveBasePath = (env = defaultEnv) => {
   const explicitBase =
     getEnvValue(env, ['BASE_PATH', 'PUBLIC_BASE_PATH', 'BASE_URL']) || '';
   if (explicitBase) {
+    // Some environments use BASE_URL as a full URL, not a path.
+    // Accept either shape and always normalize to a pathname base.
+    if (hasProtocol(explicitBase)) {
+      try {
+        const url = new URL(explicitBase);
+        return normalizeBasePath(url.pathname);
+      } catch {
+        // fall through
+      }
+    }
     return normalizeBasePath(explicitBase);
   }
 

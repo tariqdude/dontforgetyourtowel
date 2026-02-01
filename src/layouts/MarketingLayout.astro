@@ -10,6 +10,7 @@ import MobileNav from '../components/business/MobileNav.astro';
 import StickyCTA from '../components/business/StickyCTA.astro';
 import LiveChat from '../components/business/LiveChat';
 import PullToRefresh from '../components/ui/PullToRefresh.astro';
+import { BASE_PATH } from '../consts';
 
 interface Props {
   title: string;
@@ -37,10 +38,66 @@ const {
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="en" data-base-path={BASE_PATH}>
   <head>
     <BaseHead title={title} description={description} />
     <StructuredData type="website" />
+
+    <!--
+      Production guard: if the site is hosted under a subpath (GitHub Pages project)
+      but the HTML references root-relative /_astro assets, nothing will boot (incl. 3D).
+      This provides a visible, actionable error instead of a blank page.
+    -->
+    <script is:inline>
+      (() => {
+        try {
+          const expectedBase =
+            document.documentElement.getAttribute('data-base-path') || '/';
+          if (!expectedBase || expectedBase === '/') return;
+
+          const scripts = Array.from(
+            document.querySelectorAll('script[type="module"][src]')
+          );
+
+          const hasBadAssetPath = scripts.some(el => {
+            const src = (el as HTMLScriptElement).src;
+            if (!src) return false;
+            const p = new URL(src, document.baseURI).pathname;
+            return p.startsWith('/_astro/');
+          });
+
+          if (!hasBadAssetPath) return;
+
+          const diagUrl = new URL('debug-webgl/', document.baseURI).toString();
+
+          const overlay = document.createElement('div');
+          overlay.style.cssText =
+            'position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(2,4,10,0.94);color:#e5e7eb;text-align:center;';
+          overlay.innerHTML = `
+            <div style="max-width:720px;text-align:left">
+              <div style="font-weight:800;font-size:18px;margin-bottom:10px">Deployment base-path mismatch</div>
+              <div style="opacity:0.9;font-size:14px;line-height:1.5;margin-bottom:14px">
+                This page is hosted under <b>${expectedBase}</b>, but the HTML is referencing <b>/_astro/</b> assets.
+                That causes the entire site (and all 3D) to fail to boot in production.
+              </div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap">
+                <a href="${diagUrl}" style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.14);color:#e5e7eb;padding:10px 14px;border-radius:10px;text-decoration:none">Open diagnostics</a>
+                <button type="button" data-reload style="cursor:pointer;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.06);color:#fff;padding:10px 14px;border-radius:10px">Reload</button>
+              </div>
+              <div style="margin-top:14px;opacity:0.85;font-size:12px;line-height:1.4">
+                Fix: build with the correct base path for your host (GitHub Pages project sites need /REPO/).
+              </div>
+            </div>
+          `;
+          overlay
+            .querySelector('[data-reload]')
+            ?.addEventListener('click', () => window.location.reload());
+          document.body.appendChild(overlay);
+        } catch {
+          // ignore
+        }
+      })();
+    </script>
   </head>
   <body class={`antialiased ${bodyClass}`.trim()}>
     <PullToRefresh />

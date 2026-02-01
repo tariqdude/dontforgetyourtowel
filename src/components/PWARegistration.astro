@@ -43,7 +43,7 @@ const swScope = withBasePath('');
     // Avoid flakey reloads during automated testing.
     // Playwright sets navigator.webdriver=true.
     const isAutomated =
-      typeof navigator !== 'undefined' && (navigator as any).webdriver === true;
+      typeof navigator !== 'undefined' && navigator.webdriver === true;
 
     const isLocalHost = (() => {
       try {
