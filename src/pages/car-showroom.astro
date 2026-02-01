@@ -39,8 +39,15 @@ const description =
 
     <!-- Quality Indicator (Mobile Only) -->
     <div class="csr-quality-badge" data-csr-quality-badge hidden>
-      <span class="csr-quality-badge__fps" data-csr-quality-fps>--</span>
-      <span class="csr-quality-badge__label" data-csr-quality-label>FPS</span>
+      <div class="csr-quality-badge__vitals">
+        <span class="csr-quality-badge__fps" data-csr-quality-fps>--</span>
+        <span class="csr-quality-badge__label">FPS</span>
+      </div>
+      <div class="csr-quality-badge__divider"></div>
+      <div class="csr-quality-badge__status">
+        <span class="csr-quality-badge__dot"></span>
+        <span class="csr-quality-badge__mode" data-csr-quality-mode>LIVE</span>
+      </div>
     </div>
 
     <!-- Floating Action Button (Mobile Only) -->
@@ -84,6 +91,26 @@ const description =
               d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
             ></path>
             <circle cx="12" cy="13" r="4"></circle>
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="csr-fab__action"
+          data-csr-fab-immersive
+          title="Immersive mode"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M15 3h6v6"></path>
+            <path d="M9 21H3v-6"></path>
+            <path d="M21 3l-7 7"></path>
+            <path d="M3 21l7-7"></path>
           </svg>
         </button>
         <button
@@ -182,6 +209,14 @@ const description =
         </div>
 
         <div class="car-showroom__actions">
+          <button
+            type="button"
+            class="csr-btn csr-btn--ghost"
+            data-csr-immersive
+            title="Toggle immersive mode"
+          >
+            Hide UI
+          </button>
           <button
             type="button"
             class="csr-btn"
@@ -539,38 +574,56 @@ const description =
                   class="csr-quick-strip__color"
                   style="--color:#0b0f1a"
                   data-quick-color="#0b0f1a"
-                  title="Black"></button>
+                  title="Obsidian"></button>
                 <button
                   type="button"
                   class="csr-quick-strip__color"
                   style="--color:#e5e7eb"
                   data-quick-color="#e5e7eb"
-                  title="Silver"></button>
+                  title="Argent"></button>
                 <button
                   type="button"
                   class="csr-quick-strip__color"
                   style="--color:#f87171"
                   data-quick-color="#f87171"
-                  title="Red"></button>
+                  title="Rosso"></button>
                 <button
                   type="button"
                   class="csr-quick-strip__color"
                   style="--color:#60a5fa"
                   data-quick-color="#60a5fa"
-                  title="Blue"></button>
+                  title="Sapphire"></button>
                 <button
                   type="button"
                   class="csr-quick-strip__color"
                   style="--color:#22c55e"
                   data-quick-color="#22c55e"
-                  title="Green"></button>
+                  title="Emerald"></button>
+                <button
+                  type="button"
+                  class="csr-quick-strip__color"
+                  style="--color:#facc15"
+                  data-quick-color="#facc15"
+                  title="Midas"></button>
+                <button
+                  type="button"
+                  class="csr-quick-strip__color"
+                  style="--color:#fb923c"
+                  data-quick-color="#fb923c"
+                  title="Amber"></button>
+                <button
+                  type="button"
+                  class="csr-quick-strip__color"
+                  style="--color:#a855f7"
+                  data-quick-color="#a855f7"
+                  title="Amethyst"></button>
                 <button
                   type="button"
                   class="csr-quick-strip__color"
                   data-active="true"
                   style="--color:#00d1b2"
                   data-quick-color="#00d1b2"
-                  title="Teal"></button>
+                  title="Cyber"></button>
               </div>
               <button
                 type="button"
@@ -1933,6 +1986,56 @@ const description =
                 <p class="csr-hint">Imports state + part map</p>
               </div>
 
+              <div class="csr-mobile-optimizations">
+                <h4 class="csr-mobile-optimizations__title">
+                  Mobile Optimizations
+                </h4>
+                <div class="csr-grid">
+                  <label class="csr-field csr-field--wide">
+                    <span>Low power mode</span>
+                    <label class="csr-check">
+                      <input type="checkbox" data-csr-low-power />
+                      <span>Disable heavy effects for battery/performance</span>
+                    </label>
+                  </label>
+
+                  <label class="csr-field csr-field--wide">
+                    <span>Haptic feedback</span>
+                    <label class="csr-check">
+                      <input type="checkbox" data-csr-haptics checked />
+                      <span>Tactile vibration during interactions</span>
+                    </label>
+                  </label>
+
+                  <div class="csr-row">
+                    <button
+                      type="button"
+                      class="csr-btn csr-btn--primary csr-btn--ar"
+                      data-csr-view-ar
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="lucide lucide-box"
+                        ><path
+                          d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"
+                        ></path><path d="m3.3 7 8.7 5 8.7-5"></path><path
+                          d="M12 22V12"></path></svg
+                      >
+                      View in AR
+                    </button>
+                    <p class="csr-hint">Open model in 3D / AR space</p>
+                  </div>
+                </div>
+              </div>
+
               <label class="csr-field">
                 <span>Model</span>
                 <select data-csr-model>
@@ -2140,6 +2243,25 @@ const description =
 
     <!-- Floating Action Bar (Mobile Only) -->
     <div class="csr-floating-bar" data-csr-floating-bar>
+      <button
+        type="button"
+        class="csr-floating-bar__btn"
+        data-csr-floating-immersive
+      >
+        <svg
+          class="csr-floating-bar__btn__icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M15 3h6v6"></path>
+          <path d="M9 21H3v-6"></path>
+          <path d="M21 3l-7 7"></path>
+          <path d="M3 21l7-7"></path>
+        </svg>
+        Focus
+      </button>
       <button
         type="button"
         class="csr-floating-bar__btn"

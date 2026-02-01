@@ -82,5 +82,6 @@
     "**/test-results/**": true,
     "**/.git/objects/**": true,
     "**/.git/subtree-cache/**": true
-  }
+  },
+  "chat.agent.maxRequests": 1000000000000000000
 }

@@ -636,6 +636,60 @@ createAstroMount(ROOT_SELECTOR, () => {
     randomizeBtn?.click();
   });
 
+  // --- Immersive Mode ---
+  const fabImmersiveBtn = root.querySelector<HTMLButtonElement>(
+    '[data-csr-fab-immersive]'
+  );
+  const floatingImmersiveBtn = root.querySelector<HTMLButtonElement>(
+    '[data-csr-floating-immersive]'
+  );
+  const topImmersiveBtn = root.querySelector<HTMLButtonElement>(
+    '[data-csr-immersive]'
+  );
+  const qualityModeLabel = root.querySelector<HTMLElement>(
+    '[data-csr-quality-mode]'
+  );
+
+  let isImmersive = false;
+
+  const toggleImmersive = () => {
+    isImmersive = !isImmersive;
+    root.classList.toggle('is-immersive', isImmersive);
+    triggerHaptic(isImmersive ? [10, 50] : 20);
+
+    if (qualityModeLabel) {
+      qualityModeLabel.textContent = isImmersive ? 'IMMERSIVE' : 'LIVE';
+    }
+
+    if (isImmersive) {
+      if (isMobilePanel()) {
+        setPanelSnap('collapsed', false);
+      }
+      showToast('Immersive mode (double-tap to exit)');
+      closeFAB();
+      hideFloatingBar();
+    } else {
+      showToast('UI restored');
+    }
+
+    // Haptic feedback
+    if ('vibrate' in navigator) {
+      navigator.vibrate(isImmersive ? [10, 30, 10] : 15);
+    }
+  };
+
+  fabImmersiveBtn?.addEventListener('click', () => {
+    toggleImmersive();
+  });
+
+  floatingImmersiveBtn?.addEventListener('click', () => {
+    toggleImmersive();
+  });
+
+  topImmersiveBtn?.addEventListener('click', () => {
+    toggleImmersive();
+  });
+
   // --- UI wiring (dataset-driven)
   const bumpRevision = () => {
     const ds = root.dataset;
@@ -984,6 +1038,12 @@ createAstroMount(ROOT_SELECTOR, () => {
     '[data-csr-buildsheet-clear]'
   );
 
+  const lowPowerChk = root.querySelector<HTMLInputElement>(
+    '[data-csr-low-power]'
+  );
+  const hapticsChk = root.querySelector<HTMLInputElement>('[data-csr-haptics]');
+  const viewArBtn = root.querySelector<HTMLButtonElement>('[data-csr-view-ar]');
+
   // --- Panel tabs (mobile-friendly)
   const TAB_STORAGE_KEY = 'csr-active-tab-v1';
   const tabButtons = Array.from(
@@ -1005,6 +1065,13 @@ createAstroMount(ROOT_SELECTOR, () => {
   type PanelSnap = 'collapsed' | 'peek' | 'half' | 'full';
   const isMobilePanel = () => window.matchMedia('(max-width: 980px)').matches;
   let panelSnap: PanelSnap = 'peek';
+
+  const triggerHaptic = (pattern: number | number[]) => {
+    if (!hapticsChk || !hapticsChk.checked) return;
+    if ('vibrate' in navigator) {
+      navigator.vibrate(pattern);
+    }
+  };
 
   // Mobile bottom tab bar (queried early so setActiveTab can use it)
   const mobileTabBtns = Array.from(
@@ -2124,6 +2191,7 @@ createAstroMount(ROOT_SELECTOR, () => {
   let dragStartTime = 0;
   let lastDragY = 0;
   let lastDragTime = 0;
+  let lastNearestSnap: PanelSnap | null = null;
 
   const beginDrag = (clientY: number) => {
     if (!panel || !isMobilePanel()) return;
@@ -2135,11 +2203,10 @@ createAstroMount(ROOT_SELECTOR, () => {
     dragStartTime = performance.now();
     lastDragY = clientY;
     lastDragTime = dragStartTime;
+    lastNearestSnap = getNearestSnap(dragStartHeight, getSnapHeights());
 
     // Light haptic feedback when starting drag
-    if ('vibrate' in navigator) {
-      navigator.vibrate(5);
-    }
+    triggerHaptic(5);
   };
 
   const onDragMove = (e: PointerEvent) => {
@@ -2157,6 +2224,13 @@ createAstroMount(ROOT_SELECTOR, () => {
       `${Math.round(nextHeight)}px`
     );
     panel.classList.toggle('is-collapsed', nextHeight <= heights.collapsed + 4);
+
+    // Haptic feedback when crossing a snap point
+    const currentNearest = getNearestSnap(nextHeight, heights);
+    if (currentNearest !== lastNearestSnap) {
+      triggerHaptic(10);
+      lastNearestSnap = currentNearest;
+    }
 
     // Update pull state for visual feedback
     const pullThreshold = 30;
@@ -2203,14 +2277,12 @@ createAstroMount(ROOT_SELECTOR, () => {
     setPanelSnap(nextSnap, true);
 
     // Haptic feedback on snap
-    if ('vibrate' in navigator) {
-      if (nextSnap === 'full') {
-        navigator.vibrate([10, 30, 10]); // Double tap for full expand
-      } else if (nextSnap === 'collapsed') {
-        navigator.vibrate(15); // Single for collapse
-      } else {
-        navigator.vibrate(8); // Light for partial snap
-      }
+    if (nextSnap === 'full') {
+      triggerHaptic([10, 30, 10]); // Double tap for full expand
+    } else if (nextSnap === 'collapsed') {
+      triggerHaptic(15); // Single for collapse
+    } else {
+      triggerHaptic(8); // Light for partial snap
     }
 
     try {
@@ -2637,6 +2709,23 @@ createAstroMount(ROOT_SELECTOR, () => {
 
   buildsheetClearBtn?.addEventListener('click', () => {
     if (buildsheetPasteTa) buildsheetPasteTa.value = '';
+  });
+
+  lowPowerChk?.addEventListener('change', () => {
+    root.dataset.carShowroomLowPower = lowPowerChk.checked ? 'true' : 'false';
+    bumpRevision();
+    applyPostFxFromDataset();
+  });
+
+  hapticsChk?.addEventListener('change', () => {
+    // Read directly in gesture handlers
+  });
+
+  viewArBtn?.addEventListener('click', () => {
+    const modelUrl = root.dataset.carShowroomModel;
+    if (modelUrl) {
+      window.open(modelUrl, '_blank');
+    }
   });
 
   buildsheetApplyBtn?.addEventListener('click', () => {
@@ -3936,6 +4025,8 @@ createAstroMount(ROOT_SELECTOR, () => {
       if (rev === lastUiRevision) return;
       lastUiRevision = rev;
 
+      const isLowPower = ds.carShowroomLowPower === 'true';
+
       const exp = clamp(
         Number.parseFloat(ds.carShowroomExposure || '1') || 1,
         0.1,
@@ -3948,14 +4039,25 @@ createAstroMount(ROOT_SELECTOR, () => {
         0,
         3
       );
-      bloomInstance.strength = bloomStrength;
-      bloomInstance.enabled = bloomStrength > 0.01;
+
+      // Force bloom off in low power mode
+      const finalBloomStrength = isLowPower ? 0 : bloomStrength;
+      bloomInstance.strength = finalBloomStrength;
+      bloomInstance.enabled = finalBloomStrength > 0.01;
+
       bloomInstance.threshold = clamp01(
         Number.parseFloat(ds.carShowroomBloomThreshold || '0.9') || 0
       );
       bloomInstance.radius = clamp01(
         Number.parseFloat(ds.carShowroomBloomRadius || '0') || 0
       );
+
+      // Reduce pixel ratio in low power mode if on mobile
+      if (isLowPower && isMobileDevice()) {
+        rendererInstance.setPixelRatio(1);
+      } else {
+        rendererInstance.setPixelRatio(window.devicePixelRatio || 1);
+      }
     };
 
     applyPostFxFromDataset();
@@ -4365,10 +4467,15 @@ createAstroMount(ROOT_SELECTOR, () => {
         },
 
         onDoubleTap: () => {
-          // Double-tap to frame the model
-          const rec = showroomInstance.getFrameRecommendation();
-          if (rec) {
-            applyCameraFrame(rec, 'Framed model.');
+          // Double-tap to toggle immersive mode
+          toggleImmersive();
+
+          // If exiting immersive, also reframing the model is a nice touch
+          if (!isImmersive) {
+            const rec = showroomInstance.getFrameRecommendation();
+            if (rec) {
+              applyCameraFrame(rec, 'UI restored & reframed.');
+            }
           }
         },
 
