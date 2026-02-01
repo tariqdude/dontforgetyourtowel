@@ -448,7 +448,7 @@ export class CarShowroomScene {
   private loader: GLTFLoader;
   private loaded: THREE.Object3D | null = null;
   private loadingUrl: string | null = null;
-  private lastUiRevision = '';
+  private lastUiRevision = '__INIT__';
 
   private savedMaterials = new Map<string, THREE.Material | THREE.Material[]>();
   private oemWrapMaterials = new Map<
@@ -2109,7 +2109,8 @@ export class CarShowroomScene {
       }
 
       console.time(`[CarShowroom] Parse ${normalized}`);
-      const gltf = await this.loader.parseAsync(buffer, normalized);
+      const basePath = normalized.substring(0, normalized.lastIndexOf('/') + 1);
+      const gltf = await this.loader.parseAsync(buffer, basePath);
       console.timeEnd(`[CarShowroom] Parse ${normalized}`);
 
       if (this.loadingUrl !== normalized) {
@@ -2123,7 +2124,8 @@ export class CarShowroomScene {
           if (!mesh.isMesh) return;
           mesh.geometry?.dispose?.();
           const mat = mesh.material;
-          if (Array.isArray(mat)) mat.forEach(m => m.dispose());
+          if (Array.isArray(mat))
+            mat.forEach(m => (m as THREE.Material)?.dispose?.());
           else mat?.dispose?.();
         });
         return;
@@ -2132,18 +2134,26 @@ export class CarShowroomScene {
       this.disposeLoaded();
 
       const model = gltf.scene;
+      if (!model) throw new Error('GLTF parse resulted in an empty scene');
 
       // Normalize scale + center + place on floor.
-      // Important: if we scale the object, we must recompute the box; otherwise
-      // translations won't match the scaled size and the car can end up sunk.
       const box = new THREE.Box3().setFromObject(model);
       const size = new THREE.Vector3();
       box.getSize(size);
 
-      const maxDim = Math.max(1e-3, size.x, size.y, size.z);
+      // Handle empty model gracefully
+      if (size.lengthSq() < 1e-6) {
+        console.warn(
+          '[CarShowroom] Loaded model appears empty or zero-sized:',
+          normalized
+        );
+      }
+
+      const maxDim = Math.max(0.1, size.x, size.y, size.z);
       const scale = 4.0 / maxDim;
       model.scale.setScalar(scale);
 
+      // Re-measure after scale
       box.setFromObject(model);
       const center = new THREE.Vector3();
       box.getCenter(center);
@@ -2151,7 +2161,9 @@ export class CarShowroomScene {
 
       box.setFromObject(model);
       // Raise so the bottom touches y=0.
-      model.position.y -= box.min.y;
+      if (Number.isFinite(box.min.y)) {
+        model.position.y -= box.min.y;
+      }
 
       this.loaded = model;
       this.modelGroup.add(model);
@@ -2188,52 +2200,65 @@ export class CarShowroomScene {
   }
 
   private syncFromUi(scene: THREE.Scene) {
-    const ds = this.root.dataset;
-    const revision = ds.carShowroomUiRevision || '';
-    if (revision === this.lastUiRevision) return;
-    this.lastUiRevision = revision;
+    try {
+      const ds = this.root.dataset;
+      const revision = ds.carShowroomUiRevision || '';
+      if (revision === this.lastUiRevision) return;
+      this.lastUiRevision = revision;
 
-    const ui = this.getUiState();
+      const ui = this.getUiState();
 
-    if (ui.cameraMode === 'preset') {
-      if (this.lastCameraPreset !== ui.cameraPreset) {
-        this.applyCameraPreset(ui, false);
-        this.lastCameraPreset = ui.cameraPreset;
+      if (ui.cameraMode === 'preset') {
+        if (this.lastCameraPreset !== ui.cameraPreset) {
+          this.applyCameraPreset(ui, false);
+          this.lastCameraPreset = ui.cameraPreset;
+        }
       }
-    }
 
-    // Background
-    this.setBackground(scene, ui.background);
-    this.gridHelper.visible = ui.gridEnabled || ui.background === 'grid';
+      // Background
+      this.setBackground(scene, ui.background);
+      this.gridHelper.visible = ui.gridEnabled || ui.background === 'grid';
 
-    // Lights/env/floor
-    this.applyLightMultiplier(ui.lightIntensity, ui.rimBoost);
-    this.applyLightWarmth(ui.lightWarmth);
-    this.rigYawTarget = degToRad(ui.rigYaw);
-    this.applyUnderglow(ui);
-    this.applyFloor(ui);
-    this.applyEnvironmentIntensity(this.loaded, ui.envIntensity);
+      // Lights/env/floor
+      this.applyLightMultiplier(ui.lightIntensity, ui.rimBoost);
+      this.applyLightWarmth(ui.lightWarmth);
+      this.rigYawTarget = degToRad(ui.rigYaw);
+      this.applyUnderglow(ui);
+      this.applyFloor(ui);
+      this.applyEnvironmentIntensity(this.loaded, ui.envIntensity);
 
-    // Dynamic Ambient Light based on environment
-    this.ambientLight.intensity = 0.04 + ui.envIntensity * 0.08;
+      // Dynamic Ambient Light based on environment
+      this.ambientLight.intensity = Math.max(
+        0.01,
+        0.04 + ui.envIntensity * 0.08
+      );
 
-    // Environment Rotation
-    const envRotRad = degToRad(ui.envRotation);
-    if (scene.environmentRotation) {
-      scene.environmentRotation.set(0, envRotRad, 0);
-    }
-    if (scene.backgroundRotation) {
-      scene.backgroundRotation.set(0, envRotRad, 0);
-    }
+      // Environment Rotation
+      const envRotRad = degToRad(ui.envRotation || 0);
+      if (
+        scene.environmentRotation &&
+        typeof scene.environmentRotation.set === 'function'
+      ) {
+        scene.environmentRotation.set(0, envRotRad, 0);
+      }
+      if (
+        scene.backgroundRotation &&
+        typeof scene.backgroundRotation.set === 'function'
+      ) {
+        scene.backgroundRotation.set(0, envRotRad, 0);
+      }
 
-    // Model
-    if (ui.modelUrl && resolveModelUrl(ui.modelUrl) !== this.loadingUrl) {
-      void this.loadModel(ui.modelUrl);
-    }
+      // Model
+      if (ui.modelUrl && resolveModelUrl(ui.modelUrl) !== this.loadingUrl) {
+        void this.loadModel(ui.modelUrl);
+      }
 
-    if (this.loaded) {
-      this.applyMaterials(this.loaded, ui);
-      this.applyModelTransform(ui, false);
+      if (this.loaded) {
+        this.applyMaterials(this.loaded, ui);
+        this.applyModelTransform(ui, false);
+      }
+    } catch (err) {
+      console.error('[CarShowroom] Error in syncFromUi:', err);
     }
   }
 

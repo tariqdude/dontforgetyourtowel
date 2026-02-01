@@ -4653,16 +4653,20 @@ createAstroMount(ROOT_SELECTOR, () => {
       zoom = damp(zoom, zoomTarget, 8, dtRaw);
 
       // Advance the showroom.
-      showroomInstance.update(
-        sceneInstance,
-        dtRaw,
-        pointer,
-        pointerVelocity,
-        press,
-        zoom
-      );
+      if (showroomInstance && sceneInstance) {
+        showroomInstance.update(
+          sceneInstance,
+          dtRaw,
+          pointer,
+          pointerVelocity,
+          press,
+          zoom
+        );
+      }
 
-      composerInstance.render();
+      if (composerInstance) {
+        composerInstance.render();
+      }
     };
 
     loop();
