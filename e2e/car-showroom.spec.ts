@@ -48,19 +48,13 @@ test.describe('Car Showroom', () => {
     }
 
     // Canvas exists and should be visible.
-    await expect(page.locator('[data-car-showroom-canvas]')).toBeVisible({
+    await expect(page.locator('[data-sr-canvas]')).toBeVisible({
       timeout: 15_000,
     });
 
-    // Check for UI controls - either desktop options button or mobile tab bar
-    const viewportWidth = page.viewportSize()?.width ?? 1280;
-    if (viewportWidth <= 980) {
-      // Mobile view - check for bottom tab bar
-      await expect(page.locator('.csr-mobile-tabbar')).toBeVisible();
-    } else {
-      // Desktop view - check for options button
-      await expect(page.locator('[data-csr-toggle-panel]')).toBeVisible();
-    }
+    // v3 UI: always has a panel toggle in the top bar.
+    await expect(page.locator('[data-sr-panel-toggle]')).toBeVisible();
+    await expect(page.locator('[data-sr-panel]')).toHaveCount(1);
 
     // Ensure the default Porsche model actually loads.
     // The runtime sets dataset flags on the root element.
@@ -68,9 +62,7 @@ test.describe('Car Showroom', () => {
       .poll(
         async () =>
           page.evaluate(() => {
-            const root = document.querySelector<HTMLElement>(
-              '[data-car-showroom-root]'
-            );
+            const root = document.querySelector<HTMLElement>('[data-sr-root]');
             if (!root) return false;
             const ds = root.dataset;
             const ready = ds.carShowroomReady ?? '0';

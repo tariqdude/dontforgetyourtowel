@@ -1,0 +1,318 @@
+/* Car Showroom v3 — new UI from scratch (mobile + desktop panels) */
+
+:root {
+  --sr-bg: #05070c;
+  --sr-panel-bg: rgba(10, 14, 22, 0.74);
+  --sr-border: rgba(255, 255, 255, 0.12);
+  --sr-text: rgba(255, 255, 255, 0.9);
+  --sr-muted: rgba(255, 255, 255, 0.65);
+  --sr-accent: rgb(34, 211, 238);
+  --sr-radius: 18px;
+  --sr-shadow: 0 22px 60px rgba(0, 0, 0, 0.6);
+
+  --sr-panel-height: 52svh;
+}
+
+.sr {
+  position: relative;
+  min-height: calc(100svh - 64px);
+  background:
+    radial-gradient(
+      120% 90% at 50% 15%,
+      rgba(34, 211, 238, 0.12),
+      transparent 55%
+    ),
+    radial-gradient(
+      90% 70% at 70% 45%,
+      rgba(124, 58, 237, 0.12),
+      transparent 55%
+    ),
+    var(--sr-bg);
+  overflow: hidden;
+  padding: 14px;
+  color: var(--sr-text);
+}
+
+.sr__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 420px;
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    'top top'
+    'viewer panel';
+  gap: 14px;
+  align-items: stretch;
+}
+
+.sr__top {
+  grid-area: top;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sr__title h1 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+
+.sr__title p {
+  margin: 6px 0 0;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--sr-muted);
+}
+
+.sr__actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.sr-btn {
+  border-radius: 12px;
+  border: 1px solid var(--sr-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--sr-text);
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 650;
+  backdrop-filter: blur(14px);
+}
+
+.sr-btn--primary {
+  background: rgba(34, 211, 238, 0.12);
+  border-color: rgba(34, 211, 238, 0.3);
+}
+
+.sr-btn--icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sr__viewer {
+  grid-area: viewer;
+  position: relative;
+  min-height: 56svh;
+}
+
+.sr__canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: var(--sr-radius);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  box-shadow: var(--sr-shadow);
+  touch-action: none;
+}
+
+.sr__hud {
+  position: absolute;
+  inset: 12px 12px auto 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.sr-pill {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--sr-border);
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(14px);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.sr-pill__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(34, 211, 238, 0.9);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.14);
+}
+
+.sr-pill__muted {
+  color: var(--sr-muted);
+}
+
+.sr__status {
+  pointer-events: auto;
+  max-width: min(560px, 80%);
+}
+
+.sr__status [data-sr-status-error] {
+  margin-top: 8px;
+  color: rgba(251, 113, 133, 0.95);
+}
+
+.sr__panel {
+  grid-area: panel;
+  border-radius: var(--sr-radius);
+  border: 1px solid var(--sr-border);
+  background: var(--sr-panel-bg);
+  box-shadow: var(--sr-shadow);
+  backdrop-filter: blur(18px);
+  overflow: hidden;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sr__panelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sr__panelHead strong {
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.sr__panelBody {
+  padding: 12px;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sr-section {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 14px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.sr-section h2 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.sr-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sr-field {
+  display: grid;
+  gap: 6px;
+}
+
+.sr-field span {
+  color: var(--sr-muted);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
+}
+
+.sr-field input,
+.sr-field select,
+.sr-field button {
+  min-height: 40px;
+}
+
+.sr-field input[type='text'],
+.sr-field input[type='url'],
+.sr-field select {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--sr-text);
+  padding: 10px 12px;
+}
+
+.sr-field input[type='range'] {
+  width: 100%;
+}
+
+.sr-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.sr-hint {
+  margin: 0;
+  color: var(--sr-muted);
+  font-size: 12px;
+}
+
+/* Mobile: turn the panel into a bottom sheet */
+@media (max-width: 980px) {
+  .sr {
+    padding: 10px;
+  }
+
+  .sr__grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'top'
+      'viewer';
+  }
+
+  .sr__viewer {
+    min-height: 64svh;
+  }
+
+  .sr__panel {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    height: var(--sr-panel-height);
+    max-height: calc(100svh - 86px);
+    z-index: 40;
+  }
+
+  .sr__panel[hidden] {
+    display: none;
+  }
+
+  .sr__panelHead {
+    padding: 10px;
+  }
+
+  .sr__panelHandle {
+    width: 42px;
+    height: 5px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.22);
+    margin: 0 auto;
+  }
+
+  .sr-grid {
+    grid-template-columns: 1fr;
+  }
+}

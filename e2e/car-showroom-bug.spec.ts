@@ -25,14 +25,14 @@ test.describe('Car Showroom Bug', () => {
     }
 
     // Wait for the canvas to be visible
-    const canvas = page.locator('[data-car-showroom-canvas]');
+    const canvas = page.locator('[data-sr-canvas]');
     await expect(canvas).toBeVisible({ timeout: 15000 });
 
     // Check if the model is loaded by inspecting the dataset attribute
     await expect
       .poll(
         async () => {
-          const root = await page.locator('[data-car-showroom-root]');
+          const root = await page.locator('[data-sr-root]');
           const isReady = await root.getAttribute('data-car-showroom-ready');
           return isReady === '1';
         },

@@ -1,11 +1,13 @@
 ---
 import MarketingLayout from '../layouts/MarketingLayout.astro';
-import { withBasePath } from '../utils/helpers';
-import '../styles/car-showroom.css';
+import '../styles/car-showroom-v3.css';
 
 const title = 'Car Showroom — 3D Studio';
 const description =
   'A dedicated, manufacturer-style 3D car showroom: models, materials, colors, camera, and studio backgrounds.';
+
+const base = import.meta.env.BASE_URL ?? '/';
+const galleryHref = `${base}gallery/`;
 ---
 
 <MarketingLayout
@@ -18,1435 +20,199 @@ const description =
   showMobileNav={false}
   showLiveChat={false}
 >
-  <section class="car-showroom" data-car-showroom-root>
-    <canvas class="car-showroom__canvas" data-car-showroom-canvas></canvas>
-
-    <input
-      class="csr-file"
-      type="file"
-      accept=".glb,model/gltf-binary"
-      data-csr-file
-      hidden
-    />
-
-    <div class="csr-status" data-csr-status aria-live="polite">
-      <div class="csr-status__loading" data-csr-loading hidden>
-        <span class="csr-status__dot"></span>
-        <span>Loading model…</span>
-      </div>
-      <div class="csr-status__error" data-csr-error hidden></div>
-    </div>
-
-    <!-- Quality Indicator (Mobile Only) -->
-    <div class="csr-quality-badge" data-csr-quality-badge hidden>
-      <div class="csr-quality-badge__vitals">
-        <span class="csr-quality-badge__fps" data-csr-quality-fps>--</span>
-        <span class="csr-quality-badge__label">FPS</span>
-      </div>
-      <div class="csr-quality-badge__divider"></div>
-      <div class="csr-quality-badge__res" data-csr-quality-res>1.0x</div>
-      <div class="csr-quality-badge__divider"></div>
-      <div class="csr-quality-badge__status">
-        <span class="csr-quality-badge__dot"></span>
-        <span class="csr-quality-badge__mode" data-csr-quality-mode>LIVE</span>
-        <span class="csr-quality-badge__eco" data-csr-quality-eco hidden
-          >ECO</span
-        >
-      </div>
-    </div>
-
-    <!-- Floating Action Button (Mobile Only) -->
-    <div class="csr-fab" data-csr-fab hidden>
-      <button
-        type="button"
-        class="csr-fab__trigger"
-        data-csr-fab-trigger
-        aria-label="Quick actions"
-        aria-expanded="false"
-      >
-        <svg
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <circle cx="12" cy="12" r="1"></circle>
-          <circle cx="12" cy="5" r="1"></circle>
-          <circle cx="12" cy="19" r="1"></circle>
-        </svg>
-      </button>
-      <div class="csr-fab__menu" data-csr-fab-menu hidden>
-        <button
-          type="button"
-          class="csr-fab__action"
-          data-csr-fab-screenshot
-          title="Screenshot"
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path
-              d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
-            ></path>
-            <circle cx="12" cy="13" r="4"></circle>
-          </svg>
-        </button>
-        <button
-          type="button"
-          class="csr-fab__action"
-          data-csr-fab-immersive
-          title="Immersive mode"
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path d="M15 3h6v6"></path>
-            <path d="M9 21H3v-6"></path>
-            <path d="M21 3l-7 7"></path>
-            <path d="M3 21l7-7"></path>
-          </svg>
-        </button>
-        <button
-          type="button"
-          class="csr-fab__action"
-          data-csr-fab-share
-          title="Share"
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <circle cx="18" cy="5" r="3"></circle>
-            <circle cx="6" cy="12" r="3"></circle>
-            <circle cx="18" cy="19" r="3"></circle>
-            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-          </svg>
-        </button>
-        <button
-          type="button"
-          class="csr-fab__action"
-          data-csr-fab-frame
-          title="Frame view"
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
-            <line x1="7" y1="2" x2="7" y2="22"></line>
-            <line x1="17" y1="2" x2="17" y2="22"></line>
-            <line x1="2" y1="12" x2="22" y2="12"></line>
-            <line x1="2" y1="7" x2="7" y2="7"></line>
-            <line x1="2" y1="17" x2="7" y2="17"></line>
-            <line x1="17" y1="17" x2="22" y2="17"></line>
-            <line x1="17" y1="7" x2="22" y2="7"></line>
-          </svg>
-        </button>
-        <button
-          type="button"
-          class="csr-fab__action"
-          data-csr-fab-reset
-          title="Reset view"
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <polyline points="23 4 23 10 17 10"></polyline>
-            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-          </svg>
-        </button>
-        <button
-          type="button"
-          class="csr-fab__action csr-fab__action--toggle"
-          data-csr-fab-gyro
-          data-active="false"
-          title="Tilt controls"
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path d="M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20"></path>
-            <path d="M12 6v6l4 2"></path>
-            <path d="M16.2 7.8l2.9-2.9"></path>
-            <path d="M18.4 12h4.1"></path>
-            <path d="M16.2 16.2l2.9 2.9"></path>
-          </svg>
-        </button>
-      </div>
-    </div>
-
-    <div class="car-showroom__hud" aria-label="Car showroom controls">
-      <div class="car-showroom__hud-top">
-        <div class="car-showroom__title">
-          <p class="car-showroom__kicker">3D Car Showroom</p>
-          <h1 class="car-showroom__headline">Studio Configurator</h1>
+  <section class="sr" data-sr-root>
+    <div class="sr__grid">
+      <header class="sr__top">
+        <div class="sr__title">
+          <h1>Car Showroom</h1>
+          <p>Studio-grade 3D preview • mobile sheet + desktop panel</p>
         </div>
-
-        <div class="car-showroom__actions">
+        <div class="sr__actions">
+          <a class="sr-btn" href={galleryHref}>3D Gallery</a>
           <button
             type="button"
-            class="csr-btn csr-btn--ghost"
-            data-csr-immersive
-            title="Toggle immersive mode"
-          >
-            Hide UI
-          </button>
-          <button
-            type="button"
-            class="csr-btn"
-            data-csr-toggle-panel
-            aria-controls="csr-panel"
-            aria-expanded="true"
-          >
-            Options
-          </button>
-          <button
-            type="button"
-            class="csr-btn csr-btn--ghost"
-            data-csr-copy-link
-            title="Copy a shareable link"
-          >
-            Share
-          </button>
-          <button
-            type="button"
-            class="csr-btn csr-btn--ghost"
-            data-csr-screenshot
-            title="Download a PNG screenshot"
+            class="sr-btn sr-btn--primary sr-btn--icon"
+            data-sr-screenshot
           >
             Screenshot
           </button>
+          <button type="button" class="sr-btn sr-btn--icon" data-sr-share>
+            Copy link
+          </button>
           <button
             type="button"
-            class="csr-btn csr-btn--ghost"
-            data-csr-import
-            title="Load a local .glb file"
+            class="sr-btn"
+            data-sr-panel-toggle
+            aria-expanded="true"
           >
-            Import GLB
+            Panel
           </button>
-          <a class="csr-btn csr-btn--ghost" href={withBasePath('gallery/')}
-            >3D Gallery</a
-          >
+        </div>
+      </header>
+
+      <div class="sr__viewer">
+        <canvas class="sr__canvas" data-sr-canvas></canvas>
+
+        <div class="sr__hud">
+          <div class="sr__status sr-pill" aria-live="polite">
+            <span class="sr-pill__dot"></span>
+            <span data-sr-status-loading hidden>Loading…</span>
+            <span class="sr-pill__muted" data-sr-status-error hidden></span>
+          </div>
+
+          <div class="sr-pill">
+            <span class="sr-pill__muted">FPS</span>
+            <span data-sr-fps>--</span>
+            <span class="sr-pill__muted">RES</span>
+            <span data-sr-res>1.00x</span>
+            <span class="sr-pill__muted" data-sr-mode>LIVE</span>
+            <span class="sr-pill__muted" data-sr-eco hidden>ECO</span>
+          </div>
         </div>
       </div>
 
-      <div
-        id="csr-panel"
-        class="car-showroom__panel"
-        data-csr-panel
-        aria-label="Configurator options"
-      >
-        <div class="csr-panel-head">
-          <div class="csr-panel-head__row">
-            <strong class="csr-panel-head__title">Options</strong>
-            <button
-              type="button"
-              class="csr-btn csr-btn--ghost csr-btn--icon"
-              data-csr-close-panel
-              aria-label="Close options"
-              title="Close"
-            >
-              ✕
-            </button>
-          </div>
-
-          <div class="csr-panel-inspector">
-            <div class="csr-inspector-card">
-              <span class="csr-inspector-title">Selection</span>
-              <div class="csr-readout" data-csr-selected-part>
-                Tap/click the car to select
-              </div>
-              <div
-                class="csr-readout csr-readout--mini"
-                data-csr-selected-mesh
-                hidden
-              >
-                Mesh: —
-              </div>
-              <div
-                class="csr-readout csr-readout--mini"
-                data-csr-selected-path
-                hidden
-              >
-                Path: —
-              </div>
-              <div
-                class="csr-readout csr-readout--mini"
-                data-csr-selected-material
-                hidden
-              >
-                Material: —
-              </div>
-            </div>
-            <div class="csr-inspector-card">
-              <span class="csr-inspector-title">Model stats</span>
-              <div class="csr-readout csr-readout--stats">
-                <div>
-                  <strong data-csr-model-size>—</strong>
-                  <small>Size (X×Y×Z)</small>
-                </div>
-                <div>
-                  <strong data-csr-model-meshes>—</strong>
-                  <small>Meshes</small>
-                </div>
-                <div>
-                  <strong data-csr-model-tris>—</strong>
-                  <small>Triangles</small>
-                </div>
-                <div>
-                  <strong data-csr-fps>—</strong>
-                  <small>FPS</small>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="csr-panel-filter">
-            <input
-              class="csr-text csr-filter-input"
-              type="search"
-              placeholder="Filter settings…"
-              data-csr-filter
-            />
-            <button
-              type="button"
-              class="csr-btn csr-btn--ghost csr-btn--icon"
-              data-csr-filter-clear
-              aria-label="Clear filter"
-              title="Clear filter"
-            >
-              ✕
-            </button>
-          </div>
-
-          <button
-            type="button"
-            class="csr-sheet-handle"
-            data-csr-sheet-handle
-            aria-label="Resize options panel"
-            title="Drag to resize"></button>
-
-          <!-- Pull indicator for expand gesture -->
-          <div class="csr-pull-indicator" aria-hidden="true">
-            <svg
-              class="csr-pull-indicator__icon"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M18 15l-6-6-6 6"></path>
-            </svg>
-            <span class="csr-pull-indicator__text">Pull to expand</span>
-          </div>
-
-          <label class="csr-tab-select">
-            <span>Section</span>
-            <select data-csr-tab-select>
-              <option value="quick">Quick</option>
-              <option value="tools">Tools</option>
-              <option value="look">Look</option>
-              <option value="env">Environment</option>
-              <option value="camera">Camera</option>
-              <option value="post">Post</option>
-              <option value="motion">Motion</option>
-              <option value="setup">Setup</option>
-            </select>
-          </label>
-
-          <div
-            class="csr-tabs"
-            role="tablist"
-            aria-label="Configurator sections"
-          >
-            <button
-              type="button"
-              class="csr-tab-btn"
-              role="tab"
-              aria-selected="false"
-              aria-controls="csr-tab-quick"
-              data-csr-tab-btn="quick"
-              tabindex="-1"
-            >
-              Quick
-            </button>
-            <button
-              type="button"
-              class="csr-tab-btn"
-              role="tab"
-              aria-selected="false"
-              aria-controls="csr-tab-tools"
-              data-csr-tab-btn="tools"
-              tabindex="-1"
-            >
-              Tools
-            </button>
-            <button
-              type="button"
-              class="csr-tab-btn"
-              role="tab"
-              aria-selected="true"
-              aria-controls="csr-tab-look"
-              data-csr-tab-btn="look"
-            >
-              Look
-            </button>
-            <button
-              type="button"
-              class="csr-tab-btn"
-              role="tab"
-              aria-selected="false"
-              aria-controls="csr-tab-env"
-              data-csr-tab-btn="env"
-              tabindex="-1"
-            >
-              Environment
-            </button>
-            <button
-              type="button"
-              class="csr-tab-btn"
-              role="tab"
-              aria-selected="false"
-              aria-controls="csr-tab-camera"
-              data-csr-tab-btn="camera"
-              tabindex="-1"
-            >
-              Camera
-            </button>
-            <button
-              type="button"
-              class="csr-tab-btn"
-              role="tab"
-              aria-selected="false"
-              aria-controls="csr-tab-post"
-              data-csr-tab-btn="post"
-              tabindex="-1"
-            >
-              Post
-            </button>
-            <button
-              type="button"
-              class="csr-tab-btn"
-              role="tab"
-              aria-selected="false"
-              aria-controls="csr-tab-motion"
-              data-csr-tab-btn="motion"
-              tabindex="-1"
-            >
-              Motion
-            </button>
-            <button
-              type="button"
-              class="csr-tab-btn"
-              role="tab"
-              aria-selected="false"
-              aria-controls="csr-tab-setup"
-              data-csr-tab-btn="setup"
-              tabindex="-1"
-            >
-              Setup
-            </button>
-          </div>
-        </div>
-
-        <!-- Smart Mobile Quick Bar -->
-        <div class="csr-mobile-quickbar" data-csr-mobile-quickbar>
-          <div class="csr-mobile-quickbar__row">
-            <!-- Mode Pills -->
+      <aside class="sr__panel" data-sr-panel>
+        <div class="sr__panelHead">
+          <div>
             <div
-              class="csr-mode-pills"
-              role="radiogroup"
-              aria-label="Paint mode"
+              class="sr__panelHandle"
+              data-sr-panel-handle
+              aria-hidden="true"
             >
-              <button
-                type="button"
-                class="csr-mode-pill"
-                data-mode="paint"
-                data-active="true"
-                role="radio"
-                aria-checked="true"
-              >
-                <svg
-                  class="csr-mode-pill__icon"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                  ></path>
-                </svg>
-                Paint
-              </button>
-              <button
-                type="button"
-                class="csr-mode-pill"
-                data-mode="wrap"
-                role="radio"
-                aria-checked="false"
-              >
-                <svg
-                  class="csr-mode-pill__icon"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-                  <path d="M3 9h18M9 21V9"></path>
-                </svg>
-                Wrap
-              </button>
-              <button
-                type="button"
-                class="csr-mode-pill"
-                data-mode="glass"
-                role="radio"
-                aria-checked="false"
-              >
-                <svg
-                  class="csr-mode-pill__icon"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"></path>
-                  <circle cx="12" cy="12" r="3"></circle>
-                </svg>
-                Glass
-              </button>
-              <button
-                type="button"
-                class="csr-mode-pill"
-                data-mode="factory"
-                role="radio"
-                aria-checked="false"
-              >
-                <svg
-                  class="csr-mode-pill__icon"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
-                  ></path>
-                </svg>
-                OEM
-              </button>
             </div>
+            <strong>Settings</strong>
           </div>
-          <div class="csr-mobile-quickbar__row">
-            <!-- Quick Color Strip -->
-            <div class="csr-quick-strip">
-              <div class="csr-quick-strip__colors" data-csr-quick-colors>
-                <button
-                  type="button"
-                  class="csr-quick-strip__color"
-                  style="--color:#0b0f1a"
-                  data-quick-color="#0b0f1a"
-                  title="Obsidian"></button>
-                <button
-                  type="button"
-                  class="csr-quick-strip__color"
-                  style="--color:#e5e7eb"
-                  data-quick-color="#e5e7eb"
-                  title="Argent"></button>
-                <button
-                  type="button"
-                  class="csr-quick-strip__color"
-                  style="--color:#f87171"
-                  data-quick-color="#f87171"
-                  title="Rosso"></button>
-                <button
-                  type="button"
-                  class="csr-quick-strip__color"
-                  style="--color:#60a5fa"
-                  data-quick-color="#60a5fa"
-                  title="Sapphire"></button>
-                <button
-                  type="button"
-                  class="csr-quick-strip__color"
-                  style="--color:#22c55e"
-                  data-quick-color="#22c55e"
-                  title="Emerald"></button>
-                <button
-                  type="button"
-                  class="csr-quick-strip__color"
-                  style="--color:#facc15"
-                  data-quick-color="#facc15"
-                  title="Midas"></button>
-                <button
-                  type="button"
-                  class="csr-quick-strip__color"
-                  style="--color:#fb923c"
-                  data-quick-color="#fb923c"
-                  title="Amber"></button>
-                <button
-                  type="button"
-                  class="csr-quick-strip__color"
-                  style="--color:#a855f7"
-                  data-quick-color="#a855f7"
-                  title="Amethyst"></button>
-                <button
-                  type="button"
-                  class="csr-quick-strip__color"
-                  data-active="true"
-                  style="--color:#00d1b2"
-                  data-quick-color="#00d1b2"
-                  title="Cyber"></button>
-              </div>
-              <button
-                type="button"
-                class="csr-quick-strip__more"
-                data-csr-open-colors
-                title="More colors">+</button
-              >
-            </div>
-          </div>
+          <button type="button" class="sr-btn" data-sr-panel-close>Close</button
+          >
         </div>
 
-        <div class="csr-tab-panels" data-csr-tab-panels>
-          <div class="csr-filter-empty" data-csr-filter-empty hidden>
-            No matching settings. Try another keyword.
-          </div>
-          <div
-            id="csr-tab-quick"
-            class="csr-tab"
-            role="tabpanel"
-            data-csr-tab-panel="quick"
+        <div class="sr__panelBody">
+          <input
+            type="file"
+            accept=".glb,model/gltf-binary"
+            data-sr-model-file
             hidden
-          >
-            <div class="csr-quick-row">
-              <button type="button" class="csr-chip" data-csr-quick-panel>
-                Options
-              </button>
-              <button
-                type="button"
-                class="csr-chip csr-chip--ghost"
-                data-csr-quick-frame
-              >
-                Frame
-              </button>
-              <button
-                type="button"
-                class="csr-chip csr-chip--ghost"
-                data-csr-quick-reset
-              >
-                Reset View
-              </button>
-            </div>
-            <div class="csr-quick-row csr-quick-row--controls">
-              <label class="csr-quick-toggle">
-                <span>Spin</span>
-                <input type="checkbox" data-csr-quick-spin />
+          />
+
+          <section class="sr-section">
+            <h2>Model</h2>
+            <div class="sr-grid">
+              <label class="sr-field">
+                <span>Preset</span>
+                <select data-sr-model>
+                  <option value="models/porsche-911-gt3rs.glb"
+                    >Porsche GT3RS</option
+                  >
+                  <option
+                    value="models/free_porsche_911_carrera_4s_LOD3_low.glb"
+                    >Porsche Carrera (Low)</option
+                  >
+                  <option
+                    value="models/free_porsche_911_carrera_4s_advanced_perf.glb"
+                    >Porsche Carrera (Perf)</option
+                  >
+                  <option
+                    value="models/free_porsche_911_carrera_4s_advanced_materials.glb"
+                    >Porsche Carrera (Materials)</option
+                  >
+                  <option
+                    value="models/free_porsche_911_carrera_4s_LOD1_original_animated.glb"
+                    >Porsche Carrera (Animated)</option
+                  >
+                  <option
+                    value="models/free_porsche_911_carrera_4s_LOD0_highpoly_animated.glb"
+                    >Porsche Carrera (HiPoly)</option
+                  >
+                </select>
               </label>
-              <label class="csr-quick-range">
-                <span>Zoom</span>
+
+              <label class="sr-field">
+                <span>Model URL</span>
                 <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value="0.8"
-                  data-csr-quick-zoom
+                  type="url"
+                  inputmode="url"
+                  placeholder="models/… or https://…"
+                  data-sr-model-url
                 />
               </label>
-              <label class="csr-quick-select">
-                <span>Style</span>
-                <select data-csr-quick-style>
-                  <option value="">Style preset</option>
-                  <option value="stealth">Stealth</option>
-                  <option value="track">Track</option>
-                  <option value="lux">Luxury</option>
-                  <option value="neo">Neo</option>
-                  <option value="classic">Classic</option>
-                </select>
-              </label>
-              <label class="csr-quick-select">
-                <span>Light</span>
-                <select data-csr-quick-light>
-                  <option value="studio">Studio</option>
-                  <option value="golden">Golden</option>
-                  <option value="neon">Neon</option>
-                  <option value="ice">Ice</option>
-                  <option value="noir">Noir</option>
-                </select>
-              </label>
-            </div>
 
-            <p class="csr-hint">
-              One finger rotates. Two fingers zoom. Long-press selects a part.
-            </p>
-
-            <!-- Quick Color Palette (Mobile) -->
-            <div class="csr-quick-colors" data-csr-quick-colors hidden>
-              <span class="csr-quick-colors__label">Quick Colors</span>
-              <div class="csr-quick-colors__grid">
+              <div class="sr-row">
                 <button
                   type="button"
-                  class="csr-quick-color"
-                  data-color="#000000"
-                  title="Midnight Black"
-                  style="--color: #000000"></button>
-                <button
-                  type="button"
-                  class="csr-quick-color"
-                  data-color="#ffffff"
-                  title="Pearl White"
-                  style="--color: #ffffff"></button>
-                <button
-                  type="button"
-                  class="csr-quick-color"
-                  data-color="#c0c0c0"
-                  title="Silver"
-                  style="--color: #c0c0c0"></button>
-                <button
-                  type="button"
-                  class="csr-quick-color"
-                  data-color="#b91c1c"
-                  title="Racing Red"
-                  style="--color: #b91c1c"></button>
-                <button
-                  type="button"
-                  class="csr-quick-color"
-                  data-color="#1e40af"
-                  title="Ocean Blue"
-                  style="--color: #1e40af"></button>
-                <button
-                  type="button"
-                  class="csr-quick-color"
-                  data-color="#15803d"
-                  title="British Green"
-                  style="--color: #15803d"></button>
-                <button
-                  type="button"
-                  class="csr-quick-color"
-                  data-color="#f59e0b"
-                  title="Sunset Orange"
-                  style="--color: #f59e0b"></button>
-                <button
-                  type="button"
-                  class="csr-quick-color"
-                  data-color="#7c3aed"
-                  title="Royal Purple"
-                  style="--color: #7c3aed"></button>
-                <button
-                  type="button"
-                  class="csr-quick-color"
-                  data-color="#fbbf24"
-                  title="Golden Yellow"
-                  style="--color: #fbbf24"></button>
-                <button
-                  type="button"
-                  class="csr-quick-color"
-                  data-color="#0891b2"
-                  title="Teal"
-                  style="--color: #0891b2"></button>
-              </div>
-            </div>
-          </div>
-
-          <div
-            id="csr-tab-tools"
-            class="csr-tab"
-            role="tabpanel"
-            data-csr-tab-panel="tools"
-            hidden
-          >
-            <div class="csr-grid">
-              <div class="csr-row" data-csr-no-filter>
-                <button type="button" class="csr-btn" data-csr-tools-frame>
-                  Frame
-                </button>
-                <button
-                  type="button"
-                  class="csr-btn csr-btn--ghost"
-                  data-csr-tools-reset-view
+                  class="sr-btn sr-btn--primary"
+                  data-sr-model-load>Load</button
                 >
-                  Reset View
-                </button>
-              </div>
-
-              <div class="csr-row" data-csr-no-filter>
-                <button
-                  type="button"
-                  class="csr-btn csr-btn--ghost"
-                  data-csr-tools-share
-                >
-                  Share
-                </button>
-                <button
-                  type="button"
-                  class="csr-btn csr-btn--ghost"
-                  data-csr-tools-screenshot
-                >
-                  Screenshot
-                </button>
-                <button
-                  type="button"
-                  class="csr-btn csr-btn--ghost"
-                  data-csr-tools-import
-                >
-                  Import GLB
-                </button>
-                <a
-                  class="csr-btn csr-btn--ghost"
-                  href={withBasePath('gallery/')}
-                  data-csr-no-swipe>3D Gallery</a
+                <button type="button" class="sr-btn" data-sr-model-import
+                  >Import</button
                 >
               </div>
 
-              <div class="csr-row" data-csr-no-filter>
-                <button
-                  type="button"
-                  class="csr-btn csr-btn--ghost"
-                  data-csr-tools-gyro
-                >
-                  Tilt Controls
-                </button>
-              </div>
-
-              <p class="csr-hint">
-                Tip: Keep the panel in “Peek” for best visibility while you
-                adjust materials.
+              <p class="sr-hint">
+                Tip: use a repo-relative path (models/…) for GitHub Pages.
               </p>
             </div>
-          </div>
+          </section>
 
-          <div
-            id="csr-tab-look"
-            class="csr-tab"
-            role="tabpanel"
-            data-csr-tab-panel="look"
-          >
-            <div class="csr-grid">
-              <!-- Quick Settings Section -->
-              <div class="csr-section csr-section--full">
-                <div class="csr-section__header">
-                  <svg
-                    class="csr-section__icon"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <path
-                      d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"
-                    ></path>
-                    <circle cx="12" cy="12" r="4"></circle>
-                  </svg>
-                  <span class="csr-section__title">Quick Setup</span>
-                </div>
-                <div class="csr-section__content csr-grid">
-                  <label class="csr-field">
-                    <span>Mode</span>
-                    <select data-csr-mode>
-                      <option value="paint">Paint</option>
-                      <option value="factory">Factory</option>
-                      <option value="wrap">Wrap</option>
-                      <option value="glass">Glass</option>
-                      <option value="wireframe">Wireframe</option>
-                    </select>
-                  </label>
-
-                  <label class="csr-field">
-                    <span>Style preset</span>
-                    <select data-csr-style-preset>
-                      <option value="">Choose…</option>
-                      <option value="stealth">Stealth</option>
-                      <option value="track">Track weapon</option>
-                      <option value="lux">Executive luxe</option>
-                      <option value="neo">Neo neon</option>
-                      <option value="classic">Classic sport</option>
-                    </select>
-                  </label>
-                </div>
-              </div>
-
-              <div class="csr-divider"></div>
-
-              <!-- Body Color Section -->
-              <div class="csr-section csr-section--full">
-                <div class="csr-section__header">
-                  <svg
-                    class="csr-section__icon"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <path
-                      d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                    ></path>
-                  </svg>
-                  <span class="csr-section__title">Body Color</span>
-                </div>
-                <div class="csr-section__content">
-                  <!-- Expandable Color Palette Accordion -->
-                  <details class="csr-accordion" data-csr-color-accordion>
-                    <summary class="csr-accordion__header">
-                      <div class="csr-accordion__preview">
-                        <span
-                          class="csr-accordion__swatch"
-                          data-csr-color-preview
-                          style="background: #00d1b2;"></span>
-                        <span class="csr-accordion__label">Body Color</span>
-                      </div>
-                      <svg
-                        class="csr-accordion__icon"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                      >
-                        <path d="M6 9l6 6 6-6"></path>
-                      </svg>
-                    </summary>
-                    <div class="csr-accordion__content">
-                      <label class="csr-field csr-field--color">
-                        <span>Custom color</span>
-                        <input type="color" value="#00d1b2" data-csr-color />
-                      </label>
-
-                      <div class="csr-color-grid">
-                        <div class="csr-color-category">
-                          <span class="csr-color-category__label">Neutrals</span
-                          >
-                          <div class="csr-color-category__swatches">
-                            <button
-                              type="button"
-                              class="csr-color-btn"
-                              style="--swatch:#ffffff"
-                              data-csr-swatch="#ffffff"
-                              aria-label="White"></button>
-                            <button
-                              type="button"
-                              class="csr-color-btn"
-                              style="--swatch:#e5e7eb"
-                              data-csr-swatch="#e5e7eb"
-                              aria-label="Silver"></button>
-                            <button
-                              type="button"
-                              class="csr-color-btn"
-                              style="--swatch:#94a3b8"
-                              data-csr-swatch="#94a3b8"
-                              aria-label="Slate"></button>
-                            <button
-                              type="button"
-                              class="csr-color-btn"
-                              style="--swatch:#374151"
-                              data-csr-swatch="#374151"
-                              aria-label="Charcoal"></button>
-                            <button
-                              type="button"
-                              class="csr-color-btn"
-                              style="--swatch:#0b0f1a"
-                              data-csr-swatch="#0b0f1a"
-                              aria-label="Black"></button>
-                          </div>
-                        </div>
-                        <div class="csr-color-category">
-                          <span class="csr-color-category__label">Warm</span>
-                          <div class="csr-color-category__swatches">
-                            <button
-                              type="button"
-                              class="csr-color-btn"
-                              style="--swatch:#f87171"
-                              data-csr-swatch="#f87171"
-                              aria-label="Red"></button>
-                            <button
-                              type="button"
-                              class="csr-color-btn"
-                              style="--swatch:#fb923c"
-                              data-csr-swatch="#fb923c"
-                              aria-label="Orange"></button>
-                            <button
-                              type="button"
-                              class="csr-color-btn"
-                              style="--swatch:#fbbf24"
-                              data-csr-swatch="#fbbf24"
-                              aria-label="Gold"></button>
-                            <button
-                              type="button"
-                              class="csr-color-btn"
-                              style="--swatch:#f472b6"
-                              data-csr-swatch="#f472b6"
-                              aria-label="Pink"></button>
-                            <button
-                              type="button"
-                              class="csr-color-btn"
-                              style="--swatch:#dc2626"
-                              data-csr-swatch="#dc2626"
-                              aria-label="Racing Red"></button>
-                          </div>
-                        </div>
-                        <div class="csr-color-category">
-                          <span class="csr-color-category__label">Cool</span>
-                          <div class="csr-color-category__swatches">
-                            <button
-                              type="button"
-                              class="csr-color-btn"
-                              style="--swatch:#00d1b2"
-                              data-csr-swatch="#00d1b2"
-                              aria-label="Teal"></button>
-                            <button
-                              type="button"
-                              class="csr-color-btn"
-                              style="--swatch:#60a5fa"
-                              data-csr-swatch="#60a5fa"
-                              aria-label="Blue"></button>
-                            <button
-                              type="button"
-                              class="csr-color-btn"
-                              style="--swatch:#22c55e"
-                              data-csr-swatch="#22c55e"
-                              aria-label="Green"></button>
-                            <button
-                              type="button"
-                              class="csr-color-btn"
-                              style="--swatch:#a855f7"
-                              data-csr-swatch="#a855f7"
-                              aria-label="Purple"></button>
-                            <button
-                              type="button"
-                              class="csr-color-btn"
-                              style="--swatch:#0ea5e9"
-                              data-csr-swatch="#0ea5e9"
-                              aria-label="Sky"></button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </details>
-                </div>
-              </div>
-
-              <div class="csr-divider"></div>
-
-              <!-- Wrap Section -->
-              <div class="csr-section csr-section--full">
-                <div class="csr-section__header">
-                  <svg
-                    class="csr-section__icon"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <path
-                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    ></path>
-                  </svg>
-                  <span class="csr-section__title">Wrap</span>
-                </div>
-                <div class="csr-section__content csr-grid">
-                  <label class="csr-field">
-                    <span>Wrap color</span>
-                    <input type="color" value="#00d1b2" data-csr-wrap-color />
-                  </label>
-
-                  <label class="csr-field">
-                    <span>Wrap style</span>
-                    <select data-csr-wrap-style>
-                      <option value="oem">OEM (preserve model wrap)</option>
-                      <option value="procedural">Procedural</option>
-                    </select>
-                  </label>
-
-                  <label class="csr-field csr-field--wide">
-                    <span>Wrap tint</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.01"
-                      value="0.92"
-                      data-csr-wrap-tint
-                    />
-                  </label>
-
-                  <label class="csr-field">
-                    <span>Wrap pattern</span>
-                    <select data-csr-wrap-pattern>
-                      <option value="solid">Solid</option>
-                      <option value="stripes">Stripes</option>
-                      <option value="carbon">Carbon</option>
-                      <option value="camo">Camo</option>
-                      <option value="checker">Checker</option>
-                      <option value="hex">Hex</option>
-                      <option value="race">Race numbers</option>
-                    </select>
-                  </label>
-
-                  <label class="csr-field csr-field--wide">
-                    <span>Wrap scale</span>
-                    <input
-                      type="range"
-                      min="0.2"
-                      max="6"
-                      step="0.01"
-                      value="1.6"
-                      data-csr-wrap-scale
-                    />
-                  </label>
-
-                  <label class="csr-field csr-field--wide">
-                    <span>Wrap rotation</span>
-                    <input
-                      type="range"
-                      min="-180"
-                      max="180"
-                      step="1"
-                      value="0"
-                      data-csr-wrap-rot
-                    />
-                  </label>
-
-                  <label class="csr-field csr-field--wide">
-                    <span>Wrap offset X</span>
-                    <input
-                      type="range"
-                      min="-1"
-                      max="1"
-                      step="0.01"
-                      value="0"
-                      data-csr-wrap-ox
-                    />
-                  </label>
-
-                  <label class="csr-field csr-field--wide">
-                    <span>Wrap offset Y</span>
-                    <input
-                      type="range"
-                      min="-1"
-                      max="1"
-                      step="0.01"
-                      value="0"
-                      data-csr-wrap-oy
-                    />
-                  </label>
-                </div>
-              </div>
-
-              <div class="csr-divider"></div>
-
-              <!-- Finish & Effects Section -->
-              <div class="csr-section csr-section--full">
-                <div class="csr-section__header">
-                  <svg
-                    class="csr-section__icon"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <path
-                      d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-                    ></path>
-                  </svg>
-                  <span class="csr-section__title">Finish & Effects</span>
-                </div>
-                <div class="csr-section__content csr-grid">
-                  <label class="csr-field">
-                    <span>Body finish</span>
-                    <select data-csr-finish>
-                      <option value="gloss">Gloss</option>
-                      <option value="satin">Satin</option>
-                      <option value="matte">Matte</option>
-                    </select>
-                  </label>
-
-                  <label class="csr-field csr-field--wide">
-                    <span>Clearcoat depth</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.01"
-                      value="1"
-                      data-csr-clearcoat
-                    />
-                  </label>
-
-                  <label class="csr-field csr-field--wide">
-                    <span>Paint flake intensity</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.01"
-                      value="0.25"
-                      data-csr-flake-intensity
-                    />
-                  </label>
-
-                  <label class="csr-field csr-field--wide">
-                    <span>Paint flake scale</span>
-                    <input
-                      type="range"
-                      min="0.5"
-                      max="8"
-                      step="0.1"
-                      value="2.5"
-                      data-csr-flake-scale
-                    />
-                  </label>
-
-                  <label class="csr-field csr-field--wide">
-                    <span>Pearl shift</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.01"
-                      value="0"
-                      data-csr-pearl
-                    />
-                  </label>
-
-                  <label class="csr-field csr-field--wide">
-                    <span>Pearl thickness</span>
-                    <input
-                      type="range"
-                      min="100"
-                      max="800"
-                      step="10"
-                      value="320"
-                      data-csr-pearl-thickness
-                    />
-                  </label>
-                </div>
-              </div>
-
-              <div class="csr-divider"></div>
-
-              <!-- Materials Section -->
-              <div class="csr-section csr-section--full">
-                <div class="csr-section__header">
-                  <svg
-                    class="csr-section__icon"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <circle cx="12" cy="12" r="3"></circle>
-                    <path
-                      d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"
-                    ></path>
-                  </svg>
-                  <span class="csr-section__title">Materials</span>
-                </div>
-                <div class="csr-section__content csr-grid">
-                  <label class="csr-field">
-                    <span>Wheel finish</span>
-                    <select data-csr-wheel-finish>
-                      <option value="graphite">Graphite</option>
-                      <option value="chrome">Chrome</option>
-                      <option value="black">Black</option>
-                    </select>
-                  </label>
-
-                  <label class="csr-field">
-                    <span>Wheel color</span>
-                    <input type="color" value="#1f2937" data-csr-wheel-color />
-                  </label>
-
-                  <label class="csr-field">
-                    <span>Trim finish</span>
-                    <select data-csr-trim-finish>
-                      <option value="black">Black</option>
-                      <option value="chrome">Chrome</option>
-                      <option value="brushed">Brushed</option>
-                    </select>
-                  </label>
-
-                  <label class="csr-field">
-                    <span>Trim color</span>
-                    <input type="color" value="#0b0f1a" data-csr-trim-color />
-                  </label>
-
-                  <label class="csr-field">
-                    <span>Caliper color</span>
-                    <input
-                      type="color"
-                      value="#ef4444"
-                      data-csr-caliper-color
-                    />
-                  </label>
-
-                  <label class="csr-field">
-                    <span>Headlight color</span>
-                    <input type="color" value="#dbeafe" data-csr-light-color />
-                  </label>
-
-                  <label class="csr-field csr-field--wide">
-                    <span>Headlight glow</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max="4"
-                      step="0.01"
-                      value="1.25"
-                      data-csr-light-glow
-                    />
-                  </label>
-
-                  <label class="csr-field csr-field--wide">
-                    <span>Glass tint</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.01"
-                      value="0.15"
-                      data-csr-glass-tint
-                    />
-                  </label>
-                </div>
-              </div>
-
-              <div class="csr-divider"></div>
-
-              <!-- Actions Section -->
-              <div class="csr-section csr-section--full">
-                <div class="csr-row">
-                  <button
-                    type="button"
-                    class="csr-btn csr-btn--accent"
-                    data-csr-randomize-look
-                  >
-                    Randomize look
-                  </button>
-                  <p class="csr-hint">Fresh paint + accent combo every click</p>
-                </div>
-              </div>
+          <section class="sr-section">
+            <h2>Look</h2>
+            <div class="sr-grid">
+              <label class="sr-field">
+                <span>Paint</span>
+                <input type="color" value="#00d1b2" data-sr-paint />
+              </label>
+              <label class="sr-field">
+                <span>Keep original materials</span>
+                <input type="checkbox" data-sr-original-mats />
+              </label>
             </div>
-          </div>
+          </section>
 
-          <div
-            id="csr-tab-env"
-            class="csr-tab"
-            role="tabpanel"
-            data-csr-tab-panel="env"
-            hidden
-          >
-            <div class="csr-grid">
-              <label class="csr-field csr-field--wide">
+          <section class="sr-section">
+            <h2>Environment</h2>
+            <div class="sr-grid">
+              <label class="sr-field">
                 <span>Background</span>
-                <select data-csr-background>
-                  <option value="void">Void (transparent)</option>
+                <select data-sr-bg>
                   <option value="studio">Studio</option>
                   <option value="day">Day</option>
                   <option value="sunset">Sunset</option>
                   <option value="night">Night</option>
-                  <option value="grid">Grid</option>
+                  <option value="void">Void (transparent)</option>
                 </select>
               </label>
-
-              <label class="csr-field csr-field--wide">
+              <label class="sr-field">
                 <span>Light preset</span>
-                <select data-csr-light-preset>
-                  <option value="studio">Studio neutral</option>
-                  <option value="golden">Golden hour</option>
-                  <option value="neon">Neon night</option>
-                  <option value="ice">Ice lab</option>
-                  <option value="noir">Noir contrast</option>
+                <select data-sr-light-preset>
+                  <option value="studio">Studio</option>
+                  <option value="golden">Golden</option>
+                  <option value="ice">Ice</option>
+                  <option value="neon">Neon</option>
+                  <option value="noir">Noir</option>
                 </select>
               </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Grid overlay</span>
-                <label class="csr-check">
-                  <input type="checkbox" data-csr-grid />
-                  <span>Show studio grid</span>
-                </label>
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Environment intensity</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="3"
-                  step="0.01"
-                  value="0.7"
-                  data-csr-env-intensity
-                />
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Environment rotation</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="360"
-                  step="1"
-                  value="0"
-                  data-csr-env-rotation
-                />
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Lighting intensity</span>
+              <label class="sr-field">
+                <span>Intensity</span>
                 <input
                   type="range"
                   min="0.2"
                   max="2.5"
                   step="0.01"
                   value="1"
-                  data-csr-light-intensity
+                  data-sr-light-intensity
                 />
               </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Light warmth</span>
+              <label class="sr-field">
+                <span>Warmth</span>
                 <input
                   type="range"
                   min="0"
                   max="1"
                   step="0.01"
                   value="0"
-                  data-csr-light-warmth
+                  data-sr-light-warmth
                 />
               </label>
-
-              <label class="csr-field csr-field--wide">
+              <label class="sr-field">
                 <span>Rim boost</span>
                 <input
                   type="range"
@@ -1454,285 +220,244 @@ const description =
                   max="2"
                   step="0.01"
                   value="1"
-                  data-csr-rim-boost
+                  data-sr-light-rim
                 />
               </label>
+            </div>
+          </section>
 
-              <label class="csr-field csr-field--wide">
-                <span>Rig rotation</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="360"
-                  step="1"
-                  value="0"
-                  data-csr-rig-yaw
-                />
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Rig height</span>
-                <input
-                  type="range"
-                  min="0.6"
-                  max="1.6"
-                  step="0.01"
-                  value="1"
-                  data-csr-rig-height
-                />
-              </label>
-
-              <label class="csr-field">
-                <span>Underglow color</span>
-                <input type="color" value="#22d3ee" data-csr-underglow-color />
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Underglow intensity</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="5"
-                  step="0.01"
-                  value="0"
-                  data-csr-underglow
-                />
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Underglow pulse</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value="0"
-                  data-csr-underglow-pulse
-                />
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Underglow radius</span>
-                <input
-                  type="range"
-                  min="2"
-                  max="8"
-                  step="0.1"
-                  value="4.5"
-                  data-csr-underglow-size
-                />
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Floor preset</span>
-                <select data-csr-floor-preset>
-                  <option value="auto">Auto (match scene)</option>
-                  <option value="asphalt">Asphalt</option>
-                  <option value="matte">Matte studio</option>
-                  <option value="polished">Polished studio</option>
-                  <option value="glass">Glass (transparent)</option>
-                </select>
-              </label>
-
-              <label class="csr-field">
+          <section class="sr-section">
+            <h2>Floor + Shadows</h2>
+            <div class="sr-grid">
+              <label class="sr-field">
                 <span>Floor color</span>
-                <input type="color" value="#05070d" data-csr-floor-color />
+                <input type="color" value="#0f172a" data-sr-floor-color />
               </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Floor roughness</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value="0.55"
-                  data-csr-floor-roughness
-                />
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Floor metalness</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value="0.02"
-                  data-csr-floor-metalness
-                />
-              </label>
-
-              <label class="csr-field csr-field--wide">
+              <label class="sr-field">
                 <span>Floor opacity</span>
                 <input
                   type="range"
                   min="0"
                   max="1"
                   step="0.01"
-                  value="0"
-                  data-csr-floor-opacity
+                  value="1"
+                  data-sr-floor-opacity
                 />
               </label>
-
-              <label class="csr-field csr-field--wide">
+              <label class="sr-field">
+                <span>Roughness</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="1"
+                  data-sr-floor-roughness
+                />
+              </label>
+              <label class="sr-field">
+                <span>Metalness</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0"
+                  data-sr-floor-metalness
+                />
+              </label>
+              <label class="sr-field">
+                <span>Shadows</span>
+                <input type="checkbox" checked data-sr-shadows />
+              </label>
+              <label class="sr-field">
                 <span>Shadow strength</span>
                 <input
                   type="range"
                   min="0"
                   max="1"
                   step="0.01"
-                  value="0.5"
-                  data-csr-shadow
+                  value="0.6"
+                  data-sr-shadow-strength
                 />
               </label>
-
-              <label class="csr-field csr-field--wide">
+              <label class="sr-field">
                 <span>Shadow size</span>
                 <input
                   type="range"
-                  min="3"
-                  max="10"
-                  step="0.1"
-                  value="6"
-                  data-csr-shadow-size
+                  min="2"
+                  max="20"
+                  step="0.5"
+                  value="10"
+                  data-sr-shadow-size
                 />
               </label>
+              <label class="sr-field">
+                <span>High quality shadows</span>
+                <input type="checkbox" data-sr-shadow-hq />
+              </label>
             </div>
-          </div>
+          </section>
 
-          <div
-            id="csr-tab-camera"
-            class="csr-tab"
-            role="tabpanel"
-            data-csr-tab-panel="camera"
-            hidden
-          >
-            <div class="csr-grid">
-              <label class="csr-field">
-                <span>Camera</span>
-                <select data-csr-camera>
+          <section class="sr-section">
+            <h2>Camera</h2>
+            <div class="sr-grid">
+              <label class="sr-field">
+                <span>Preset</span>
+                <select data-sr-camera-preset>
                   <option value="hero">Hero</option>
-                  <option value="front">Front 3/4</option>
-                  <option value="rear">Rear 3/4</option>
+                  <option value="front">Front</option>
+                  <option value="rear">Rear</option>
                   <option value="side">Side</option>
                   <option value="top">Top</option>
-                  <option value="detail">Detail</option>
                 </select>
               </label>
-
-              <label class="csr-field">
-                <span>Camera mode</span>
-                <select data-csr-camera-mode>
-                  <option value="preset">Preset</option>
+              <label class="sr-field">
+                <span>Mode</span>
+                <select data-sr-camera-mode>
+                  <option value="orbit">Orbit</option>
                   <option value="manual">Manual</option>
                 </select>
               </label>
-
-              <label class="csr-field csr-field--wide">
+              <label class="sr-field">
                 <span>Yaw</span>
                 <input
                   type="range"
                   min="-180"
                   max="180"
                   step="1"
-                  value="17"
-                  data-csr-cam-yaw
+                  value="35"
+                  data-sr-camera-yaw
                 />
               </label>
-
-              <label class="csr-field csr-field--wide">
+              <label class="sr-field">
                 <span>Pitch</span>
                 <input
                   type="range"
-                  min="-5"
-                  max="60"
+                  min="-10"
+                  max="85"
                   step="1"
-                  value="7"
-                  data-csr-cam-pitch
+                  value="12"
+                  data-sr-camera-pitch
                 />
               </label>
-
-              <label class="csr-field csr-field--wide">
+              <label class="sr-field">
                 <span>Distance</span>
                 <input
                   type="range"
-                  min="2.5"
-                  max="14"
-                  step="0.05"
-                  value="9.8"
-                  data-csr-cam-distance
+                  min="1.5"
+                  max="18"
+                  step="0.1"
+                  value="6"
+                  data-sr-camera-distance
                 />
               </label>
-
-              <label class="csr-field csr-field--wide">
+              <label class="sr-field">
                 <span>FOV</span>
                 <input
                   type="range"
-                  min="35"
-                  max="85"
+                  min="25"
+                  max="75"
                   step="1"
-                  value="55"
-                  data-csr-fov
+                  value="45"
+                  data-sr-camera-fov
                 />
               </label>
-
-              <div class="csr-row">
-                <button type="button" class="csr-btn" data-csr-frame>
-                  Frame model
-                </button>
-                <button
-                  type="button"
-                  class="csr-btn csr-btn--ghost"
-                  data-csr-focus-selection
+              <div class="sr-row">
+                <button type="button" class="sr-btn" data-sr-camera-frame
+                  >Frame</button
                 >
-                  Focus selection
-                </button>
-                <button
-                  type="button"
-                  class="csr-btn csr-btn--ghost"
-                  data-csr-reset-view
+                <button type="button" class="sr-btn" data-sr-camera-reset
+                  >Reset</button
                 >
-                  Reset view
-                </button>
-                <p class="csr-hint">Manual lets you get close fast</p>
               </div>
             </div>
-          </div>
+          </section>
 
-          <div
-            id="csr-tab-post"
-            class="csr-tab"
-            role="tabpanel"
-            data-csr-tab-panel="post"
-            hidden
-          >
-            <div class="csr-grid">
-              <label class="csr-field csr-field--wide">
+          <section class="sr-section">
+            <h2>Motion</h2>
+            <div class="sr-grid">
+              <label class="sr-field">
+                <span>Auto-rotate</span>
+                <input type="checkbox" checked data-sr-autorotate />
+              </label>
+              <label class="sr-field">
+                <span>Style</span>
+                <select data-sr-motion-style>
+                  <option value="turntable">Turntable</option>
+                  <option value="float">Float</option>
+                  <option value="none">None</option>
+                </select>
+              </label>
+              <label class="sr-field">
+                <span>Speed</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="2"
+                  step="0.01"
+                  value="0.7"
+                  data-sr-motion-speed
+                />
+              </label>
+              <label class="sr-field">
+                <span>Zoom</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0"
+                  data-sr-zoom
+                />
+              </label>
+            </div>
+          </section>
+
+          <section class="sr-section">
+            <h2>Performance</h2>
+            <div class="sr-grid">
+              <label class="sr-field">
+                <span>Quality</span>
+                <select data-sr-quality>
+                  <option value="eco">Eco</option>
+                  <option value="balanced" selected>Balanced</option>
+                  <option value="ultra">Ultra</option>
+                </select>
+              </label>
+              <label class="sr-field">
+                <span>Auto quality (FPS)</span>
+                <input type="checkbox" checked data-sr-auto-quality />
+              </label>
+            </div>
+          </section>
+
+          <section class="sr-section">
+            <h2>Post</h2>
+            <div class="sr-grid">
+              <label class="sr-field">
                 <span>Exposure</span>
                 <input
                   type="range"
-                  min="0.1"
-                  max="3"
+                  min="0.5"
+                  max="2"
                   step="0.01"
                   value="1"
-                  data-csr-exposure
+                  data-sr-exposure
                 />
               </label>
-
-              <label class="csr-field csr-field--wide">
+              <label class="sr-field">
                 <span>Bloom</span>
                 <input
                   type="range"
                   min="0"
-                  max="3"
+                  max="2"
                   step="0.01"
-                  value="0"
-                  data-csr-bloom
+                  value="0.35"
+                  data-sr-bloom
                 />
               </label>
-
-              <label class="csr-field csr-field--wide">
+              <label class="sr-field">
                 <span>Bloom threshold</span>
                 <input
                   type="range"
@@ -1740,11 +465,10 @@ const description =
                   max="1"
                   step="0.01"
                   value="0.9"
-                  data-csr-bloom-threshold
+                  data-sr-bloom-threshold
                 />
               </label>
-
-              <label class="csr-field csr-field--wide">
+              <label class="sr-field">
                 <span>Bloom radius</span>
                 <input
                   type="range"
@@ -1752,607 +476,17 @@ const description =
                   max="1"
                   step="0.01"
                   value="0"
-                  data-csr-bloom-radius
+                  data-sr-bloom-radius
                 />
               </label>
             </div>
-          </div>
-
-          <div
-            id="csr-tab-motion"
-            class="csr-tab"
-            role="tabpanel"
-            data-csr-tab-panel="motion"
-            hidden
-          >
-            <div class="csr-grid">
-              <label class="csr-field">
-                <span>Auto-rotate</span>
-                <input type="checkbox" data-csr-autorotate checked />
-              </label>
-
-              <label class="csr-field">
-                <span>Motion style</span>
-                <select data-csr-motion-style>
-                  <option value="spin">Spin</option>
-                  <option value="orbit">Orbit</option>
-                  <option value="pendulum">Pendulum</option>
-                </select>
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Spin speed</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="2"
-                  step="0.01"
-                  value="0.75"
-                  data-csr-spinspeed
-                />
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Orbit amplitude</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="45"
-                  step="1"
-                  value="18"
-                  data-csr-motion-range
-                />
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Zoom</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value="0.8"
-                  data-csr-zoom
-                />
-              </label>
-
-              <div class="csr-row">
-                <button
-                  type="button"
-                  class="csr-btn csr-btn--ghost"
-                  data-csr-zoom-wide
-                >
-                  Wide
-                </button>
-                <button
-                  type="button"
-                  class="csr-btn csr-btn--ghost"
-                  data-csr-zoom-mid
-                >
-                  Mid
-                </button>
-                <button
-                  type="button"
-                  class="csr-btn"
-                  data-csr-zoom-close
-                  title="Quick close-up"
-                >
-                  Close
-                </button>
-                <p class="csr-hint">Quick zoom</p>
-              </div>
-            </div>
-          </div>
-
-          <div
-            id="csr-tab-setup"
-            class="csr-tab"
-            role="tabpanel"
-            data-csr-tab-panel="setup"
-            hidden
-          >
-            <div class="csr-grid">
-              <label class="csr-field">
-                <span>Quality</span>
-                <select data-csr-quality>
-                  <option value="balanced">Balanced</option>
-                  <option value="performance">Performance</option>
-                  <option value="ultra">Ultra</option>
-                </select>
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Auto quality</span>
-                <label class="csr-check">
-                  <input type="checkbox" data-csr-auto-quality checked />
-                  <span>Adapt quality for steady FPS</span>
-                </label>
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Original materials</span>
-                <label class="csr-check">
-                  <input type="checkbox" data-csr-original-mats />
-                  <span
-                    >Use the model’s original materials (keeps decals/wrap)</span
-                  >
-                </label>
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Ride height</span>
-                <input
-                  type="range"
-                  min="-0.3"
-                  max="0.3"
-                  step="0.01"
-                  value="0.05"
-                  data-csr-ride-height
-                />
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Model yaw</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="360"
-                  step="1"
-                  value="0"
-                  data-csr-model-yaw
-                />
-              </label>
-
-              <div class="csr-row">
-                <button
-                  type="button"
-                  class="csr-btn csr-btn--ghost"
-                  data-csr-undo
-                >
-                  Undo
-                </button>
-                <button
-                  type="button"
-                  class="csr-btn csr-btn--ghost"
-                  data-csr-redo
-                >
-                  Redo
-                </button>
-                <p class="csr-hint">Ctrl/⌘+Z • Ctrl/⌘+Y</p>
-              </div>
-
-              <label class="csr-field">
-                <span>Screenshot scale</span>
-                <select data-csr-shot-scale>
-                  <option value="1">1×</option>
-                  <option value="2">2×</option>
-                  <option value="4">4×</option>
-                </select>
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Transparent screenshot background</span>
-                <input type="checkbox" data-csr-shot-transparent />
-              </label>
-
-              <div class="csr-row">
-                <button
-                  type="button"
-                  class="csr-btn csr-btn--ghost"
-                  data-csr-clear-selection
-                >
-                  Clear selection
-                </button>
-                <button type="button" class="csr-btn" data-csr-copy-build>
-                  Copy build sheet
-                </button>
-                <p class="csr-hint">Share config as JSON</p>
-              </div>
-
-              <div class="csr-field csr-field--wide">
-                <span>Selected part mapping</span>
-                <div class="csr-inline">
-                  <select data-csr-assign-part>
-                    <option value="">Auto (heuristics)</option>
-                    <option value="body">Body</option>
-                    <option value="decal">Decal / livery</option>
-                    <option value="trim">Trim</option>
-                    <option value="wheel">Wheel</option>
-                    <option value="tire">Tire</option>
-                    <option value="caliper">Caliper</option>
-                    <option value="light">Light</option>
-                    <option value="glass">Glass</option>
-                  </select>
-                  <button type="button" class="csr-btn" data-csr-assign-apply>
-                    Assign
-                  </button>
-                </div>
-              </div>
-
-              <div class="csr-row">
-                <button
-                  type="button"
-                  class="csr-btn csr-btn--ghost"
-                  data-csr-assign-clear-all
-                >
-                  Clear part map
-                </button>
-                <p class="csr-hint">Saves per model (shareable models only)</p>
-              </div>
-
-              <div class="csr-field csr-field--wide">
-                <span>Paste build sheet</span>
-                <textarea
-                  class="csr-text csr-textarea"
-                  spellcheck="false"
-                  placeholder="Paste the JSON from “Copy build sheet” here…"
-                  data-csr-buildsheet-paste></textarea>
-              </div>
-
-              <div class="csr-row">
-                <button type="button" class="csr-btn" data-csr-buildsheet-apply>
-                  Apply build sheet
-                </button>
-                <button
-                  type="button"
-                  class="csr-btn csr-btn--ghost"
-                  data-csr-buildsheet-clear
-                >
-                  Clear
-                </button>
-                <p class="csr-hint">Imports state + part map</p>
-              </div>
-
-              <div class="csr-mobile-optimizations">
-                <h4 class="csr-mobile-optimizations__title">
-                  Mobile Optimizations
-                </h4>
-                <div class="csr-grid">
-                  <label class="csr-field csr-field--wide">
-                    <span>Low power mode</span>
-                    <label class="csr-check">
-                      <input type="checkbox" data-csr-low-power />
-                      <span>Disable heavy effects for battery/performance</span>
-                    </label>
-                  </label>
-
-                  <label class="csr-field csr-field--wide">
-                    <span>Haptic feedback</span>
-                    <label class="csr-check">
-                      <input type="checkbox" data-csr-haptics checked />
-                      <span>Tactile vibration during interactions</span>
-                    </label>
-                  </label>
-
-                  <label class="csr-field csr-field--wide">
-                    <span>High quality shadows</span>
-                    <label class="csr-check">
-                      <input
-                        type="checkbox"
-                        data-csr-high-quality-shadows
-                        checked
-                      />
-                      <span>Enable soft PCF shadows (heavy on GPU)</span>
-                    </label>
-                  </label>
-
-                  <div class="csr-row">
-                    <button
-                      type="button"
-                      class="csr-btn csr-btn--primary csr-btn--ar"
-                      data-csr-view-ar
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        class="lucide lucide-box"
-                        ><path
-                          d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"
-                        ></path><path d="m3.3 7 8.7 5 8.7-5"></path><path
-                          d="M12 22V12"></path></svg
-                      >
-                      View in AR
-                    </button>
-                    <p class="csr-hint">Open model in 3D / AR space</p>
-                  </div>
-                </div>
-              </div>
-
-              <label class="csr-field">
-                <span>Model</span>
-                <select data-csr-model>
-                  <option
-                    value="/models/free_porsche_911_carrera_4s_LOD3_low.glb"
-                    >Porsche 911 Carrera 4S (Low-Poly)</option
-                  >
-                  <option value="/models/porsche-911-gt3rs.glb"
-                    >Porsche 911 GT3 RS</option
-                  >
-                  <option
-                    value="/models/free_porsche_911_carrera_4s_advanced_materials.glb"
-                    >Porsche 911 Carrera 4S (Materials)</option
-                  >
-                  <option
-                    value="/models/free_porsche_911_carrera_4s_advanced_perf.glb"
-                    >Porsche 911 Carrera 4S (Performance)</option
-                  >
-                  <option
-                    value="/models/free_porsche_911_carrera_4s_LOD0_highpoly_animated.glb"
-                    >Porsche 911 Carrera 4S (High-Poly Animated)</option
-                  >
-                  <option
-                    value="/models/free_porsche_911_carrera_4s_LOD1_original_animated.glb"
-                    >Porsche 911 Carrera 4S (Original Animated)</option
-                  >
-                </select>
-              </label>
-
-              <label class="csr-field csr-field--wide">
-                <span>Model URL</span>
-                <div class="csr-inline">
-                  <input
-                    class="csr-text"
-                    type="text"
-                    inputmode="url"
-                    spellcheck="false"
-                    autocomplete="off"
-                    placeholder="/models/your-car.glb or https://…/car.glb"
-                    data-csr-model-url
-                  />
-                  <button type="button" class="csr-btn" data-csr-load-model>
-                    Load
-                  </button>
-                </div>
-              </label>
-
-              <div class="csr-field csr-field--wide">
-                <span>Presets</span>
-                <div class="csr-inline">
-                  <select data-csr-preset>
-                    <option value="">No saved presets</option>
-                  </select>
-                  <button type="button" class="csr-btn" data-csr-preset-load>
-                    Load
-                  </button>
-                </div>
-              </div>
-
-              <div class="csr-row">
-                <button type="button" class="csr-btn" data-csr-preset-save>
-                  Save preset
-                </button>
-                <button
-                  type="button"
-                  class="csr-btn csr-btn--ghost"
-                  data-csr-preset-delete
-                >
-                  Delete
-                </button>
-                <p class="csr-hint">Saved to this browser</p>
-              </div>
-
-              <div class="csr-row">
-                <button type="button" class="csr-btn" data-csr-reset>
-                  Reset
-                </button>
-                <button
-                  type="button"
-                  class="csr-btn csr-btn--ghost"
-                  data-csr-reset-camera
-                >
-                  Reset camera
-                </button>
-                <p class="csr-hint">
-                  Drag orbit • Wheel/pinch zoom • O options • S screenshot • P
-                  save
-                </p>
-              </div>
-            </div>
-          </div>
+          </section>
         </div>
-
-        <!-- Mobile Bottom Tab Bar -->
-        <nav class="csr-mobile-tabbar" aria-label="Panel sections">
-          <div class="csr-tabbar-list" role="tablist">
-            <button
-              type="button"
-              class="csr-tabbar-btn"
-              role="tab"
-              aria-selected="true"
-              data-csr-mobile-tab="look"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-              >
-                <path
-                  d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2z"
-                ></path>
-                <path d="M12 8v8"></path>
-                <path d="M8 12h8"></path>
-              </svg>
-              <span>Look</span>
-            </button>
-            <button
-              type="button"
-              class="csr-tabbar-btn"
-              role="tab"
-              aria-selected="false"
-              data-csr-mobile-tab="env"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-              >
-                <circle cx="12" cy="12" r="5"></circle>
-                <line x1="12" y1="1" x2="12" y2="3"></line>
-                <line x1="12" y1="21" x2="12" y2="23"></line>
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                <line x1="1" y1="12" x2="3" y2="12"></line>
-                <line x1="21" y1="12" x2="23" y2="12"></line>
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-              </svg>
-              <span>Light</span>
-            </button>
-            <button
-              type="button"
-              class="csr-tabbar-btn"
-              role="tab"
-              aria-selected="false"
-              data-csr-mobile-tab="camera"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-              >
-                <path
-                  d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
-                ></path>
-                <circle cx="12" cy="13" r="4"></circle>
-              </svg>
-              <span>Camera</span>
-            </button>
-            <button
-              type="button"
-              class="csr-tabbar-btn"
-              role="tab"
-              aria-selected="false"
-              data-csr-mobile-tab="motion"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-              >
-                <polyline points="23 4 23 10 17 10"></polyline>
-                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-              </svg>
-              <span>Motion</span>
-            </button>
-            <button
-              type="button"
-              class="csr-tabbar-btn"
-              role="tab"
-              aria-selected="false"
-              data-csr-mobile-tab="setup"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-              >
-                <circle cx="12" cy="12" r="3"></circle>
-                <path
-                  d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
-                ></path>
-              </svg>
-              <span>Setup</span>
-            </button>
-          </div>
-        </nav>
-      </div>
+      </aside>
     </div>
 
-    <!-- Floating Action Bar (Mobile Only) -->
-    <div class="csr-floating-bar" data-csr-floating-bar>
-      <button
-        type="button"
-        class="csr-floating-bar__btn"
-        data-csr-floating-immersive
-      >
-        <svg
-          class="csr-floating-bar__btn__icon"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path d="M15 3h6v6"></path>
-          <path d="M9 21H3v-6"></path>
-          <path d="M21 3l-7 7"></path>
-          <path d="M3 21l7-7"></path>
-        </svg>
-        Focus
-      </button>
-      <button
-        type="button"
-        class="csr-floating-bar__btn"
-        data-csr-floating-screenshot
-      >
-        <svg
-          class="csr-floating-bar__btn__icon"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-          <circle cx="8.5" cy="8.5" r="1.5"></circle>
-          <polyline points="21 15 16 10 5 21"></polyline>
-        </svg>
-        Save
-      </button>
-      <button
-        type="button"
-        class="csr-floating-bar__btn"
-        data-csr-floating-share
-      >
-        <svg
-          class="csr-floating-bar__btn__icon"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <circle cx="18" cy="5" r="3"></circle>
-          <circle cx="6" cy="12" r="3"></circle>
-          <circle cx="18" cy="19" r="3"></circle>
-          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-        </svg>
-        Share
-      </button>
-      <button
-        type="button"
-        class="csr-floating-bar__btn csr-floating-bar__btn--primary"
-        data-csr-floating-randomize
-      >
-        <svg
-          class="csr-floating-bar__btn__icon"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <polyline points="16 3 21 3 21 8"></polyline>
-          <line x1="4" y1="20" x2="21" y2="3"></line>
-          <polyline points="21 16 21 21 16 21"></polyline>
-          <line x1="15" y1="15" x2="21" y2="21"></line>
-          <line x1="4" y1="4" x2="9" y2="9"></line>
-        </svg>
-        Shuffle
-      </button>
-    </div>
+    <script>
+      import '../scripts/car-showroom-v3';
+    </script>
   </section>
-
-  <script>
-    import '../scripts/car-showroom-v2';
-  </script>
 </MarketingLayout>
