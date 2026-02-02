@@ -2188,6 +2188,7 @@ export class CarShowroomScene {
 
     this.root.dataset.carShowroomReady = '0';
     this.root.dataset.carShowroomLoading = '1';
+    this.root.dataset.carShowroomLoadPhase = 'fetch';
     this.root.dataset.carShowroomLoadError = '';
     this.root.dataset.carShowroomModelSizeX = '';
     this.root.dataset.carShowroomModelSizeY = '';
@@ -2209,6 +2210,7 @@ export class CarShowroomScene {
       }
 
       console.time(`[CarShowroom] Parse ${normalized}`);
+      this.root.dataset.carShowroomLoadPhase = 'parse';
       const basePath = normalized.substring(0, normalized.lastIndexOf('/') + 1);
       const gltf = await Promise.race([
         this.loader.parseAsync(buffer, basePath),
@@ -2320,11 +2322,13 @@ export class CarShowroomScene {
 
       this.root.dataset.carShowroomReady = '1';
       this.root.dataset.carShowroomLoading = '0';
+      this.root.dataset.carShowroomLoadPhase = '';
       console.log('[CarShowroom] Model load successful:', normalized);
     } catch (e) {
       console.error('[CarShowroom] Failed to load model:', normalized, e);
       this.root.dataset.carShowroomReady = '0';
       this.root.dataset.carShowroomLoading = '0';
+      this.root.dataset.carShowroomLoadPhase = '';
       const message =
         e instanceof Error
           ? e.message

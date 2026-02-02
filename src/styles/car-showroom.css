@@ -614,6 +614,8 @@
   padding: 10px 12px;
   font-size: 13px;
   line-height: 1.35;
+  white-space: pre-wrap;
+  word-break: break-word;
   backdrop-filter: blur(14px);
 }
 

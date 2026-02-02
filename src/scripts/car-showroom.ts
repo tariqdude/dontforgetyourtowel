@@ -14,6 +14,12 @@ import { LIGHT_PRESETS, STYLE_PRESETS } from './car-showroom/presets';
 import { MobileGestureHandler } from './car-showroom/MobileGestures';
 import { TabSwipeHandler } from './car-showroom/TabSwipeHandler';
 import { GyroscopeHandler } from './car-showroom/GyroscopeHandler';
+import {
+  detectAutomation,
+  detectShowroomDebug,
+  ensureShowroomErrorActionRow,
+  runShowroomPreflight,
+} from './car-showroom/showroom-diagnostics';
 
 const ROOT_SELECTOR = '[data-car-showroom-root]';
 
@@ -1759,19 +1765,69 @@ createAstroMount(ROOT_SELECTOR, () => {
     import.meta.env.BASE_URL
   ).toString();
 
+  const SHOWROOM_DEFAULT_MODEL = '/models/porsche-911-gt3rs.glb';
+  const SHOWROOM_FALLBACK_MODEL =
+    '/models/free_porsche_911_carrera_4s_LOD3_low.glb';
+
+  const isAutomation = detectAutomation();
+  const isDebug = detectShowroomDebug();
+
   const syncStatus = () => {
     const ds = root.dataset;
     const isLoading = ds.carShowroomLoading === '1';
     const error = (ds.carShowroomLoadError || '').trim();
 
-    if (loadingEl) loadingEl.hidden = !isLoading;
-    if (errorEl) {
-      errorEl.hidden = error.length === 0;
-      errorEl.textContent = error
-        ? `${error}\n\nOpen diagnostics: ${diagnosticsUrl}`
-        : '';
+    // Improve the loading affordance with a phase label.
+    if (loadingEl) {
+      loadingEl.hidden = !isLoading;
+      const phase = (ds.carShowroomLoadPhase || '').trim();
+      const label = phase ? `Loading model… (${phase})` : 'Loading model…';
+      const labelEl = loadingEl.querySelector<HTMLElement>(
+        'span:not(.csr-status__dot)'
+      );
+      if (labelEl && labelEl.textContent !== label) labelEl.textContent = label;
     }
+
+    if (!errorEl) return;
+
+    errorEl.hidden = error.length === 0;
+    if (!error) {
+      errorEl.textContent = '';
+      // Remove any previously injected actions.
+      errorEl
+        .querySelectorAll('[data-csr-error-action]')
+        .forEach(n => n.remove());
+      return;
+    }
+
+    // Preserve newlines in the error text (GH Pages issues often need multi-line diagnostics).
+    errorEl.textContent = `${error}\n\nOpen diagnostics: ${diagnosticsUrl}`;
+
+    ensureShowroomErrorActionRow({
+      root,
+      errorEl,
+      diagnosticsUrl,
+      defaultModel: SHOWROOM_DEFAULT_MODEL,
+      fallbackModel: SHOWROOM_FALLBACK_MODEL,
+      isAutomation,
+      copyToClipboard,
+      bumpRevision,
+      syncStatus,
+    });
   };
+
+  // GH Pages-only failures are commonly caused by Draco WASM serving issues (wrong MIME) or missing decoder files.
+  // Preflight once in production and auto-fallback to a non-Draco model when the default model can’t load.
+  if (!import.meta.env.DEV) {
+    void runShowroomPreflight({
+      root,
+      defaultModel: SHOWROOM_DEFAULT_MODEL,
+      fallbackModel: SHOWROOM_FALLBACK_MODEL,
+      isAutomation,
+      bumpRevision,
+      syncStatus,
+    });
+  }
 
   const syncModelStats = () => {
     const ds = root.dataset;
@@ -2387,17 +2443,6 @@ createAstroMount(ROOT_SELECTOR, () => {
 
   initPanelState();
   // Defaults
-  const isAutomation = (() => {
-    try {
-      const nav = navigator as unknown as { webdriver?: boolean };
-      if (nav.webdriver) return true;
-      const ua = String(navigator.userAgent || '');
-      return /headless/i.test(ua);
-    } catch {
-      return false;
-    }
-  })();
-
   // In real browsers, default to the showcase Porsche. In headless/automation,
   // prefer the lightweight non-Draco model to avoid WebAssembly/decoder flakiness.
   root.dataset.carShowroomModel ||= isAutomation
