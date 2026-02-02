@@ -664,6 +664,9 @@ const init = () => {
     animations: [],
   };
 
+  // Model base transform (grounded placement after normalization)
+  let modelBaseY = 0;
+
   // Animation runtime
   let mixer: THREE.AnimationMixer | null = null;
   let activeAction: THREE.AnimationAction | null = null;
@@ -1187,6 +1190,8 @@ const init = () => {
       loadState.gltf = null;
     }
 
+    modelBaseY = 0;
+
     stopAnimations();
     setSelectedMesh(null);
     applyIsolate();
@@ -1229,6 +1234,9 @@ const init = () => {
       normalizeModelPlacement(obj);
       scene.add(obj);
       loadState.gltf = obj;
+
+      // IMPORTANT: preserve grounded base Y; the animation loop must not force y=0.
+      modelBaseY = obj.position.y;
 
       // Build inspector inventory
       inspectorMeshes = [];
@@ -1452,7 +1460,9 @@ const init = () => {
     applyMotion();
   });
   motionStyle?.addEventListener('change', () => {
-    runtime.motionStyle = (motionStyle.value || 'spin').trim().toLowerCase();
+    runtime.motionStyle = (motionStyle.value || 'turntable')
+      .trim()
+      .toLowerCase();
     applyMotion();
   });
   motionSpeed?.addEventListener('input', () => {
@@ -1580,12 +1590,10 @@ const init = () => {
       const amp = clamp(runtime.lastRadius * 0.01, 0.01, 0.08);
       const bob =
         (Math.sin(t * (0.65 + runtime.motionSpeed * 0.7)) * 0.5 + 0.5) * amp;
-      loadState.gltf.position.y = bob;
-      loadState.gltf.rotation.y =
-        Math.sin(t * (0.4 + runtime.motionSpeed * 0.6)) * 0.08;
-    } else if (loadState.gltf && style !== 'float') {
-      // Keep grounded
-      loadState.gltf.position.y = 0;
+      loadState.gltf.position.y = modelBaseY + bob;
+    } else if (loadState.gltf) {
+      // Keep grounded (do NOT force y=0; preserve normalization offset)
+      loadState.gltf.position.y = modelBaseY;
     }
 
     if (selectionBox) selectionBox.update();
