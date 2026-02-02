@@ -427,6 +427,129 @@ const galleryHref = `${base}gallery/`;
                 <span>Paint</span>
                 <input type="color" value="#00d1b2" data-sr-paint />
               </label>
+
+              <label class="sr-field">
+                <span>Wrap mode</span>
+                <input type="checkbox" data-sr-wrap-enabled />
+              </label>
+
+              <label class="sr-field">
+                <span>Wrap pattern</span>
+                <select data-sr-wrap-pattern>
+                  <option value="solid">Solid</option>
+                  <option value="stripes">Stripes</option>
+                  <option value="carbon">Carbon</option>
+                  <option value="camo">Camo</option>
+                  <option value="checker">Checker</option>
+                  <option value="hex">Hex</option>
+                  <option value="race">Race</option>
+                </select>
+              </label>
+
+              <label class="sr-field">
+                <span>Wrap color</span>
+                <input type="color" value="#ffffff" data-sr-wrap-color />
+              </label>
+              <label class="sr-field">
+                <span>Wrap tint</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.8"
+                  data-sr-wrap-tint
+                />
+              </label>
+              <label class="sr-field">
+                <span>Wrap scale</span>
+                <input
+                  type="range"
+                  min="0.25"
+                  max="4"
+                  step="0.01"
+                  value="1"
+                  data-sr-wrap-scale
+                />
+              </label>
+              <label class="sr-field">
+                <span>Wrap rotation</span>
+                <input
+                  type="range"
+                  min="-180"
+                  max="180"
+                  step="1"
+                  value="0"
+                  data-sr-wrap-rotation
+                />
+              </label>
+              <label class="sr-field">
+                <span>Wrap offset X</span>
+                <input
+                  type="range"
+                  min="-1"
+                  max="1"
+                  step="0.01"
+                  value="0"
+                  data-sr-wrap-offset-x
+                />
+              </label>
+              <label class="sr-field">
+                <span>Wrap offset Y</span>
+                <input
+                  type="range"
+                  min="-1"
+                  max="1"
+                  step="0.01"
+                  value="0"
+                  data-sr-wrap-offset-y
+                />
+              </label>
+
+              <label class="sr-field">
+                <span>Glass mode</span>
+                <input type="checkbox" data-sr-glass-mode />
+              </label>
+              <label class="sr-field">
+                <span>Glass tint</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.35"
+                  data-sr-glass-tint
+                />
+              </label>
+
+              <label class="sr-field">
+                <span>Wheel color</span>
+                <input type="color" value="#111827" data-sr-wheel-color />
+              </label>
+              <label class="sr-field">
+                <span>Trim color</span>
+                <input type="color" value="#0b0f14" data-sr-trim-color />
+              </label>
+              <label class="sr-field">
+                <span>Caliper color</span>
+                <input type="color" value="#ef4444" data-sr-caliper-color />
+              </label>
+              <label class="sr-field">
+                <span>Light color</span>
+                <input type="color" value="#ffffff" data-sr-light-color />
+              </label>
+              <label class="sr-field">
+                <span>Light glow</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="6"
+                  step="0.01"
+                  value="1.25"
+                  data-sr-light-glow
+                />
+              </label>
+
               <label class="sr-field">
                 <span>Keep original materials</span>
                 <input type="checkbox" data-sr-original-mats />

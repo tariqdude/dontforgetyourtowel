@@ -5,6 +5,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 import { withBasePath } from '../utils/helpers';
 import { createSafeWebGLRenderer } from './tower3d/three/renderer-factory';
@@ -170,6 +171,227 @@ const applyPaintHeuristic = (rootObj: THREE.Object3D, hex: string) => {
       }
     }
   });
+};
+
+type MaterialSnapshot = {
+  colorHex?: number;
+  emissiveHex?: number;
+  emissiveIntensity?: number;
+  roughness?: number;
+  metalness?: number;
+  clearcoat?: number;
+  clearcoatRoughness?: number;
+  transmission?: number;
+  thickness?: number;
+  ior?: number;
+  opacity?: number;
+  transparent?: boolean;
+  envMapIntensity?: number;
+  map?: THREE.Texture | null;
+};
+
+const snapshotMaterial = (mat: THREE.Material): MaterialSnapshot => {
+  const s: MaterialSnapshot = {};
+  if (
+    mat instanceof THREE.MeshStandardMaterial ||
+    mat instanceof THREE.MeshPhysicalMaterial
+  ) {
+    s.colorHex = mat.color.getHex();
+    s.emissiveHex = mat.emissive?.getHex?.();
+    s.emissiveIntensity = mat.emissiveIntensity;
+    s.roughness = mat.roughness;
+    s.metalness = mat.metalness;
+    s.opacity = mat.opacity;
+    s.transparent = mat.transparent;
+    s.envMapIntensity = mat.envMapIntensity;
+    s.map = mat.map;
+    if (mat instanceof THREE.MeshPhysicalMaterial) {
+      s.clearcoat = mat.clearcoat;
+      s.clearcoatRoughness = mat.clearcoatRoughness;
+      s.transmission = mat.transmission;
+      s.thickness = mat.thickness;
+      s.ior = mat.ior;
+    }
+  }
+  return s;
+};
+
+const restoreMaterial = (mat: THREE.Material, snap: MaterialSnapshot) => {
+  if (
+    !(mat instanceof THREE.MeshStandardMaterial) &&
+    !(mat instanceof THREE.MeshPhysicalMaterial)
+  ) {
+    return;
+  }
+
+  if (snap.colorHex !== undefined) mat.color.setHex(snap.colorHex);
+  if (snap.emissiveHex !== undefined && mat.emissive)
+    mat.emissive.setHex(snap.emissiveHex);
+  if (snap.emissiveIntensity !== undefined)
+    mat.emissiveIntensity = snap.emissiveIntensity;
+  if (snap.roughness !== undefined) mat.roughness = snap.roughness;
+  if (snap.metalness !== undefined) mat.metalness = snap.metalness;
+  if (snap.opacity !== undefined) mat.opacity = snap.opacity;
+  if (snap.transparent !== undefined) mat.transparent = snap.transparent;
+  if (snap.envMapIntensity !== undefined)
+    mat.envMapIntensity = snap.envMapIntensity;
+  if (snap.map !== undefined) mat.map = snap.map;
+
+  if (mat instanceof THREE.MeshPhysicalMaterial) {
+    if (snap.clearcoat !== undefined) mat.clearcoat = snap.clearcoat;
+    if (snap.clearcoatRoughness !== undefined)
+      mat.clearcoatRoughness = snap.clearcoatRoughness;
+    if (snap.transmission !== undefined) mat.transmission = snap.transmission;
+    if (snap.thickness !== undefined) mat.thickness = snap.thickness;
+    if (snap.ior !== undefined) mat.ior = snap.ior;
+  }
+
+  mat.needsUpdate = true;
+};
+
+const normalizeName = (s: string) =>
+  String(s || '')
+    .trim()
+    .toLowerCase();
+
+const classifyMeshByName = (meshName: string, matName: string) => {
+  const n = `${normalizeName(meshName)} ${normalizeName(matName)}`;
+
+  const isWheel =
+    (n.includes('wheel') || n.includes('rim')) && !n.includes('tire');
+  const isCaliper = n.includes('caliper');
+  const isGlass =
+    n.includes('glass') ||
+    n.includes('window') ||
+    n.includes('windshield') ||
+    n.includes('windscreen');
+  const isLight =
+    n.includes('light') ||
+    n.includes('lamp') ||
+    n.includes('head') ||
+    n.includes('tail');
+  const isTrim =
+    n.includes('trim') ||
+    n.includes('chrome') ||
+    n.includes('badge') ||
+    n.includes('emblem') ||
+    n.includes('mirror') ||
+    n.includes('grill') ||
+    n.includes('grille') ||
+    n.includes('exhaust') ||
+    n.includes('handle');
+
+  return { isWheel, isCaliper, isGlass, isLight, isTrim };
+};
+
+const createWrapTexture = (pattern: string, tint01: number) => {
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  const tint = clamp01(tint01);
+  const white = 255;
+  const dark = Math.round(white * (1 - 0.45 * tint));
+
+  ctx.fillStyle = `rgb(${white},${white},${white})`;
+  ctx.fillRect(0, 0, size, size);
+
+  const p = normalizeName(pattern || 'solid');
+  if (p === 'solid') {
+    // leave white
+  } else if (p === 'stripes') {
+    ctx.fillStyle = `rgb(${dark},${dark},${dark})`;
+    const w = Math.max(6, Math.round(36 - tint * 16));
+    for (let x = -w; x < size + w; x += w * 2) {
+      ctx.fillRect(x, 0, w, size);
+    }
+  } else if (p === 'checker') {
+    const cell = Math.max(12, Math.round(52 - tint * 22));
+    for (let y = 0; y < size; y += cell) {
+      for (let x = 0; x < size; x += cell) {
+        const on = (Math.floor(x / cell) + Math.floor(y / cell)) % 2 === 0;
+        ctx.fillStyle = on
+          ? `rgb(${white},${white},${white})`
+          : `rgb(${dark},${dark},${dark})`;
+        ctx.fillRect(x, y, cell, cell);
+      }
+    }
+  } else if (p === 'carbon') {
+    ctx.fillStyle = `rgb(${dark},${dark},${dark})`;
+    const step = Math.max(6, Math.round(18 - tint * 8));
+    for (let y = -size; y < size * 2; y += step) {
+      ctx.fillRect(0, y, size, Math.max(1, Math.round(step * 0.4)));
+    }
+    ctx.globalAlpha = 0.55;
+    for (let x = -size; x < size * 2; x += step) {
+      ctx.fillRect(x, 0, Math.max(1, Math.round(step * 0.4)), size);
+    }
+    ctx.globalAlpha = 1;
+  } else if (p === 'hex') {
+    const r = Math.max(10, Math.round(26 - tint * 10));
+    const h = Math.sin(Math.PI / 3) * r;
+    ctx.strokeStyle = `rgb(${dark},${dark},${dark})`;
+    ctx.lineWidth = Math.max(1, Math.round(2 + tint));
+    for (let y = -r; y < size + r; y += h * 2) {
+      for (let x = -r; x < size + r; x += r * 3) {
+        const ox = ((y / (h * 2)) % 2) * (r * 1.5);
+        const cx = x + ox;
+        const cy = y;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = (Math.PI / 3) * i;
+          const px = cx + Math.cos(a) * r;
+          const py = cy + Math.sin(a) * r;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.stroke();
+      }
+    }
+  } else if (p === 'camo') {
+    const blobs = Math.round(28 + tint * 40);
+    for (let i = 0; i < blobs; i++) {
+      const x = Math.random() * size;
+      const y = Math.random() * size;
+      const r = (Math.random() * 0.18 + 0.05) * size;
+      const g = Math.round(
+        white - (white - dark) * (0.4 + Math.random() * 0.6)
+      );
+      ctx.fillStyle = `rgb(${g},${g},${g})`;
+      ctx.beginPath();
+      ctx.ellipse(
+        x,
+        y,
+        r,
+        r * (0.6 + Math.random() * 0.6),
+        Math.random() * Math.PI,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+    }
+  } else if (p === 'race') {
+    ctx.fillStyle = `rgb(${dark},${dark},${dark})`;
+    const stripeW = Math.max(18, Math.round(70 - tint * 28));
+    const gap = Math.max(10, Math.round(28 - tint * 10));
+    const cx = Math.round(size * 0.55);
+    ctx.fillRect(cx - stripeW - gap, 0, stripeW, size);
+    ctx.fillRect(cx + gap, 0, stripeW, size);
+  } else {
+    // unknown pattern: leave white
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 4;
+  tex.needsUpdate = true;
+  return tex;
 };
 
 const setRootState = (
@@ -420,6 +642,55 @@ const init = () => {
   const paintInp = root.querySelector<HTMLInputElement>('[data-sr-paint]');
   const originalMatsChk = root.querySelector<HTMLInputElement>(
     '[data-sr-original-mats]'
+  );
+
+  // Look: wraps + parts + glass
+  const wrapEnabledChk = root.querySelector<HTMLInputElement>(
+    '[data-sr-wrap-enabled]'
+  );
+  const wrapPatternSel = root.querySelector<HTMLSelectElement>(
+    '[data-sr-wrap-pattern]'
+  );
+  const wrapColorInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-wrap-color]'
+  );
+  const wrapTintInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-wrap-tint]'
+  );
+  const wrapScaleInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-wrap-scale]'
+  );
+  const wrapRotationInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-wrap-rotation]'
+  );
+  const wrapOffsetXInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-wrap-offset-x]'
+  );
+  const wrapOffsetYInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-wrap-offset-y]'
+  );
+
+  const glassModeChk = root.querySelector<HTMLInputElement>(
+    '[data-sr-glass-mode]'
+  );
+  const glassTintInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-glass-tint]'
+  );
+
+  const wheelColorInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-wheel-color]'
+  );
+  const trimColorInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-trim-color]'
+  );
+  const caliperColorInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-caliper-color]'
+  );
+  const lightColorInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-light-color]'
+  );
+  const lightGlowInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-light-glow]'
   );
 
   const bgSel = root.querySelector<HTMLSelectElement>('[data-sr-bg]');
@@ -694,6 +965,16 @@ const init = () => {
 
   const scene = new THREE.Scene();
 
+  // More realistic reflections: procedural room environment (PMREM)
+  try {
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    pmrem.compileEquirectangularShader();
+    const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environment = env;
+  } catch {
+    // ignore
+  }
+
   // Background colors: keep a base (selected) color, optionally brightened during loading.
   const baseBgColor = new THREE.Color('#111827');
   const loadingBgColor = new THREE.Color('#1f2937');
@@ -851,8 +1132,13 @@ const init = () => {
     }
   };
 
-  const setSelectedMesh = (mesh: THREE.Mesh | null) => {
-    if (selectedMesh === mesh) return;
+  const setSelectedMesh = (
+    mesh: THREE.Mesh | null,
+    opts?: {
+      force?: boolean;
+    }
+  ) => {
+    if (!opts?.force && selectedMesh === mesh) return;
 
     // Restore previous highlight
     if (selectionPrev) {
@@ -1070,6 +1356,354 @@ const init = () => {
     modelScaleMul: Number.parseFloat(modelScale?.value || '1') || 1,
     modelYawDeg: Number.parseFloat(modelYaw?.value || '0') || 0,
     modelLift: Number.parseFloat(modelLift?.value || '0') || 0,
+
+    // Look (wrap/glass/parts)
+    wrapEnabled: Boolean(wrapEnabledChk?.checked ?? false),
+    wrapPattern: (wrapPatternSel?.value || 'solid').trim().toLowerCase(),
+    wrapColorHex: parseHexColor(wrapColorInp?.value || '') || '#ffffff',
+    wrapTint: Number.parseFloat(wrapTintInp?.value || '0.8') || 0.8,
+    wrapScale: Number.parseFloat(wrapScaleInp?.value || '1') || 1,
+    wrapRotationDeg: Number.parseFloat(wrapRotationInp?.value || '0') || 0,
+    wrapOffsetX: Number.parseFloat(wrapOffsetXInp?.value || '0') || 0,
+    wrapOffsetY: Number.parseFloat(wrapOffsetYInp?.value || '0') || 0,
+    glassMode: Boolean(glassModeChk?.checked ?? false),
+    glassTint: Number.parseFloat(glassTintInp?.value || '0.35') || 0.35,
+    wheelColorHex: parseHexColor(wheelColorInp?.value || '') || '#111827',
+    trimColorHex: parseHexColor(trimColorInp?.value || '') || '#0b0f14',
+    caliperColorHex: parseHexColor(caliperColorInp?.value || '') || '#ef4444',
+    lightColorHex: parseHexColor(lightColorInp?.value || '') || '#ffffff',
+    lightGlow: Number.parseFloat(lightGlowInp?.value || '1.25') || 1.25,
+  };
+
+  const originalMaterialState = new WeakMap<THREE.Material, MaterialSnapshot>();
+  let wrapTexture: THREE.Texture | null = null;
+
+  const syncRuntimeLookFromUi = () => {
+    runtime.wrapEnabled = Boolean(
+      wrapEnabledChk?.checked ?? runtime.wrapEnabled
+    );
+    runtime.wrapPattern = (
+      wrapPatternSel?.value ||
+      runtime.wrapPattern ||
+      'solid'
+    )
+      .trim()
+      .toLowerCase();
+    runtime.wrapColorHex =
+      parseHexColor(wrapColorInp?.value || '') || runtime.wrapColorHex;
+    runtime.wrapTint =
+      Number.parseFloat(wrapTintInp?.value || `${runtime.wrapTint}`) ||
+      runtime.wrapTint;
+    runtime.wrapScale =
+      Number.parseFloat(wrapScaleInp?.value || `${runtime.wrapScale}`) ||
+      runtime.wrapScale;
+    runtime.wrapRotationDeg =
+      Number.parseFloat(
+        wrapRotationInp?.value || `${runtime.wrapRotationDeg}`
+      ) || runtime.wrapRotationDeg;
+    runtime.wrapOffsetX =
+      Number.parseFloat(wrapOffsetXInp?.value || `${runtime.wrapOffsetX}`) ||
+      runtime.wrapOffsetX;
+    runtime.wrapOffsetY =
+      Number.parseFloat(wrapOffsetYInp?.value || `${runtime.wrapOffsetY}`) ||
+      runtime.wrapOffsetY;
+
+    runtime.glassMode = Boolean(glassModeChk?.checked ?? runtime.glassMode);
+    runtime.glassTint =
+      Number.parseFloat(glassTintInp?.value || `${runtime.glassTint}`) ||
+      runtime.glassTint;
+
+    runtime.wheelColorHex =
+      parseHexColor(wheelColorInp?.value || '') || runtime.wheelColorHex;
+    runtime.trimColorHex =
+      parseHexColor(trimColorInp?.value || '') || runtime.trimColorHex;
+    runtime.caliperColorHex =
+      parseHexColor(caliperColorInp?.value || '') || runtime.caliperColorHex;
+    runtime.lightColorHex =
+      parseHexColor(lightColorInp?.value || '') || runtime.lightColorHex;
+    runtime.lightGlow =
+      Number.parseFloat(lightGlowInp?.value || `${runtime.lightGlow}`) ||
+      runtime.lightGlow;
+  };
+
+  const captureOriginalMaterials = (obj: THREE.Object3D) => {
+    obj.traverse(child => {
+      const mesh = child as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const mats = Array.isArray(mesh.material)
+        ? mesh.material
+        : [mesh.material];
+      for (const mat of mats) {
+        if (!mat) continue;
+        const m = mat as THREE.Material;
+        if (originalMaterialState.has(m)) continue;
+        originalMaterialState.set(m, snapshotMaterial(m));
+      }
+    });
+  };
+
+  const restoreOriginalMaterials = (obj: THREE.Object3D) => {
+    obj.traverse(child => {
+      const mesh = child as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const mats = Array.isArray(mesh.material)
+        ? mesh.material
+        : [mesh.material];
+      for (const mat of mats) {
+        if (!mat) continue;
+        const m = mat as THREE.Material;
+        const snap = originalMaterialState.get(m);
+        if (!snap) continue;
+        restoreMaterial(m, snap);
+      }
+    });
+  };
+
+  const getRepresentativePartColor = (
+    obj: THREE.Object3D,
+    predicate: (flags: ReturnType<typeof classifyMeshByName>) => boolean
+  ) => {
+    let found: number | null = null;
+    obj.traverse(child => {
+      if (found !== null) return;
+      const mesh = child as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const mats = Array.isArray(mesh.material)
+        ? mesh.material
+        : [mesh.material];
+      for (const mat of mats) {
+        if (!mat) continue;
+        const material = mat as THREE.Material;
+        if (
+          !(material instanceof THREE.MeshStandardMaterial) &&
+          !(material instanceof THREE.MeshPhysicalMaterial)
+        ) {
+          continue;
+        }
+        const flags = classifyMeshByName(mesh.name || '', material.name || '');
+        if (!predicate(flags)) continue;
+        found = material.color.getHex();
+        break;
+      }
+    });
+    return found;
+  };
+
+  const maybeAutofillPartColorsFromModel = (obj: THREE.Object3D) => {
+    const isDefault = (el: HTMLInputElement | null | undefined, hex: string) =>
+      Boolean(el && normalizeName(el.value) === normalizeName(hex));
+
+    const wheelDefault = '#111827';
+    const trimDefault = '#0b0f14';
+    const caliperDefault = '#ef4444';
+    const lightDefault = '#ffffff';
+
+    if (wheelColorInp && isDefault(wheelColorInp, wheelDefault)) {
+      const c = getRepresentativePartColor(obj, f => f.isWheel);
+      if (c !== null)
+        wheelColorInp.value = `#${c.toString(16).padStart(6, '0')}`;
+    }
+    if (trimColorInp && isDefault(trimColorInp, trimDefault)) {
+      const c = getRepresentativePartColor(obj, f => f.isTrim);
+      if (c !== null)
+        trimColorInp.value = `#${c.toString(16).padStart(6, '0')}`;
+    }
+    if (caliperColorInp && isDefault(caliperColorInp, caliperDefault)) {
+      const c = getRepresentativePartColor(obj, f => f.isCaliper);
+      if (c !== null)
+        caliperColorInp.value = `#${c.toString(16).padStart(6, '0')}`;
+    }
+    if (lightColorInp && isDefault(lightColorInp, lightDefault)) {
+      const c = getRepresentativePartColor(obj, f => f.isLight);
+      if (c !== null)
+        lightColorInp.value = `#${c.toString(16).padStart(6, '0')}`;
+    }
+  };
+
+  const applyLookToModel = (obj: THREE.Object3D) => {
+    syncRuntimeLookFromUi();
+    captureOriginalMaterials(obj);
+
+    if (wrapTexture) {
+      wrapTexture.dispose?.();
+      wrapTexture = null;
+    }
+
+    // Always rebuild from originals to avoid stacking.
+    restoreOriginalMaterials(obj);
+    if (runtime.originalMats) return;
+
+    // Paint stays as the base look when not preserving originals.
+    applyPaintHeuristic(obj, runtime.paintHex);
+
+    // Wrap
+    if (runtime.wrapEnabled) {
+      const tex = createWrapTexture(runtime.wrapPattern, runtime.wrapTint);
+      wrapTexture = tex;
+
+      const wrapColor = new THREE.Color(runtime.wrapColorHex);
+      const rot = (clamp(runtime.wrapRotationDeg, -180, 180) * Math.PI) / 180;
+      const scale = clamp(runtime.wrapScale, 0.25, 4);
+      const ox = clamp(runtime.wrapOffsetX, -1, 1);
+      const oy = clamp(runtime.wrapOffsetY, -1, 1);
+
+      obj.traverse(child => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const mats = Array.isArray(mesh.material)
+          ? mesh.material
+          : [mesh.material];
+        for (const mat of mats) {
+          if (!mat) continue;
+          const material = mat as THREE.Material;
+          if (
+            !(material instanceof THREE.MeshStandardMaterial) &&
+            !(material instanceof THREE.MeshPhysicalMaterial)
+          ) {
+            continue;
+          }
+
+          const flags = classifyMeshByName(
+            mesh.name || '',
+            material.name || ''
+          );
+          if (
+            flags.isWheel ||
+            flags.isCaliper ||
+            flags.isGlass ||
+            flags.isLight
+          )
+            continue;
+
+          if (tex) {
+            material.map = tex;
+            material.map.repeat.set(scale, scale);
+            material.map.center.set(0.5, 0.5);
+            material.map.rotation = rot;
+            material.map.offset.set(ox, oy);
+          }
+          material.color.copy(wrapColor);
+          material.roughness = clamp01(material.roughness ?? 0.45);
+          material.metalness = clamp01(material.metalness ?? 0.15);
+          material.envMapIntensity = clamp(runtime.envIntensity, 0, 3);
+          material.needsUpdate = true;
+        }
+      });
+    }
+
+    // Glass mode
+    if (runtime.glassMode) {
+      const tint = clamp01(runtime.glassTint);
+      const glassBase = new THREE.Color('#0b1220');
+      const glassColor = new THREE.Color('#ffffff').lerp(glassBase, tint);
+      obj.traverse(child => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const mats = Array.isArray(mesh.material)
+          ? mesh.material
+          : [mesh.material];
+        for (const mat of mats) {
+          if (!mat) continue;
+          const material = mat as THREE.Material;
+          if (
+            !(material instanceof THREE.MeshStandardMaterial) &&
+            !(material instanceof THREE.MeshPhysicalMaterial)
+          ) {
+            continue;
+          }
+
+          const flags = classifyMeshByName(
+            mesh.name || '',
+            material.name || ''
+          );
+          const looksLikeGlass =
+            flags.isGlass ||
+            material.transparent ||
+            (material.opacity ?? 1) < 0.999;
+          if (!looksLikeGlass) continue;
+
+          material.color.copy(glassColor);
+          material.metalness = 0;
+          material.roughness = 0.06 + 0.22 * tint;
+          material.transparent = true;
+          material.opacity = clamp(1 - 0.55 * tint, 0.35, 1);
+          material.envMapIntensity = clamp(runtime.envIntensity * 1.15, 0, 3);
+
+          if (material instanceof THREE.MeshPhysicalMaterial) {
+            material.transmission = clamp(0.95 - 0.55 * tint, 0.15, 0.95);
+            material.ior = 1.45;
+            material.thickness = 0.02;
+            material.clearcoat = 0;
+            material.clearcoatRoughness = 0;
+          }
+
+          material.needsUpdate = true;
+        }
+      });
+    }
+
+    // Part colors (wheels / trim / calipers / lights)
+    const wheelColor = new THREE.Color(runtime.wheelColorHex);
+    const trimColor = new THREE.Color(runtime.trimColorHex);
+    const caliperColor = new THREE.Color(runtime.caliperColorHex);
+    const lightColor = new THREE.Color(runtime.lightColorHex);
+    const glow = clamp(runtime.lightGlow, 0, 6);
+
+    obj.traverse(child => {
+      const mesh = child as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const mats = Array.isArray(mesh.material)
+        ? mesh.material
+        : [mesh.material];
+      for (const mat of mats) {
+        if (!mat) continue;
+        const material = mat as THREE.Material;
+        if (
+          !(material instanceof THREE.MeshStandardMaterial) &&
+          !(material instanceof THREE.MeshPhysicalMaterial)
+        ) {
+          continue;
+        }
+
+        const flags = classifyMeshByName(mesh.name || '', material.name || '');
+        if (flags.isWheel) {
+          material.color.copy(wheelColor);
+          material.needsUpdate = true;
+        } else if (flags.isTrim) {
+          material.color.copy(trimColor);
+          material.needsUpdate = true;
+        } else if (flags.isCaliper) {
+          material.color.copy(caliperColor);
+          material.needsUpdate = true;
+        }
+
+        if (flags.isLight && material.emissive) {
+          material.emissive.copy(lightColor);
+          material.emissiveIntensity = glow;
+          material.needsUpdate = true;
+        }
+
+        material.envMapIntensity = clamp(runtime.envIntensity, 0, 3);
+      }
+    });
+  };
+
+  const applyLook = () => {
+    const obj = loadState.gltf;
+    if (!obj) return;
+
+    // Avoid leaving inspector highlight in a weird state when we restore/reapply.
+    const prev = selectedMesh;
+    if (prev) setSelectedMesh(null, { force: true });
+
+    applyLookToModel(obj);
+    applyWireframe();
+
+    if (prev) {
+      setSelectedMesh(prev, { force: true });
+      if (inspectorMeshSel) inspectorMeshSel.value = prev.uuid;
+    }
+    applyIsolate();
   };
 
   const applyModelTransform = () => {
@@ -1450,7 +2084,8 @@ const init = () => {
       fitCameraToObject(obj);
       applyCameraFromUi();
 
-      if (!runtime.originalMats) applyPaintHeuristic(obj, runtime.paintHex);
+      maybeAutofillPartColorsFromModel(obj);
+      applyLook();
 
       // Apply debug/inspector transforms after load
       grid.visible = Boolean(gridChk?.checked ?? runtime.grid);
@@ -1514,16 +2149,33 @@ const init = () => {
   const syncPaint = () => {
     const parsed = parseHexColor(paintInp?.value || '') || runtime.paintHex;
     runtime.paintHex = parsed;
-    if (loadState.gltf && !runtime.originalMats)
-      applyPaintHeuristic(loadState.gltf, parsed);
+    if (loadState.gltf) applyLook();
   };
   paintInp?.addEventListener('input', syncPaint);
 
   originalMatsChk?.addEventListener('change', () => {
     runtime.originalMats = Boolean(originalMatsChk.checked);
-    if (!runtime.originalMats && loadState.gltf)
-      applyPaintHeuristic(loadState.gltf, runtime.paintHex);
+    if (loadState.gltf) applyLook();
   });
+
+  // Look controls
+  wrapEnabledChk?.addEventListener('change', () => applyLook());
+  wrapPatternSel?.addEventListener('change', () => applyLook());
+  wrapColorInp?.addEventListener('input', () => applyLook());
+  wrapTintInp?.addEventListener('input', () => applyLook());
+  wrapScaleInp?.addEventListener('input', () => applyLook());
+  wrapRotationInp?.addEventListener('input', () => applyLook());
+  wrapOffsetXInp?.addEventListener('input', () => applyLook());
+  wrapOffsetYInp?.addEventListener('input', () => applyLook());
+
+  glassModeChk?.addEventListener('change', () => applyLook());
+  glassTintInp?.addEventListener('input', () => applyLook());
+
+  wheelColorInp?.addEventListener('input', () => applyLook());
+  trimColorInp?.addEventListener('input', () => applyLook());
+  caliperColorInp?.addEventListener('input', () => applyLook());
+  lightColorInp?.addEventListener('input', () => applyLook());
+  lightGlowInp?.addEventListener('input', () => applyLook());
 
   lightPreset?.addEventListener('change', () => {
     runtime.lightPreset = (lightPreset.value || 'studio').trim().toLowerCase();
@@ -1545,6 +2197,7 @@ const init = () => {
   envIntensity?.addEventListener('input', () => {
     runtime.envIntensity = Number.parseFloat(envIntensity.value) || 0;
     applyLighting();
+    if (loadState.gltf) applyLook();
   });
 
   envRotation?.addEventListener('input', () => {
@@ -1770,6 +2423,51 @@ const init = () => {
     const paint = (paintInp?.value || '').trim();
     if (paint) url.searchParams.set('paint', paint.replace('#', ''));
     url.searchParams.set('om', runtime.originalMats ? '1' : '0');
+
+    // Look
+    const we = Boolean(wrapEnabledChk?.checked);
+    const wp = (wrapPatternSel?.value || 'solid').trim().toLowerCase();
+    const wc = (wrapColorInp?.value || '').trim();
+    const wt = Number.parseFloat(wrapTintInp?.value || '0.8') || 0.8;
+    const ws = Number.parseFloat(wrapScaleInp?.value || '1') || 1;
+    const wr = Number.parseFloat(wrapRotationInp?.value || '0') || 0;
+    const wox = Number.parseFloat(wrapOffsetXInp?.value || '0') || 0;
+    const woy = Number.parseFloat(wrapOffsetYInp?.value || '0') || 0;
+
+    if (we) url.searchParams.set('we', '1');
+    if (we && wp && wp !== 'solid') url.searchParams.set('wp', wp);
+    if (we && wc) url.searchParams.set('wc', wc.replace('#', ''));
+    if (we && Math.abs(wt - 0.8) > 0.0001)
+      url.searchParams.set('wt', wt.toFixed(3));
+    if (we && Math.abs(ws - 1) > 0.0001)
+      url.searchParams.set('ws', ws.toFixed(3));
+    if (we && Math.abs(wr) > 0.0001) url.searchParams.set('wr', wr.toFixed(1));
+    if (we && Math.abs(wox) > 0.0001)
+      url.searchParams.set('wox', wox.toFixed(3));
+    if (we && Math.abs(woy) > 0.0001)
+      url.searchParams.set('woy', woy.toFixed(3));
+
+    const gm = Boolean(glassModeChk?.checked);
+    const gt = Number.parseFloat(glassTintInp?.value || '0.35') || 0.35;
+    if (gm) url.searchParams.set('gm', '1');
+    if (gm && Math.abs(gt - 0.35) > 0.0001)
+      url.searchParams.set('gt', gt.toFixed(3));
+
+    const wh = (wheelColorInp?.value || '').trim();
+    const tc = (trimColorInp?.value || '').trim();
+    const cc = (caliperColorInp?.value || '').trim();
+    const lc = (lightColorInp?.value || '').trim();
+    const lg = Number.parseFloat(lightGlowInp?.value || '1.25') || 1.25;
+
+    if (wh && normalizeName(wh) !== normalizeName('#111827'))
+      url.searchParams.set('wh', wh.replace('#', ''));
+    if (tc && normalizeName(tc) !== normalizeName('#0b0f14'))
+      url.searchParams.set('tc', tc.replace('#', ''));
+    if (cc && normalizeName(cc) !== normalizeName('#ef4444'))
+      url.searchParams.set('cc', cc.replace('#', ''));
+    if (lc && normalizeName(lc) !== normalizeName('#ffffff'))
+      url.searchParams.set('lc', lc.replace('#', ''));
+    if (Math.abs(lg - 1.25) > 0.0001) url.searchParams.set('lg', lg.toFixed(3));
     url.searchParams.set('lp', runtime.lightPreset);
     url.searchParams.set('li', String(runtime.lightIntensity));
     url.searchParams.set('lw', String(runtime.lightWarmth));
@@ -1967,6 +2665,23 @@ const init = () => {
     const bt = url.searchParams.get('bt');
     const br = url.searchParams.get('br');
 
+    // Look (wrap/glass/parts)
+    const we = url.searchParams.get('we');
+    const wp = url.searchParams.get('wp');
+    const wc = url.searchParams.get('wc');
+    const wt = url.searchParams.get('wt');
+    const ws = url.searchParams.get('ws');
+    const wr = url.searchParams.get('wr');
+    const wox = url.searchParams.get('wox');
+    const woy = url.searchParams.get('woy');
+    const gm = url.searchParams.get('gm');
+    const gt = url.searchParams.get('gt');
+    const wh = url.searchParams.get('wh');
+    const tc = url.searchParams.get('tc');
+    const cc = url.searchParams.get('cc');
+    const lc = url.searchParams.get('lc');
+    const lg = url.searchParams.get('lg');
+
     if (m) {
       if (modelUrl) modelUrl.value = m;
       if (modelSel) modelSel.value = m;
@@ -1998,6 +2713,29 @@ const init = () => {
     if (bl && bloom) bloom.value = bl;
     if (bt && bloomThreshold) bloomThreshold.value = bt;
     if (br && bloomRadius) bloomRadius.value = br;
+
+    if (we && wrapEnabledChk) wrapEnabledChk.checked = we === '1';
+    if (wp && wrapPatternSel) wrapPatternSel.value = wp;
+    if (wc && wrapColorInp)
+      wrapColorInp.value = wc.startsWith('#') ? wc : `#${wc}`;
+    if (wt && wrapTintInp) wrapTintInp.value = wt;
+    if (ws && wrapScaleInp) wrapScaleInp.value = ws;
+    if (wr && wrapRotationInp) wrapRotationInp.value = wr;
+    if (wox && wrapOffsetXInp) wrapOffsetXInp.value = wox;
+    if (woy && wrapOffsetYInp) wrapOffsetYInp.value = woy;
+
+    if (gm && glassModeChk) glassModeChk.checked = gm === '1';
+    if (gt && glassTintInp) glassTintInp.value = gt;
+
+    if (wh && wheelColorInp)
+      wheelColorInp.value = wh.startsWith('#') ? wh : `#${wh}`;
+    if (tc && trimColorInp)
+      trimColorInp.value = tc.startsWith('#') ? tc : `#${tc}`;
+    if (cc && caliperColorInp)
+      caliperColorInp.value = cc.startsWith('#') ? cc : `#${cc}`;
+    if (lc && lightColorInp)
+      lightColorInp.value = lc.startsWith('#') ? lc : `#${lc}`;
+    if (lg && lightGlowInp) lightGlowInp.value = lg;
   } catch {
     // ignore
   }
@@ -2036,6 +2774,8 @@ const init = () => {
   runtime.modelScaleMul = Number.parseFloat(modelScale?.value || '1') || 1;
   runtime.modelYawDeg = Number.parseFloat(modelYaw?.value || '0') || 0;
   runtime.modelLift = Number.parseFloat(modelLift?.value || '0') || 0;
+
+  syncRuntimeLookFromUi();
 
   grid.visible = runtime.grid;
   axes.visible = runtime.axes;
@@ -2497,6 +3237,27 @@ const init = () => {
         hint: 'A',
         keywords: 'motion turntable',
         run: () => toggleCheckbox(autorotate),
+      },
+      {
+        id: 'look.wrap',
+        group: 'Look',
+        label: `Wrap mode: ${onOff(Boolean(wrapEnabledChk?.checked))}`,
+        keywords: 'wrap vinyl paint pattern',
+        run: () => toggleCheckbox(wrapEnabledChk),
+      },
+      {
+        id: 'look.wrap.pattern',
+        group: 'Look',
+        label: `Wrap pattern: ${(wrapPatternSel?.value || 'solid').trim()}`,
+        keywords: 'stripes carbon camo checker hex race',
+        run: () => bumpSelect(wrapPatternSel, 1),
+      },
+      {
+        id: 'look.glass',
+        group: 'Look',
+        label: `Glass mode: ${onOff(Boolean(glassModeChk?.checked))}`,
+        keywords: 'window tint transmission',
+        run: () => toggleCheckbox(glassModeChk),
       },
       {
         id: 'toggle.grid',
@@ -3365,6 +4126,23 @@ const init = () => {
       bg: (bgSel?.value || '').trim(),
       paint: (paintInp?.value || '').trim(),
       originalMats: Boolean(originalMatsChk?.checked ?? false),
+
+      wrapEnabled: Boolean(wrapEnabledChk?.checked ?? false),
+      wrapPattern: (wrapPatternSel?.value || '').trim(),
+      wrapColor: (wrapColorInp?.value || '').trim(),
+      wrapTint: wrapTintInp?.value,
+      wrapScale: wrapScaleInp?.value,
+      wrapRotation: wrapRotationInp?.value,
+      wrapOffsetX: wrapOffsetXInp?.value,
+      wrapOffsetY: wrapOffsetYInp?.value,
+      glassMode: Boolean(glassModeChk?.checked ?? false),
+      glassTint: glassTintInp?.value,
+      wheelColor: (wheelColorInp?.value || '').trim(),
+      trimColor: (trimColorInp?.value || '').trim(),
+      caliperColor: (caliperColorInp?.value || '').trim(),
+      lightColor: (lightColorInp?.value || '').trim(),
+      lightGlow: lightGlowInp?.value,
+
       lightPreset: (lightPreset?.value || '').trim(),
       lightIntensity: lightIntensity?.value,
       lightWarmth: lightWarmth?.value,
@@ -3443,6 +4221,22 @@ const init = () => {
     setVal(bgSel, state.bg);
     setVal(paintInp, state.paint);
     setChk(originalMatsChk, state.originalMats);
+
+    setChk(wrapEnabledChk, state.wrapEnabled);
+    setVal(wrapPatternSel, state.wrapPattern);
+    setVal(wrapColorInp, state.wrapColor);
+    setVal(wrapTintInp, state.wrapTint);
+    setVal(wrapScaleInp, state.wrapScale);
+    setVal(wrapRotationInp, state.wrapRotation);
+    setVal(wrapOffsetXInp, state.wrapOffsetX);
+    setVal(wrapOffsetYInp, state.wrapOffsetY);
+    setChk(glassModeChk, state.glassMode);
+    setVal(glassTintInp, state.glassTint);
+    setVal(wheelColorInp, state.wheelColor);
+    setVal(trimColorInp, state.trimColor);
+    setVal(caliperColorInp, state.caliperColor);
+    setVal(lightColorInp, state.lightColor);
+    setVal(lightGlowInp, state.lightGlow);
 
     setVal(lightPreset, state.lightPreset);
     setVal(lightIntensity, state.lightIntensity);
@@ -3671,7 +4465,7 @@ const init = () => {
   });
   inspectorHighlight?.addEventListener('change', () => {
     // Re-apply highlight state
-    setSelectedMesh(selectedMesh);
+    setSelectedMesh(selectedMesh, { force: true });
   });
   inspectorIsolate?.addEventListener('change', () => {
     applyIsolate();
