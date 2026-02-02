@@ -1905,6 +1905,7 @@ const init = () => {
 
   type CmdkItem = {
     id: string;
+    group: string;
     label: string;
     hint?: string;
     keywords?: string;
@@ -1914,6 +1915,112 @@ const init = () => {
   let cmdkOpen = false;
   let cmdkIndex = 0;
   let cmdkItems: CmdkItem[] = [];
+
+  const CMDK_RECENTS_KEY = 'sr3-cmdk-recents-v1';
+
+  const readCmdkRecents = (): string[] => {
+    try {
+      const raw = (localStorage.getItem(CMDK_RECENTS_KEY) || '').trim();
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .map(x => String(x || '').trim())
+        .filter(Boolean)
+        .slice(0, 20);
+    } catch {
+      return [];
+    }
+  };
+
+  const writeCmdkRecents = (ids: string[]) => {
+    try {
+      localStorage.setItem(CMDK_RECENTS_KEY, JSON.stringify(ids.slice(0, 20)));
+    } catch {
+      // ignore
+    }
+  };
+
+  const markCmdkRecent = (id: string) => {
+    const next = [
+      id,
+      ...readCmdkRecents()
+        .filter(x => x !== id)
+        .slice(0, 19),
+    ];
+    writeCmdkRecents(next);
+  };
+
+  const scoreSubsequence = (needle: string, hay: string) => {
+    const n = needle.length;
+    if (!n) return 0;
+    let hi = 0;
+    let matched = 0;
+    for (let i = 0; i < n; i++) {
+      const c = needle[i];
+      const found = hay.indexOf(c, hi);
+      if (found < 0) break;
+      matched += 1;
+      hi = found + 1;
+    }
+    return matched / n;
+  };
+
+  const scoreTokenIn = (token: string, hay: string) => {
+    if (!token) return 0;
+    if (!hay) return -Infinity;
+    if (hay === token) return 120;
+    if (hay.startsWith(token)) return 90;
+    if (hay.includes(` ${token}`)) return 75;
+    if (hay.includes(token)) return 55;
+
+    const subseq = scoreSubsequence(token, hay);
+    if (subseq >= 0.8) return 30;
+    if (subseq >= 0.6) return 16;
+    return -Infinity;
+  };
+
+  const getCmdkList = () => {
+    const q = (cmdkInput?.value || '').trim().toLowerCase();
+    const tokens = q ? q.split(/\s+/g).filter(Boolean) : [];
+
+    const recents = readCmdkRecents();
+    const recentRank = new Map<string, number>();
+    for (let i = 0; i < recents.length; i++) recentRank.set(recents[i], i);
+
+    const scored = cmdkItems
+      .map(it => {
+        const hay =
+          `${it.group} ${it.label} ${it.keywords || ''} ${it.hint || ''}`
+            .toLowerCase()
+            .trim();
+
+        let score = 0;
+        if (!tokens.length) {
+          score = 1;
+        } else {
+          for (const t of tokens) {
+            const s = scoreTokenIn(t, hay);
+            if (!Number.isFinite(s)) return null;
+            score += s;
+          }
+        }
+
+        const rr = recentRank.get(it.id);
+        if (rr !== undefined) score += 200 - rr * 4;
+        return { it, score };
+      })
+      .filter(Boolean) as Array<{ it: CmdkItem; score: number }>;
+
+    scored.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if (a.it.group !== b.it.group)
+        return a.it.group.localeCompare(b.it.group);
+      return a.it.label.localeCompare(b.it.label);
+    });
+
+    return scored.slice(0, 60).map(x => x.it);
+  };
 
   const setCmdkOpen = (open: boolean) => {
     cmdkOpen = open;
@@ -1931,16 +2038,7 @@ const init = () => {
 
   const renderCmdk = () => {
     if (!cmdkList) return;
-    const q = (cmdkInput?.value || '').trim().toLowerCase();
-    const tokens = q ? q.split(/\s+/g).filter(Boolean) : [];
-
-    const filtered = cmdkItems.filter(it => {
-      const hay =
-        `${it.label} ${it.keywords || ''} ${it.hint || ''}`.toLowerCase();
-      return tokens.every(t => hay.includes(t));
-    });
-
-    const list = filtered.slice(0, 40);
+    const list = getCmdkList();
     if (cmdkIndex >= list.length) cmdkIndex = Math.max(0, list.length - 1);
 
     cmdkList.innerHTML = '';
@@ -1948,25 +2046,38 @@ const init = () => {
       const empty = document.createElement('div');
       empty.className = 'sr-readout sr-readout--mini';
       empty.style.margin = '10px';
-      empty.textContent = 'No matches.';
+      empty.textContent =
+        "No matches. Try: 'preset', 'grid', 'fps', 'wireframe'.";
       cmdkList.appendChild(empty);
       return;
     }
 
+    let group = '';
     for (let i = 0; i < list.length; i++) {
       const it = list[i];
+      if (it.group !== group) {
+        group = it.group;
+        const head = document.createElement('div');
+        head.className = 'sr__cmdkGroup';
+        head.textContent = group;
+        cmdkList.appendChild(head);
+      }
+
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'sr__cmdkItem';
       btn.setAttribute('aria-selected', i === cmdkIndex ? 'true' : 'false');
+      btn.dataset.srCmdkIndex = String(i);
       btn.textContent = it.label;
       if (it.hint) {
         const hint = document.createElement('small');
         hint.textContent = it.hint;
         btn.appendChild(hint);
       }
+
       btn.addEventListener('click', () => {
         try {
+          markCmdkRecent(it.id);
           it.run();
         } finally {
           setCmdkOpen(false);
@@ -1975,7 +2086,6 @@ const init = () => {
       cmdkList.appendChild(btn);
     }
 
-    // Keep selection visible.
     const selected = cmdkList.querySelector<HTMLElement>(
       '.sr__cmdkItem[aria-selected="true"]'
     );
@@ -2017,9 +2127,65 @@ const init = () => {
       el.dispatchEvent(new Event('change', { bubbles: true }));
     };
 
+    const bumpSelect = (
+      el: HTMLSelectElement | null | undefined,
+      delta: number
+    ) => {
+      if (!el) return;
+      const opts = Array.from(el.options).filter(o =>
+        String(o.value || '').trim()
+      );
+      if (!opts.length) return;
+      const idx = Math.max(
+        0,
+        opts.findIndex(o => o.value === el.value)
+      );
+      const next = opts[(idx + delta + opts.length) % opts.length];
+      setSelect(el, next.value);
+    };
+
+    const toggleInput = (el: HTMLInputElement | null | undefined) => {
+      if (!el) return;
+      el.checked = !el.checked;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+
+    const setRange = (
+      el: HTMLInputElement | null | undefined,
+      v: number,
+      trigger: 'input' | 'change' = 'input'
+    ) => {
+      if (!el) return;
+      el.value = String(v);
+      el.dispatchEvent(new Event(trigger, { bubbles: true }));
+    };
+
+    const readPresetsForCmdk = () => {
+      try {
+        const raw = (localStorage.getItem('sr3-presets-v1') || '').trim();
+        if (!raw) return [] as Array<{ id: string; name: string }>;
+        const parsed = JSON.parse(raw) as unknown;
+        if (!Array.isArray(parsed))
+          return [] as Array<{ id: string; name: string }>;
+        return parsed
+          .filter(Boolean)
+          .map(p => p as { v?: number; id?: string; name?: string })
+          .filter(p => p && p.v === 1 && typeof p.id === 'string')
+          .map(p => ({
+            id: String(p.id || '').trim(),
+            name: String(p.name || 'Preset').trim(),
+          }))
+          .filter(p => p.id)
+          .slice(0, 20);
+      } catch {
+        return [] as Array<{ id: string; name: string }>;
+      }
+    };
+
     cmdkItems = [
       {
         id: 'panel.toggle',
+        group: 'Navigation',
         label: 'Toggle Panel',
         hint: 'P',
         keywords: 'settings sheet',
@@ -2027,48 +2193,56 @@ const init = () => {
       },
       {
         id: 'jump.presets',
+        group: 'Navigation',
         label: 'Jump: Presets',
         keywords: 'preset save load export import',
         run: () => jumpTo('presets'),
       },
       {
         id: 'jump.model',
+        group: 'Navigation',
         label: 'Jump: Model',
         keywords: 'load import url',
         run: () => jumpTo('model'),
       },
       {
         id: 'jump.environment',
+        group: 'Navigation',
         label: 'Jump: Environment',
         keywords: 'background lighting hdr',
         run: () => jumpTo('environment'),
       },
       {
         id: 'jump.inspector',
+        group: 'Navigation',
         label: 'Jump: Inspector',
         keywords: 'mesh pick isolate wireframe',
         run: () => jumpTo('inspector'),
       },
       {
         id: 'jump.camera',
+        group: 'Navigation',
         label: 'Jump: Camera',
         keywords: 'frame reset fov',
         run: () => jumpTo('camera'),
       },
       {
         id: 'jump.performance',
+        group: 'Navigation',
         label: 'Jump: Performance',
         keywords: 'quality fps resolution',
         run: () => jumpTo('performance'),
       },
       {
         id: 'jump.tools',
+        group: 'Navigation',
         label: 'Jump: Tools',
         keywords: 'reground screenshot share',
         run: () => jumpTo('tools'),
       },
       {
         id: 'bg.toggleVoid',
+        group: 'Environment',
         label: `Background: ${bg}`,
         hint: 'B',
         keywords: 'studio day sunset night grid void',
@@ -2079,6 +2253,7 @@ const init = () => {
       },
       {
         id: 'quality.cycle',
+        group: 'Performance',
         label: `Quality: ${q}`,
         hint: 'Q',
         keywords: 'eco balanced ultra',
@@ -2091,6 +2266,7 @@ const init = () => {
       },
       {
         id: 'toggle.autorotate',
+        group: 'Camera',
         label: `Auto-rotate: ${onOff(Boolean(autorotate?.checked))}`,
         hint: 'A',
         keywords: 'motion turntable',
@@ -2098,24 +2274,28 @@ const init = () => {
       },
       {
         id: 'toggle.grid',
+        group: 'Environment',
         label: `Grid: ${onOff(Boolean(gridChk?.checked))}`,
         keywords: 'helper',
         run: () => toggleCheckbox(gridChk),
       },
       {
         id: 'toggle.axes',
+        group: 'Environment',
         label: `Axes: ${onOff(Boolean(axesChk?.checked))}`,
         keywords: 'helper',
         run: () => toggleCheckbox(axesChk),
       },
       {
         id: 'toggle.shadows',
+        group: 'Environment',
         label: `Shadows: ${onOff(Boolean(shadowsChk?.checked))}`,
         keywords: 'shadow catcher',
         run: () => toggleCheckbox(shadowsChk),
       },
       {
         id: 'tool.frame',
+        group: 'Camera',
         label: 'Camera: Frame model',
         hint: 'F',
         keywords: 'fit',
@@ -2123,12 +2303,14 @@ const init = () => {
       },
       {
         id: 'tool.resetCamera',
+        group: 'Camera',
         label: 'Camera: Reset',
         keywords: 'home',
         run: () => camReset?.click(),
       },
       {
         id: 'tool.reground',
+        group: 'Tools',
         label: 'Tool: Re-ground',
         hint: 'R',
         keywords: 'normalize floor',
@@ -2136,6 +2318,7 @@ const init = () => {
       },
       {
         id: 'tool.screenshot',
+        group: 'Tools',
         label: 'Tool: Screenshot',
         hint: 'S',
         keywords: 'png download',
@@ -2143,11 +2326,195 @@ const init = () => {
       },
       {
         id: 'tool.share',
+        group: 'Tools',
         label: 'Tool: Copy link',
         keywords: 'share url',
         run: () => shareBtns[0]?.click(),
       },
+      {
+        id: 'perf.autoQuality',
+        group: 'Performance',
+        label: `Auto-quality: ${onOff(Boolean(autoQuality?.checked))}`,
+        keywords: 'dynamic resolution fps',
+        run: () => toggleInput(autoQuality),
+      },
+      {
+        id: 'perf.targetFps30',
+        group: 'Performance',
+        label: 'Target FPS: 30',
+        keywords: 'auto quality',
+        run: () => setRange(targetFps, 30, 'input'),
+      },
+      {
+        id: 'perf.targetFps45',
+        group: 'Performance',
+        label: 'Target FPS: 45',
+        keywords: 'auto quality',
+        run: () => setRange(targetFps, 45, 'input'),
+      },
+      {
+        id: 'perf.targetFps60',
+        group: 'Performance',
+        label: 'Target FPS: 60',
+        keywords: 'auto quality',
+        run: () => setRange(targetFps, 60, 'input'),
+      },
+      {
+        id: 'insp.pick',
+        group: 'Inspector',
+        label: `Pick mode: ${onOff(Boolean(inspectorPick?.checked))}`,
+        keywords: 'raycast select',
+        run: () => toggleInput(inspectorPick),
+      },
+      {
+        id: 'insp.isolate',
+        group: 'Inspector',
+        label: `Isolate: ${onOff(Boolean(inspectorIsolate?.checked))}`,
+        keywords: 'hide others',
+        run: () => toggleInput(inspectorIsolate),
+      },
+      {
+        id: 'insp.highlight',
+        group: 'Inspector',
+        label: `Highlight: ${onOff(Boolean(inspectorHighlight?.checked))}`,
+        keywords: 'outline hover',
+        run: () => toggleInput(inspectorHighlight),
+      },
+      {
+        id: 'insp.wireframe',
+        group: 'Inspector',
+        label: `Wireframe: ${onOff(Boolean(wireframeChk?.checked))}`,
+        keywords: 'debug',
+        run: () => toggleInput(wireframeChk),
+      },
+      {
+        id: 'insp.clear',
+        group: 'Inspector',
+        label: 'Clear selection',
+        keywords: 'reset highlight',
+        run: () => inspectorClearBtn?.click(),
+      },
+      {
+        id: 'insp.reset',
+        group: 'Inspector',
+        label: 'Reset inspector',
+        keywords: 'show all',
+        run: () => inspectorResetBtn?.click(),
+      },
+      {
+        id: 'anim.play',
+        group: 'Animation',
+        label: `Animation: ${animPlayChk?.checked ? 'Pause' : 'Play'}`,
+        keywords: 'mixer clip',
+        run: () => toggleInput(animPlayChk),
+      },
+      {
+        id: 'anim.restart',
+        group: 'Animation',
+        label: 'Animation: Restart',
+        keywords: 'mixer clip',
+        run: () => animRestartBtn?.click(),
+      },
+      {
+        id: 'anim.nextClip',
+        group: 'Animation',
+        label: 'Animation: Next clip',
+        keywords: 'mixer clip',
+        run: () => bumpSelect(animClipSel, +1),
+      },
     ];
+
+    // Expand select-driven commands
+    if (bgSel) {
+      for (const opt of Array.from(bgSel.options)) {
+        const v = String(opt.value || '').trim();
+        const t = String(opt.textContent || v).trim();
+        if (!v) continue;
+        cmdkItems.push({
+          id: `bg.set.${v}`,
+          group: 'Environment',
+          label: `Background: ${t}`,
+          keywords: `${v} ${t}`,
+          run: () => setSelect(bgSel, v),
+        });
+      }
+    }
+
+    if (qualitySel) {
+      for (const opt of Array.from(qualitySel.options)) {
+        const v = String(opt.value || '').trim();
+        const t = String(opt.textContent || v).trim();
+        if (!v) continue;
+        cmdkItems.push({
+          id: `quality.set.${v}`,
+          group: 'Performance',
+          label: `Quality: ${t}`,
+          keywords: `${v} ${t}`,
+          run: () => setSelect(qualitySel, v),
+        });
+      }
+    }
+
+    if (camPreset) {
+      for (const opt of Array.from(camPreset.options)) {
+        const v = String(opt.value || '').trim();
+        const t = String(opt.textContent || v).trim();
+        if (!v) continue;
+        cmdkItems.push({
+          id: `camera.preset.${v}`,
+          group: 'Camera',
+          label: `Camera preset: ${t}`,
+          keywords: `${v} ${t} view`,
+          run: () => setSelect(camPreset, v),
+        });
+      }
+    }
+
+    if (lightPreset) {
+      for (const opt of Array.from(lightPreset.options)) {
+        const v = String(opt.value || '').trim();
+        const t = String(opt.textContent || v).trim();
+        if (!v) continue;
+        cmdkItems.push({
+          id: `light.preset.${v}`,
+          group: 'Environment',
+          label: `Lighting: ${t}`,
+          keywords: `${v} ${t}`,
+          run: () => setSelect(lightPreset, v),
+        });
+      }
+    }
+
+    const presets = readPresetsForCmdk();
+    for (const p of presets) {
+      cmdkItems.push({
+        id: `preset.load.${p.id}`,
+        group: 'Presets',
+        label: `Preset: ${p.name}`,
+        keywords: `load apply ${p.name}`,
+        run: () => {
+          if (presetSelect) presetSelect.value = p.id;
+          presetLoadBtn?.click();
+        },
+      });
+    }
+
+    cmdkItems.push(
+      {
+        id: 'preset.export',
+        group: 'Presets',
+        label: 'Presets: Export JSON',
+        keywords: 'share export clipboard',
+        run: () => presetExportBtn?.click(),
+      },
+      {
+        id: 'preset.import',
+        group: 'Presets',
+        label: 'Presets: Import JSON',
+        keywords: 'paste import',
+        run: () => presetImportBtn?.click(),
+      }
+    );
   };
 
   const openCmdk = () => {
@@ -2180,31 +2547,28 @@ const init = () => {
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      cmdkIndex += 1;
+      const list = getCmdkList();
+      if (!list.length) return;
+      cmdkIndex = (cmdkIndex + 1) % list.length;
       renderCmdk();
       return;
     }
     if (e.key === 'ArrowUp') {
       e.preventDefault();
-      cmdkIndex = Math.max(0, cmdkIndex - 1);
+      const list = getCmdkList();
+      if (!list.length) return;
+      cmdkIndex = (cmdkIndex - 1 + list.length) % list.length;
       renderCmdk();
       return;
     }
     if (e.key === 'Enter') {
       e.preventDefault();
 
-      // Recompute filtered list in the same way render does.
-      const q = (cmdkInput?.value || '').trim().toLowerCase();
-      const tokens = q ? q.split(/\s+/g).filter(Boolean) : [];
-      const filtered = cmdkItems.filter(it => {
-        const hay =
-          `${it.label} ${it.keywords || ''} ${it.hint || ''}`.toLowerCase();
-        return tokens.every(t => hay.includes(t));
-      });
-      const list = filtered.slice(0, 40);
+      const list = getCmdkList();
       const it = list[cmdkIndex] || list[0];
       if (!it) return;
       try {
+        markCmdkRecent(it.id);
         it.run();
       } finally {
         closeCmdk();
