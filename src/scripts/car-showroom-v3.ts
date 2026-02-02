@@ -505,10 +505,55 @@ const init = () => {
     '[data-sr-bloom-radius]'
   );
 
-  const screenshotBtn = root.querySelector<HTMLButtonElement>(
-    '[data-sr-screenshot]'
+  const screenshotBtns = Array.from(
+    root.querySelectorAll<HTMLButtonElement>('[data-sr-screenshot]')
   );
-  const shareBtn = root.querySelector<HTMLButtonElement>('[data-sr-share]');
+  const shareBtns = Array.from(
+    root.querySelectorAll<HTMLButtonElement>('[data-sr-share]')
+  );
+
+  const screenshotCopyBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-screenshot-copy]'
+  );
+  const regroundBtn =
+    root.querySelector<HTMLButtonElement>('[data-sr-reground]');
+
+  const panelBody = root.querySelector<HTMLElement>('[data-sr-panel-body]');
+  const jumpBtns = Array.from(
+    root.querySelectorAll<HTMLButtonElement>('[data-sr-jump]')
+  );
+  const sections = Array.from(
+    root.querySelectorAll<HTMLElement>('[data-sr-section]')
+  );
+  const sectionToggleBtns = Array.from(
+    root.querySelectorAll<HTMLButtonElement>('[data-sr-section-toggle]')
+  );
+
+  // Presets
+  const presetNameInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-preset-name]'
+  );
+  const presetSelect = root.querySelector<HTMLSelectElement>(
+    '[data-sr-preset-select]'
+  );
+  const presetIo = root.querySelector<HTMLTextAreaElement>(
+    '[data-sr-preset-io]'
+  );
+  const presetSaveBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-preset-save]'
+  );
+  const presetLoadBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-preset-load]'
+  );
+  const presetDeleteBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-preset-delete]'
+  );
+  const presetExportBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-preset-export]'
+  );
+  const presetImportBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-preset-import]'
+  );
 
   // Inspector
   const statMeshes = root.querySelector<HTMLElement>('[data-sr-stat-meshes]');
@@ -567,7 +612,7 @@ const init = () => {
   };
 
   // Panel system (new)
-  initPanel(root);
+  const panelApi = initPanel(root);
 
   // Renderer
   let renderer: THREE.WebGLRenderer;
@@ -1534,7 +1579,7 @@ const init = () => {
     void loadModel(url, { objectUrlToRevoke: url });
   });
 
-  screenshotBtn?.addEventListener('click', () => {
+  const downloadScreenshot = () => {
     hapticTap(15);
     try {
       const a = document.createElement('a');
@@ -1544,9 +1589,47 @@ const init = () => {
     } catch (e) {
       console.warn('[ShowroomV3] Screenshot failed:', e);
     }
+  };
+  for (const btn of screenshotBtns)
+    btn.addEventListener('click', downloadScreenshot);
+
+  const copyScreenshotToClipboard = async () => {
+    hapticTap(15);
+    try {
+      const canvasEl = renderer.domElement;
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvasEl.toBlob(b => {
+          if (b) resolve(b);
+          else reject(new Error('toBlob() returned null'));
+        }, 'image/png');
+      });
+
+      // ClipboardItem may be unavailable in some browsers.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ClipboardItemCtor = (window as any).ClipboardItem as
+        | (new (items: Record<string, Blob>) => ClipboardItem)
+        | undefined;
+
+      if (!ClipboardItemCtor || !navigator.clipboard?.write) {
+        throw new Error('Clipboard image write not supported');
+      }
+
+      await navigator.clipboard.write([
+        new ClipboardItemCtor({ 'image/png': blob }),
+      ]);
+
+      setStatus(false, 'Screenshot copied.');
+      window.setTimeout(() => setStatus(false, ''), 1200);
+    } catch {
+      setStatus(false, 'Copy failed.');
+      window.setTimeout(() => setStatus(false, ''), 1200);
+    }
+  };
+  screenshotCopyBtn?.addEventListener('click', () => {
+    void copyScreenshotToClipboard();
   });
 
-  shareBtn?.addEventListener('click', async () => {
+  const copyShareLink = async () => {
     hapticTap(15);
     const url = new URL(window.location.href);
     const v = (modelUrl?.value || modelSel?.value || '').trim();
@@ -1574,6 +1657,25 @@ const init = () => {
       window.setTimeout(() => setStatus(false, ''), 1200);
     } catch {
       setStatus(false, 'Copy failed.');
+      window.setTimeout(() => setStatus(false, ''), 1200);
+    }
+  };
+  for (const btn of shareBtns)
+    btn.addEventListener('click', () => {
+      void copyShareLink();
+    });
+
+  regroundBtn?.addEventListener('click', () => {
+    if (!loadState.gltf) return;
+    hapticTap(15);
+    try {
+      normalizeModelPlacement(loadState.gltf);
+      modelBaseY = loadState.gltf.position.y;
+      fitCameraToObject(loadState.gltf);
+      setStatus(false, 'Re-grounded.');
+      window.setTimeout(() => setStatus(false, ''), 1200);
+    } catch {
+      setStatus(false, 'Re-ground failed.');
       window.setTimeout(() => setStatus(false, ''), 1200);
     }
   });
@@ -1752,6 +1854,936 @@ const init = () => {
   ).trim();
   if (modelUrl && !modelUrl.value) modelUrl.value = initial;
   void loadModel(initial);
+
+  // Collapsible sections + jump navigation
+  const SECTION_COLLAPSE_KEY = 'sr3-section-collapse-v1';
+
+  // Quick Controls (mobile overlay)
+  const quick = root.querySelector<HTMLElement>('[data-sr-quick]');
+  const quickToggle = root.querySelector<HTMLButtonElement>(
+    '[data-sr-quick-toggle]'
+  );
+  const quickMenu = root.querySelector<HTMLElement>('[data-sr-quick-menu]');
+  const quickPanelBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-quick-panel]'
+  );
+  const quickJumpBtns = Array.from(
+    root.querySelectorAll<HTMLButtonElement>('[data-sr-quick-jump]')
+  );
+  const quickBgSel =
+    root.querySelector<HTMLSelectElement>('[data-sr-quick-bg]');
+  const quickQualitySel = root.querySelector<HTMLSelectElement>(
+    '[data-sr-quick-quality]'
+  );
+  const quickAutorotate = root.querySelector<HTMLInputElement>(
+    '[data-sr-quick-autorotate]'
+  );
+
+  // Command palette (Search)
+  const cmdk = root.querySelector<HTMLElement>('[data-sr-cmdk]');
+  const cmdkBackdrop = root.querySelector<HTMLElement>(
+    '[data-sr-cmdk-backdrop]'
+  );
+  const cmdkInput = root.querySelector<HTMLInputElement>(
+    '[data-sr-cmdk-input]'
+  );
+  const cmdkList = root.querySelector<HTMLElement>('[data-sr-cmdk-list]');
+  const cmdkCloseBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-cmdk-close]'
+  );
+  const cmdkOpenBtns = Array.from(
+    root.querySelectorAll<HTMLButtonElement>('[data-sr-cmdk-open]')
+  );
+
+  const isTypingContext = () => {
+    const ae = document.activeElement as HTMLElement | null;
+    if (!ae) return false;
+    const tag = (ae.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+    return Boolean(ae.isContentEditable);
+  };
+
+  type CmdkItem = {
+    id: string;
+    label: string;
+    hint?: string;
+    keywords?: string;
+    run: () => void;
+  };
+
+  let cmdkOpen = false;
+  let cmdkIndex = 0;
+  let cmdkItems: CmdkItem[] = [];
+
+  const setCmdkOpen = (open: boolean) => {
+    cmdkOpen = open;
+    if (!cmdk) return;
+    cmdk.hidden = !open;
+    if (open) {
+      cmdkIndex = 0;
+      if (cmdkInput) {
+        cmdkInput.value = '';
+        cmdkInput.focus();
+      }
+      renderCmdk();
+    }
+  };
+
+  const renderCmdk = () => {
+    if (!cmdkList) return;
+    const q = (cmdkInput?.value || '').trim().toLowerCase();
+    const tokens = q ? q.split(/\s+/g).filter(Boolean) : [];
+
+    const filtered = cmdkItems.filter(it => {
+      const hay =
+        `${it.label} ${it.keywords || ''} ${it.hint || ''}`.toLowerCase();
+      return tokens.every(t => hay.includes(t));
+    });
+
+    const list = filtered.slice(0, 40);
+    if (cmdkIndex >= list.length) cmdkIndex = Math.max(0, list.length - 1);
+
+    cmdkList.innerHTML = '';
+    if (!list.length) {
+      const empty = document.createElement('div');
+      empty.className = 'sr-readout sr-readout--mini';
+      empty.style.margin = '10px';
+      empty.textContent = 'No matches.';
+      cmdkList.appendChild(empty);
+      return;
+    }
+
+    for (let i = 0; i < list.length; i++) {
+      const it = list[i];
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sr__cmdkItem';
+      btn.setAttribute('aria-selected', i === cmdkIndex ? 'true' : 'false');
+      btn.textContent = it.label;
+      if (it.hint) {
+        const hint = document.createElement('small');
+        hint.textContent = it.hint;
+        btn.appendChild(hint);
+      }
+      btn.addEventListener('click', () => {
+        try {
+          it.run();
+        } finally {
+          setCmdkOpen(false);
+        }
+      });
+      cmdkList.appendChild(btn);
+    }
+
+    // Keep selection visible.
+    const selected = cmdkList.querySelector<HTMLElement>(
+      '.sr__cmdkItem[aria-selected="true"]'
+    );
+    selected?.scrollIntoView({ block: 'nearest' });
+  };
+
+  const jumpTo = (key: string) => {
+    panelApi.setSnap(isMobile() ? 'half' : 'peek', true);
+    const section = root.querySelector<HTMLElement>(
+      `[data-sr-section="${CSS.escape(key)}"]`
+    );
+    if (!section) return;
+    setSectionCollapsed(section, false, true);
+    scrollPanelToSection(section);
+  };
+
+  const buildCmdkItems = () => {
+    const onOff = (v: boolean) => (v ? 'On' : 'Off');
+    const bg = (bgSel?.value || runtime.background || 'studio').trim();
+    const q = (qualitySel?.value || runtime.quality || 'balanced').trim();
+
+    const togglePanel = () => {
+      const s = panelApi.getSnap();
+      panelApi.setSnap(
+        s === 'collapsed' ? (isMobile() ? 'half' : 'peek') : 'collapsed',
+        true
+      );
+    };
+
+    const toggleCheckbox = (el: HTMLInputElement | null | undefined) => {
+      if (!el) return;
+      el.checked = !el.checked;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+
+    const setSelect = (el: HTMLSelectElement | null | undefined, v: string) => {
+      if (!el) return;
+      el.value = v;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+
+    cmdkItems = [
+      {
+        id: 'panel.toggle',
+        label: 'Toggle Panel',
+        hint: 'P',
+        keywords: 'settings sheet',
+        run: togglePanel,
+      },
+      {
+        id: 'jump.presets',
+        label: 'Jump: Presets',
+        keywords: 'preset save load export import',
+        run: () => jumpTo('presets'),
+      },
+      {
+        id: 'jump.model',
+        label: 'Jump: Model',
+        keywords: 'load import url',
+        run: () => jumpTo('model'),
+      },
+      {
+        id: 'jump.environment',
+        label: 'Jump: Environment',
+        keywords: 'background lighting hdr',
+        run: () => jumpTo('environment'),
+      },
+      {
+        id: 'jump.inspector',
+        label: 'Jump: Inspector',
+        keywords: 'mesh pick isolate wireframe',
+        run: () => jumpTo('inspector'),
+      },
+      {
+        id: 'jump.camera',
+        label: 'Jump: Camera',
+        keywords: 'frame reset fov',
+        run: () => jumpTo('camera'),
+      },
+      {
+        id: 'jump.performance',
+        label: 'Jump: Performance',
+        keywords: 'quality fps resolution',
+        run: () => jumpTo('performance'),
+      },
+      {
+        id: 'jump.tools',
+        label: 'Jump: Tools',
+        keywords: 'reground screenshot share',
+        run: () => jumpTo('tools'),
+      },
+      {
+        id: 'bg.toggleVoid',
+        label: `Background: ${bg}`,
+        hint: 'B',
+        keywords: 'studio day sunset night grid void',
+        run: () => {
+          const next = bg === 'void' ? 'studio' : 'void';
+          setSelect(bgSel, next);
+        },
+      },
+      {
+        id: 'quality.cycle',
+        label: `Quality: ${q}`,
+        hint: 'Q',
+        keywords: 'eco balanced ultra',
+        run: () => {
+          const order = ['eco', 'balanced', 'ultra'];
+          const idx = Math.max(0, order.indexOf(q));
+          const next = order[(idx + 1) % order.length];
+          setSelect(qualitySel, next);
+        },
+      },
+      {
+        id: 'toggle.autorotate',
+        label: `Auto-rotate: ${onOff(Boolean(autorotate?.checked))}`,
+        hint: 'A',
+        keywords: 'motion turntable',
+        run: () => toggleCheckbox(autorotate),
+      },
+      {
+        id: 'toggle.grid',
+        label: `Grid: ${onOff(Boolean(gridChk?.checked))}`,
+        keywords: 'helper',
+        run: () => toggleCheckbox(gridChk),
+      },
+      {
+        id: 'toggle.axes',
+        label: `Axes: ${onOff(Boolean(axesChk?.checked))}`,
+        keywords: 'helper',
+        run: () => toggleCheckbox(axesChk),
+      },
+      {
+        id: 'toggle.shadows',
+        label: `Shadows: ${onOff(Boolean(shadowsChk?.checked))}`,
+        keywords: 'shadow catcher',
+        run: () => toggleCheckbox(shadowsChk),
+      },
+      {
+        id: 'tool.frame',
+        label: 'Camera: Frame model',
+        hint: 'F',
+        keywords: 'fit',
+        run: () => camFrame?.click(),
+      },
+      {
+        id: 'tool.resetCamera',
+        label: 'Camera: Reset',
+        keywords: 'home',
+        run: () => camReset?.click(),
+      },
+      {
+        id: 'tool.reground',
+        label: 'Tool: Re-ground',
+        hint: 'R',
+        keywords: 'normalize floor',
+        run: () => regroundBtn?.click(),
+      },
+      {
+        id: 'tool.screenshot',
+        label: 'Tool: Screenshot',
+        hint: 'S',
+        keywords: 'png download',
+        run: () => screenshotBtns[0]?.click(),
+      },
+      {
+        id: 'tool.share',
+        label: 'Tool: Copy link',
+        keywords: 'share url',
+        run: () => shareBtns[0]?.click(),
+      },
+    ];
+  };
+
+  const openCmdk = () => {
+    buildCmdkItems();
+    setCmdkOpen(true);
+  };
+
+  for (const btn of cmdkOpenBtns) {
+    btn.addEventListener('click', () => {
+      openCmdk();
+      setQuickOpen(false);
+    });
+  }
+
+  const closeCmdk = () => setCmdkOpen(false);
+  cmdkCloseBtn?.addEventListener('click', closeCmdk);
+  cmdkBackdrop?.addEventListener('click', closeCmdk);
+
+  cmdkInput?.addEventListener('input', () => {
+    cmdkIndex = 0;
+    renderCmdk();
+  });
+
+  cmdkInput?.addEventListener('keydown', e => {
+    if (!cmdkOpen) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeCmdk();
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      cmdkIndex += 1;
+      renderCmdk();
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      cmdkIndex = Math.max(0, cmdkIndex - 1);
+      renderCmdk();
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+
+      // Recompute filtered list in the same way render does.
+      const q = (cmdkInput?.value || '').trim().toLowerCase();
+      const tokens = q ? q.split(/\s+/g).filter(Boolean) : [];
+      const filtered = cmdkItems.filter(it => {
+        const hay =
+          `${it.label} ${it.keywords || ''} ${it.hint || ''}`.toLowerCase();
+        return tokens.every(t => hay.includes(t));
+      });
+      const list = filtered.slice(0, 40);
+      const it = list[cmdkIndex] || list[0];
+      if (!it) return;
+      try {
+        it.run();
+      } finally {
+        closeCmdk();
+      }
+    }
+  });
+
+  // Global shortcuts
+  window.addEventListener('keydown', e => {
+    if (e.defaultPrevented) return;
+    if (isTypingContext()) return;
+
+    const key = (e.key || '').toLowerCase();
+    const ctrlk = (e.ctrlKey || e.metaKey) && key === 'k';
+
+    if (ctrlk || key === '/') {
+      e.preventDefault();
+      openCmdk();
+      return;
+    }
+    if (cmdkOpen && key === 'escape') {
+      e.preventDefault();
+      closeCmdk();
+      return;
+    }
+
+    if (key === 'p') {
+      e.preventDefault();
+      const s = panelApi.getSnap();
+      panelApi.setSnap(
+        s === 'collapsed' ? (isMobile() ? 'half' : 'peek') : 'collapsed',
+        true
+      );
+      return;
+    }
+
+    if (key === 'f') {
+      e.preventDefault();
+      camFrame?.click();
+      return;
+    }
+    if (key === 'r') {
+      e.preventDefault();
+      regroundBtn?.click();
+      return;
+    }
+    if (key === 's') {
+      e.preventDefault();
+      screenshotBtns[0]?.click();
+      return;
+    }
+  });
+
+  const setQuickOpen = (open: boolean) => {
+    if (!quickMenu || !quickToggle) return;
+    quickMenu.hidden = !open;
+    quickToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+
+  const syncQuickFromUi = () => {
+    if (quickBgSel && bgSel)
+      quickBgSel.value = (bgSel.value || 'studio').trim();
+    if (quickQualitySel && qualitySel)
+      quickQualitySel.value = (qualitySel.value || 'balanced').trim();
+    if (quickAutorotate && autorotate)
+      quickAutorotate.checked = Boolean(autorotate.checked);
+  };
+
+  quickToggle?.addEventListener('click', () => {
+    const next = Boolean(quickMenu?.hidden ?? true);
+    if (next) syncQuickFromUi();
+    setQuickOpen(next);
+  });
+
+  // Click outside closes the quick menu.
+  window.addEventListener('pointerdown', e => {
+    if (!quick || !quickMenu || quickMenu.hidden) return;
+    const t = e.target as Node | null;
+    if (!t) return;
+    if (quick.contains(t)) return;
+    setQuickOpen(false);
+  });
+
+  quickPanelBtn?.addEventListener('click', () => {
+    const s = panelApi.getSnap();
+    panelApi.setSnap(
+      s === 'collapsed' ? (isMobile() ? 'half' : 'peek') : 'collapsed',
+      true
+    );
+    setQuickOpen(false);
+  });
+
+  quickBgSel?.addEventListener('change', () => {
+    if (!bgSel) return;
+    bgSel.value = quickBgSel.value;
+    bgSel.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+
+  quickQualitySel?.addEventListener('change', () => {
+    if (!qualitySel) return;
+    qualitySel.value = quickQualitySel.value;
+    qualitySel.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+
+  quickAutorotate?.addEventListener('change', () => {
+    if (!autorotate) return;
+    autorotate.checked = Boolean(quickAutorotate.checked);
+    autorotate.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+
+  const setSectionCollapsed = (
+    section: HTMLElement,
+    collapsed: boolean,
+    persist: boolean
+  ) => {
+    section.dataset.srCollapsed = collapsed ? '1' : '0';
+
+    const toggleBtn = section.querySelector<HTMLButtonElement>(
+      '[data-sr-section-toggle]'
+    );
+    if (toggleBtn) {
+      toggleBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      toggleBtn.textContent = collapsed ? 'Show' : 'Hide';
+    }
+
+    if (!persist) return;
+    try {
+      const collapsedKeys = sections
+        .filter(s => s.dataset.srCollapsed === '1')
+        .map(s => String(s.dataset.srSection || '').trim())
+        .filter(Boolean);
+      localStorage.setItem(SECTION_COLLAPSE_KEY, JSON.stringify(collapsedKeys));
+    } catch {
+      // ignore
+    }
+  };
+
+  const initSectionCollapse = () => {
+    let saved: string[] | null = null;
+    try {
+      const raw = (localStorage.getItem(SECTION_COLLAPSE_KEY) || '').trim();
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed)) saved = parsed.map(String);
+      }
+    } catch {
+      // ignore
+    }
+
+    const defaultCollapsed = new Set<string>();
+    if (isMobile()) {
+      for (const k of [
+        'look',
+        'environment',
+        'scene',
+        'inspector',
+        'animation',
+        'floor',
+        'motion',
+        'post',
+        'tools',
+      ]) {
+        defaultCollapsed.add(k);
+      }
+    }
+
+    const savedSet = new Set((saved || []).map(s => s.trim()).filter(Boolean));
+    const useSaved = Boolean(saved && saved.length);
+
+    for (const section of sections) {
+      const key = String(section.dataset.srSection || '').trim();
+      const collapsed = useSaved
+        ? savedSet.has(key)
+        : defaultCollapsed.has(key);
+      setSectionCollapsed(section, collapsed, false);
+    }
+  };
+
+  for (const btn of sectionToggleBtns) {
+    btn.addEventListener('click', () => {
+      const section = btn.closest<HTMLElement>('[data-sr-section]');
+      if (!section) return;
+      const next = section.dataset.srCollapsed !== '1';
+      setSectionCollapsed(section, next, true);
+    });
+  }
+
+  const scrollPanelToSection = (section: HTMLElement) => {
+    const body = panelBody;
+    if (!body) {
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+
+    const bodyRect = body.getBoundingClientRect();
+    const sectionRect = section.getBoundingClientRect();
+    const y = sectionRect.top - bodyRect.top + body.scrollTop - 10;
+    body.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+  };
+
+  for (const btn of jumpBtns) {
+    btn.addEventListener('click', () => {
+      const key = String(btn.dataset.srJump || '').trim();
+      if (!key) return;
+
+      // Ensure panel is open enough to see the content.
+      panelApi.setSnap(isMobile() ? 'half' : 'peek', true);
+
+      const section = root.querySelector<HTMLElement>(
+        `[data-sr-section="${CSS.escape(key)}"]`
+      );
+      if (!section) return;
+
+      setSectionCollapsed(section, false, true);
+      scrollPanelToSection(section);
+    });
+  }
+
+  for (const btn of quickJumpBtns) {
+    btn.addEventListener('click', () => {
+      const key = String(btn.dataset.srQuickJump || '').trim();
+      if (!key) return;
+      panelApi.setSnap(isMobile() ? 'half' : 'peek', true);
+      const section = root.querySelector<HTMLElement>(
+        `[data-sr-section="${CSS.escape(key)}"]`
+      );
+      if (!section) return;
+      setSectionCollapsed(section, false, true);
+      scrollPanelToSection(section);
+      setQuickOpen(false);
+    });
+  }
+
+  initSectionCollapse();
+
+  // Presets (save/load/shareable JSON)
+  type PresetV1 = {
+    v: 1;
+    id: string;
+    name: string;
+    savedAt: number;
+    state: Record<string, unknown>;
+  };
+
+  const PRESET_KEY = 'sr3-presets-v1';
+
+  const readPresets = (): PresetV1[] => {
+    try {
+      const raw = (localStorage.getItem(PRESET_KEY) || '').trim();
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .filter(Boolean)
+        .map(p => p as PresetV1)
+        .filter(p => p && p.v === 1 && typeof p.id === 'string');
+    } catch {
+      return [];
+    }
+  };
+
+  const writePresets = (list: PresetV1[]) => {
+    try {
+      localStorage.setItem(PRESET_KEY, JSON.stringify(list.slice(0, 50)));
+    } catch {
+      // ignore
+    }
+  };
+
+  const refreshPresetSelect = (selectedId?: string) => {
+    if (!presetSelect) return;
+    const list = readPresets();
+    presetSelect.innerHTML = '';
+
+    const empty = document.createElement('option');
+    empty.value = '';
+    empty.textContent = list.length ? 'Select a preset…' : 'No presets yet';
+    presetSelect.appendChild(empty);
+
+    for (const p of list) {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name;
+      presetSelect.appendChild(opt);
+    }
+
+    if (selectedId) presetSelect.value = selectedId;
+  };
+
+  const capturePresetState = (): Record<string, unknown> => {
+    return {
+      model: (modelUrl?.value || modelSel?.value || '').trim(),
+      bg: (bgSel?.value || '').trim(),
+      paint: (paintInp?.value || '').trim(),
+      originalMats: Boolean(originalMatsChk?.checked ?? false),
+      lightPreset: (lightPreset?.value || '').trim(),
+      lightIntensity: lightIntensity?.value,
+      lightWarmth: lightWarmth?.value,
+      lightRim: lightRim?.value,
+      envIntensity: envIntensity?.value,
+      envRotation: envRotation?.value,
+      grid: Boolean(gridChk?.checked ?? false),
+      axes: Boolean(axesChk?.checked ?? false),
+      haptics: Boolean(hapticsChk?.checked ?? true),
+      floorColor: (floorColor?.value || '').trim(),
+      floorOpacity: floorOpacity?.value,
+      floorRoughness: floorRoughness?.value,
+      floorMetalness: floorMetalness?.value,
+      shadows: Boolean(shadowsChk?.checked ?? true),
+      shadowStrength: shadowStrength?.value,
+      shadowSize: shadowSize?.value,
+      shadowHQ: Boolean(shadowHQ?.checked ?? false),
+      cameraPreset: (camPreset?.value || '').trim(),
+      cameraMode: (camMode?.value || '').trim(),
+      cameraYaw: camYaw?.value,
+      cameraPitch: camPitch?.value,
+      cameraDistance: camDist?.value,
+      cameraFov: camFov?.value,
+      autorotate: Boolean(autorotate?.checked ?? false),
+      motionStyle: (motionStyle?.value || '').trim(),
+      motionSpeed: motionSpeed?.value,
+      zoom: zoom?.value,
+      quality: (qualitySel?.value || '').trim(),
+      autoQuality: Boolean(autoQuality?.checked ?? true),
+      targetFps: targetFps?.value,
+      exposure: exposure?.value,
+      bloom: bloom?.value,
+      bloomThreshold: bloomThreshold?.value,
+      bloomRadius: bloomRadius?.value,
+      wireframe: Boolean(wireframeChk?.checked ?? false),
+      inspectorPick: Boolean(inspectorPick?.checked ?? true),
+      inspectorIsolate: Boolean(inspectorIsolate?.checked ?? false),
+      inspectorHighlight: Boolean(inspectorHighlight?.checked ?? true),
+    };
+  };
+
+  const applyPresetState = async (state: Record<string, unknown>) => {
+    const setVal = (
+      el:
+        | HTMLInputElement
+        | HTMLSelectElement
+        | HTMLTextAreaElement
+        | null
+        | undefined,
+      v: unknown
+    ) => {
+      if (!el) return;
+      el.value = v === undefined || v === null ? '' : String(v);
+    };
+    const setChk = (el: HTMLInputElement | null | undefined, v: unknown) => {
+      if (!el) return;
+      el.checked = Boolean(v);
+    };
+
+    const nextModel = String(state.model || '').trim();
+    if (nextModel) {
+      if (modelUrl) modelUrl.value = nextModel;
+      if (modelSel) modelSel.value = nextModel;
+      await loadModel(nextModel);
+    }
+
+    setVal(bgSel, state.bg);
+    setVal(paintInp, state.paint);
+    setChk(originalMatsChk, state.originalMats);
+
+    setVal(lightPreset, state.lightPreset);
+    setVal(lightIntensity, state.lightIntensity);
+    setVal(lightWarmth, state.lightWarmth);
+    setVal(lightRim, state.lightRim);
+    setVal(envIntensity, state.envIntensity);
+    setVal(envRotation, state.envRotation);
+
+    setChk(gridChk, state.grid);
+    setChk(axesChk, state.axes);
+    setChk(hapticsChk, state.haptics);
+
+    setVal(floorColor, state.floorColor);
+    setVal(floorOpacity, state.floorOpacity);
+    setVal(floorRoughness, state.floorRoughness);
+    setVal(floorMetalness, state.floorMetalness);
+
+    setChk(shadowsChk, state.shadows);
+    setVal(shadowStrength, state.shadowStrength);
+    setVal(shadowSize, state.shadowSize);
+    setChk(shadowHQ, state.shadowHQ);
+
+    setVal(camPreset, state.cameraPreset);
+    setVal(camMode, state.cameraMode);
+    setVal(camYaw, state.cameraYaw);
+    setVal(camPitch, state.cameraPitch);
+    setVal(camDist, state.cameraDistance);
+    setVal(camFov, state.cameraFov);
+
+    setChk(autorotate, state.autorotate);
+    setVal(motionStyle, state.motionStyle);
+    setVal(motionSpeed, state.motionSpeed);
+    setVal(zoom, state.zoom);
+
+    setVal(qualitySel, state.quality);
+    setChk(autoQuality, state.autoQuality);
+    setVal(targetFps, state.targetFps);
+
+    setVal(exposure, state.exposure);
+    setVal(bloom, state.bloom);
+    setVal(bloomThreshold, state.bloomThreshold);
+    setVal(bloomRadius, state.bloomRadius);
+
+    setChk(wireframeChk, state.wireframe);
+    setChk(inspectorPick, state.inspectorPick);
+    setChk(inspectorIsolate, state.inspectorIsolate);
+    setChk(inspectorHighlight, state.inspectorHighlight);
+
+    // Apply everything
+    setBackground(bgSel?.value || runtime.background);
+    runtime.paintHex = parseHexColor(paintInp?.value || '') || runtime.paintHex;
+    runtime.originalMats = Boolean(
+      originalMatsChk?.checked ?? runtime.originalMats
+    );
+    syncPaint();
+    applyLighting();
+
+    runtime.grid = Boolean(gridChk?.checked ?? runtime.grid);
+    runtime.axes = Boolean(axesChk?.checked ?? runtime.axes);
+    runtime.haptics = Boolean(hapticsChk?.checked ?? runtime.haptics);
+    grid.visible = runtime.grid;
+    axes.visible = runtime.axes;
+
+    runtime.floorHex =
+      parseHexColor(floorColor?.value || '') || runtime.floorHex;
+    runtime.floorOpacity =
+      Number.parseFloat(floorOpacity?.value || `${runtime.floorOpacity}`) ||
+      runtime.floorOpacity;
+    runtime.floorRoughness =
+      Number.parseFloat(floorRoughness?.value || `${runtime.floorRoughness}`) ||
+      runtime.floorRoughness;
+    runtime.floorMetalness =
+      Number.parseFloat(floorMetalness?.value || `${runtime.floorMetalness}`) ||
+      runtime.floorMetalness;
+    applyFloor();
+
+    runtime.shadows = Boolean(shadowsChk?.checked ?? runtime.shadows);
+    runtime.shadowStrength =
+      Number.parseFloat(shadowStrength?.value || `${runtime.shadowStrength}`) ||
+      runtime.shadowStrength;
+    runtime.shadowSize =
+      Number.parseFloat(shadowSize?.value || `${runtime.shadowSize}`) ||
+      runtime.shadowSize;
+    runtime.shadowHQ = Boolean(shadowHQ?.checked ?? runtime.shadowHQ);
+    applyShadows();
+
+    applyCameraFromUi();
+
+    runtime.autorotate = Boolean(autorotate?.checked ?? runtime.autorotate);
+    runtime.motionStyle = (motionStyle?.value || runtime.motionStyle)
+      .trim()
+      .toLowerCase();
+    runtime.motionSpeed =
+      Number.parseFloat(motionSpeed?.value || `${runtime.motionSpeed}`) ||
+      runtime.motionSpeed;
+    runtime.zoomT =
+      Number.parseFloat(zoom?.value || `${runtime.zoomT}`) || runtime.zoomT;
+    applyMotion();
+    applyZoom();
+
+    runtime.quality = (qualitySel?.value || runtime.quality)
+      .trim()
+      .toLowerCase();
+    runtime.autoQuality = Boolean(autoQuality?.checked ?? runtime.autoQuality);
+    runtime.targetFps =
+      Number.parseFloat(targetFps?.value || `${runtime.targetFps}`) ||
+      runtime.targetFps;
+    runtime.dynamicScale = 1;
+    applyQuality();
+
+    applyPost();
+    applyWireframe();
+    applyIsolate();
+  };
+
+  presetSaveBtn?.addEventListener('click', () => {
+    const name = (presetNameInp?.value || '').trim() || 'Preset';
+    const list = readPresets();
+    const id = `p_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const preset: PresetV1 = {
+      v: 1,
+      id,
+      name,
+      savedAt: Date.now(),
+      state: capturePresetState(),
+    };
+    list.unshift(preset);
+    writePresets(list);
+    refreshPresetSelect(id);
+    setStatus(false, 'Preset saved.');
+    window.setTimeout(() => setStatus(false, ''), 1200);
+  });
+
+  presetLoadBtn?.addEventListener('click', () => {
+    const id = (presetSelect?.value || '').trim();
+    if (!id) return;
+    const list = readPresets();
+    const p = list.find(x => x.id === id);
+    if (!p) return;
+    panelApi.setSnap(isMobile() ? 'half' : 'peek', true);
+    void applyPresetState(p.state as Record<string, unknown>);
+    setStatus(false, 'Preset loaded.');
+    window.setTimeout(() => setStatus(false, ''), 1200);
+  });
+
+  presetDeleteBtn?.addEventListener('click', () => {
+    const id = (presetSelect?.value || '').trim();
+    if (!id) return;
+    const next = readPresets().filter(p => p.id !== id);
+    writePresets(next);
+    refreshPresetSelect('');
+    setStatus(false, 'Preset deleted.');
+    window.setTimeout(() => setStatus(false, ''), 1200);
+  });
+
+  presetExportBtn?.addEventListener('click', () => {
+    const id = (presetSelect?.value || '').trim();
+    const list = readPresets();
+    const p = id ? list.find(x => x.id === id) : null;
+    const payload: PresetV1 =
+      p ||
+      ({
+        v: 1,
+        id: 'export',
+        name: (presetNameInp?.value || '').trim() || 'Export',
+        savedAt: Date.now(),
+        state: capturePresetState(),
+      } as PresetV1);
+    if (presetIo) presetIo.value = JSON.stringify(payload, null, 2);
+    setStatus(false, 'Export ready.');
+    window.setTimeout(() => setStatus(false, ''), 1200);
+  });
+
+  presetImportBtn?.addEventListener('click', () => {
+    const raw = (presetIo?.value || '').trim();
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      const list = readPresets();
+
+      const importOne = (p: PresetV1) => {
+        const id = `p_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+        list.unshift({
+          v: 1,
+          id,
+          name: String(p.name || 'Imported'),
+          savedAt: Date.now(),
+          state: (p.state || {}) as Record<string, unknown>,
+        });
+        return id;
+      };
+
+      let selected: string | undefined;
+      if (Array.isArray(parsed)) {
+        for (const item of parsed.slice(0, 10)) {
+          if (!item) continue;
+          const p = item as PresetV1;
+          if (p && p.v === 1 && p.state) selected = importOne(p);
+        }
+      } else {
+        const p = parsed as PresetV1;
+        if (p && p.v === 1 && p.state) selected = importOne(p);
+      }
+
+      writePresets(list);
+      refreshPresetSelect(selected);
+      setStatus(false, 'Imported.');
+      window.setTimeout(() => setStatus(false, ''), 1200);
+    } catch {
+      setStatus(false, 'Import failed.');
+      window.setTimeout(() => setStatus(false, ''), 1200);
+    }
+  });
+
+  refreshPresetSelect();
 
   // Inspector bindings
   inspectorFilter?.addEventListener('input', () => populateMeshSelect());

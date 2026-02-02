@@ -29,6 +29,9 @@ const galleryHref = `${base}gallery/`;
         </div>
         <div class="sr__actions">
           <a class="sr-btn" href={galleryHref}>3D Gallery</a>
+          <button type="button" class="sr-btn sr-btn--icon" data-sr-cmdk-open>
+            Search
+          </button>
           <button
             type="button"
             class="sr-btn sr-btn--primary sr-btn--icon"
@@ -52,6 +55,79 @@ const galleryHref = `${base}gallery/`;
 
       <div class="sr__viewer">
         <canvas class="sr__canvas" data-sr-canvas></canvas>
+
+        <div class="sr__quick" data-sr-quick>
+          <button
+            type="button"
+            class="sr__quickBtn"
+            data-sr-quick-toggle
+            aria-expanded="false"
+            aria-label="Open quick controls"
+          >
+            Quick
+          </button>
+
+          <div class="sr__quickMenu" data-sr-quick-menu hidden>
+            <div class="sr__quickRow">
+              <button type="button" class="sr-chip" data-sr-quick-panel>
+                Panel
+              </button>
+              <button type="button" class="sr-chip" data-sr-cmdk-open>
+                Search
+              </button>
+              <button
+                type="button"
+                class="sr-chip"
+                data-sr-quick-jump="presets"
+              >
+                Presets
+              </button>
+              <button type="button" class="sr-chip" data-sr-quick-jump="tools">
+                Tools
+              </button>
+            </div>
+
+            <div class="sr__quickGrid">
+              <label class="sr-field">
+                <span>Background</span>
+                <select data-sr-quick-bg>
+                  <option value="studio">Studio</option>
+                  <option value="day">Day</option>
+                  <option value="sunset">Sunset</option>
+                  <option value="night">Night</option>
+                  <option value="grid">Grid</option>
+                  <option value="void">Void</option>
+                </select>
+              </label>
+
+              <label class="sr-field">
+                <span>Quality</span>
+                <select data-sr-quick-quality>
+                  <option value="eco">Eco</option>
+                  <option value="balanced">Balanced</option>
+                  <option value="ultra">Ultra</option>
+                </select>
+              </label>
+
+              <label class="sr-field">
+                <span>Auto-rotate</span>
+                <input type="checkbox" data-sr-quick-autorotate />
+              </label>
+            </div>
+
+            <div class="sr__quickRow">
+              <button type="button" class="sr-chip" data-sr-screenshot>
+                Screenshot
+              </button>
+              <button type="button" class="sr-chip" data-sr-share>
+                Copy link
+              </button>
+              <button type="button" class="sr-chip" data-sr-reground>
+                Re-ground
+              </button>
+            </div>
+          </div>
+        </div>
 
         <div class="sr__hud">
           <div class="sr__status sr-pill" aria-live="polite">
@@ -86,7 +162,7 @@ const galleryHref = `${base}gallery/`;
           >
         </div>
 
-        <div class="sr__panelBody">
+        <div class="sr__panelBody" data-sr-panel-body>
           <input
             type="file"
             accept=".glb,model/gltf-binary"
@@ -94,8 +170,141 @@ const galleryHref = `${base}gallery/`;
             hidden
           />
 
-          <section class="sr-section">
-            <h2>Model</h2>
+          <div class="sr__jump" aria-label="Jump to section" data-sr-jumpbar>
+            <button type="button" class="sr-chip" data-sr-jump="presets">
+              Presets
+            </button>
+            <button type="button" class="sr-chip" data-sr-jump="model">
+              Model
+            </button>
+            <button type="button" class="sr-chip" data-sr-jump="environment">
+              Env
+            </button>
+            <button type="button" class="sr-chip" data-sr-jump="inspector">
+              Inspect
+            </button>
+            <button type="button" class="sr-chip" data-sr-jump="camera">
+              Camera
+            </button>
+            <button type="button" class="sr-chip" data-sr-jump="performance">
+              Perf
+            </button>
+            <button type="button" class="sr-chip" data-sr-jump="tools">
+              Tools
+            </button>
+          </div>
+
+          <section
+            class="sr-section"
+            id="sr-sec-presets"
+            data-sr-section="presets"
+          >
+            <div class="sr-section__head">
+              <h2>Presets</h2>
+              <button
+                type="button"
+                class="sr-section__toggle"
+                data-sr-section-toggle
+                aria-expanded="true"
+              >
+                Hide
+              </button>
+            </div>
+
+            <div class="sr-grid">
+              <label class="sr-field">
+                <span>Name</span>
+                <input
+                  type="text"
+                  placeholder="My setup"
+                  autocomplete="off"
+                  data-sr-preset-name
+                />
+              </label>
+
+              <label class="sr-field">
+                <span>Saved</span>
+                <select data-sr-preset-select></select>
+              </label>
+
+              <div class="sr-row">
+                <button
+                  type="button"
+                  class="sr-btn sr-btn--primary"
+                  data-sr-preset-save
+                >
+                  Save
+                </button>
+                <button type="button" class="sr-btn" data-sr-preset-load>
+                  Load
+                </button>
+                <button type="button" class="sr-btn" data-sr-preset-delete>
+                  Delete
+                </button>
+              </div>
+
+              <label class="sr-field">
+                <span>Export / Import JSON</span>
+                <textarea
+                  rows="4"
+                  placeholder="Paste preset JSON here…"
+                  data-sr-preset-io></textarea>
+              </label>
+
+              <div class="sr-row">
+                <button type="button" class="sr-btn" data-sr-preset-export>
+                  Export
+                </button>
+                <button type="button" class="sr-btn" data-sr-preset-import>
+                  Import
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section class="sr-section" id="sr-sec-tools" data-sr-section="tools">
+            <div class="sr-section__head">
+              <h2>Tools</h2>
+              <button
+                type="button"
+                class="sr-section__toggle"
+                data-sr-section-toggle
+                aria-expanded="true"
+              >
+                Hide
+              </button>
+            </div>
+
+            <div class="sr-row">
+              <button type="button" class="sr-btn" data-sr-reground>
+                Re-ground
+              </button>
+              <button type="button" class="sr-btn" data-sr-screenshot-copy>
+                Copy screenshot
+              </button>
+              <button type="button" class="sr-btn" data-sr-share>
+                Copy link
+              </button>
+            </div>
+
+            <p class="sr-hint">
+              Presets save everything you see in the panel (camera, lighting,
+              quality, post, etc.).
+            </p>
+          </section>
+
+          <section class="sr-section" id="sr-sec-model" data-sr-section="model">
+            <div class="sr-section__head">
+              <h2>Model</h2>
+              <button
+                type="button"
+                class="sr-section__toggle"
+                data-sr-section-toggle
+                aria-expanded="true"
+              >
+                Hide
+              </button>
+            </div>
             <div class="sr-grid">
               <label class="sr-field">
                 <span>Preset</span>
@@ -153,8 +362,18 @@ const galleryHref = `${base}gallery/`;
             </div>
           </section>
 
-          <section class="sr-section">
-            <h2>Look</h2>
+          <section class="sr-section" id="sr-sec-look" data-sr-section="look">
+            <div class="sr-section__head">
+              <h2>Look</h2>
+              <button
+                type="button"
+                class="sr-section__toggle"
+                data-sr-section-toggle
+                aria-expanded="true"
+              >
+                Hide
+              </button>
+            </div>
             <div class="sr-grid">
               <label class="sr-field">
                 <span>Paint</span>
@@ -167,8 +386,22 @@ const galleryHref = `${base}gallery/`;
             </div>
           </section>
 
-          <section class="sr-section">
-            <h2>Environment</h2>
+          <section
+            class="sr-section"
+            id="sr-sec-environment"
+            data-sr-section="environment"
+          >
+            <div class="sr-section__head">
+              <h2>Environment</h2>
+              <button
+                type="button"
+                class="sr-section__toggle"
+                data-sr-section-toggle
+                aria-expanded="true"
+              >
+                Hide
+              </button>
+            </div>
             <div class="sr-grid">
               <label class="sr-field">
                 <span>Background</span>
@@ -177,6 +410,7 @@ const galleryHref = `${base}gallery/`;
                   <option value="day">Day</option>
                   <option value="sunset">Sunset</option>
                   <option value="night">Night</option>
+                  <option value="grid">Grid</option>
                   <option value="void">Void (transparent)</option>
                 </select>
               </label>
@@ -249,8 +483,18 @@ const galleryHref = `${base}gallery/`;
             </div>
           </section>
 
-          <section class="sr-section">
-            <h2>Scene</h2>
+          <section class="sr-section" id="sr-sec-scene" data-sr-section="scene">
+            <div class="sr-section__head">
+              <h2>Scene</h2>
+              <button
+                type="button"
+                class="sr-section__toggle"
+                data-sr-section-toggle
+                aria-expanded="true"
+              >
+                Hide
+              </button>
+            </div>
             <div class="sr-grid">
               <label class="sr-field">
                 <span>Grid</span>
@@ -267,8 +511,22 @@ const galleryHref = `${base}gallery/`;
             </div>
           </section>
 
-          <section class="sr-section">
-            <h2>Inspector</h2>
+          <section
+            class="sr-section"
+            id="sr-sec-inspector"
+            data-sr-section="inspector"
+          >
+            <div class="sr-section__head">
+              <h2>Inspector</h2>
+              <button
+                type="button"
+                class="sr-section__toggle"
+                data-sr-section-toggle
+                aria-expanded="true"
+              >
+                Hide
+              </button>
+            </div>
 
             <div class="sr-readout sr-readout--stats" aria-live="polite">
               <div>
@@ -339,8 +597,22 @@ const galleryHref = `${base}gallery/`;
             </div>
           </section>
 
-          <section class="sr-section">
-            <h2>Animation</h2>
+          <section
+            class="sr-section"
+            id="sr-sec-animation"
+            data-sr-section="animation"
+          >
+            <div class="sr-section__head">
+              <h2>Animation</h2>
+              <button
+                type="button"
+                class="sr-section__toggle"
+                data-sr-section-toggle
+                aria-expanded="true"
+              >
+                Hide
+              </button>
+            </div>
             <div class="sr-grid">
               <label class="sr-field">
                 <span>Clip</span>
@@ -375,8 +647,18 @@ const galleryHref = `${base}gallery/`;
             </div>
           </section>
 
-          <section class="sr-section">
-            <h2>Floor + Shadows</h2>
+          <section class="sr-section" id="sr-sec-floor" data-sr-section="floor">
+            <div class="sr-section__head">
+              <h2>Floor + Shadows</h2>
+              <button
+                type="button"
+                class="sr-section__toggle"
+                data-sr-section-toggle
+                aria-expanded="true"
+              >
+                Hide
+              </button>
+            </div>
             <div class="sr-grid">
               <label class="sr-field">
                 <span>Floor color</span>
@@ -448,8 +730,22 @@ const galleryHref = `${base}gallery/`;
             </div>
           </section>
 
-          <section class="sr-section">
-            <h2>Camera</h2>
+          <section
+            class="sr-section"
+            id="sr-sec-camera"
+            data-sr-section="camera"
+          >
+            <div class="sr-section__head">
+              <h2>Camera</h2>
+              <button
+                type="button"
+                class="sr-section__toggle"
+                data-sr-section-toggle
+                aria-expanded="true"
+              >
+                Hide
+              </button>
+            </div>
             <div class="sr-grid">
               <label class="sr-field">
                 <span>Preset</span>
@@ -459,6 +755,7 @@ const galleryHref = `${base}gallery/`;
                   <option value="rear">Rear</option>
                   <option value="side">Side</option>
                   <option value="top">Top</option>
+                  <option value="detail">Detail</option>
                 </select>
               </label>
               <label class="sr-field">
@@ -523,8 +820,22 @@ const galleryHref = `${base}gallery/`;
             </div>
           </section>
 
-          <section class="sr-section">
-            <h2>Motion</h2>
+          <section
+            class="sr-section"
+            id="sr-sec-motion"
+            data-sr-section="motion"
+          >
+            <div class="sr-section__head">
+              <h2>Motion</h2>
+              <button
+                type="button"
+                class="sr-section__toggle"
+                data-sr-section-toggle
+                aria-expanded="true"
+              >
+                Hide
+              </button>
+            </div>
             <div class="sr-grid">
               <label class="sr-field">
                 <span>Auto-rotate</span>
@@ -564,8 +875,22 @@ const galleryHref = `${base}gallery/`;
             </div>
           </section>
 
-          <section class="sr-section">
-            <h2>Performance</h2>
+          <section
+            class="sr-section"
+            id="sr-sec-performance"
+            data-sr-section="performance"
+          >
+            <div class="sr-section__head">
+              <h2>Performance</h2>
+              <button
+                type="button"
+                class="sr-section__toggle"
+                data-sr-section-toggle
+                aria-expanded="true"
+              >
+                Hide
+              </button>
+            </div>
             <div class="sr-grid">
               <label class="sr-field">
                 <span>Quality</span>
@@ -594,8 +919,18 @@ const galleryHref = `${base}gallery/`;
             </div>
           </section>
 
-          <section class="sr-section">
-            <h2>Post</h2>
+          <section class="sr-section" id="sr-sec-post" data-sr-section="post">
+            <div class="sr-section__head">
+              <h2>Post</h2>
+              <button
+                type="button"
+                class="sr-section__toggle"
+                data-sr-section-toggle
+                aria-expanded="true"
+              >
+                Hide
+              </button>
+            </div>
             <div class="sr-grid">
               <label class="sr-field">
                 <span>Exposure</span>
@@ -645,6 +980,33 @@ const galleryHref = `${base}gallery/`;
           </section>
         </div>
       </aside>
+
+      <div class="sr__cmdk" data-sr-cmdk hidden>
+        <div class="sr__cmdkBackdrop" data-sr-cmdk-backdrop></div>
+        <div
+          class="sr__cmdkDialog"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Search settings"
+        >
+          <div class="sr__cmdkTop">
+            <input
+              type="text"
+              class="sr__cmdkInput"
+              placeholder="Search settings… (Ctrl+K / /)"
+              autocomplete="off"
+              data-sr-cmdk-input
+            />
+            <button type="button" class="sr__cmdkClose" data-sr-cmdk-close>
+              Esc
+            </button>
+          </div>
+          <div class="sr__cmdkHint">
+            Enter to run • ↑/↓ to navigate • Esc to close
+          </div>
+          <div class="sr__cmdkList" data-sr-cmdk-list></div>
+        </div>
+      </div>
 
       <button
         type="button"
