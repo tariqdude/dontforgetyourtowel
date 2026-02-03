@@ -896,6 +896,7 @@ const init = () => {
   const clearcoatInp = root.querySelector<HTMLInputElement>(
     '[data-sr-clearcoat]'
   );
+  const wetChk = root.querySelector<HTMLInputElement>('[data-sr-wet]');
   const originalMatsChk = root.querySelector<HTMLInputElement>(
     '[data-sr-original-mats]'
   );
@@ -1826,6 +1827,7 @@ const init = () => {
     // Look (wrap/glass/parts)
     finish: (finishSel?.value || 'gloss').trim().toLowerCase(),
     clearcoat: Number.parseFloat(clearcoatInp?.value || '0.8') || 0.8,
+    wet: Boolean(wetChk?.checked ?? false),
     wrapEnabled: Boolean(wrapEnabledChk?.checked ?? false),
     wrapPattern: (wrapPatternSel?.value || 'solid').trim().toLowerCase(),
     wrapColorHex: parseHexColor(wrapColorInp?.value || '') || '#ffffff',
@@ -2220,6 +2222,8 @@ const init = () => {
       Number.parseFloat(clearcoatInp?.value || `${runtime.clearcoat}`) ||
       runtime.clearcoat;
 
+    runtime.wet = Boolean(wetChk?.checked ?? runtime.wet);
+
     runtime.wrapEnabled = Boolean(
       wrapEnabledChk?.checked ?? runtime.wrapEnabled
     );
@@ -2378,9 +2382,16 @@ const init = () => {
 
     const finish = (runtime.finish || 'gloss').trim().toLowerCase();
     const clearcoat = clamp01(runtime.clearcoat);
+    const wet = Boolean(runtime.wet);
     const finishRoughness =
       finish === 'matte' ? 0.92 : finish === 'satin' ? 0.48 : 0.18;
     const finishMetalness = finish === 'matte' ? 0.08 : 0.14;
+
+    const wetClearcoat = wet ? clamp01(clearcoat + 0.15) : clearcoat;
+    const wetRoughMul = wet ? 0.35 : 1;
+    const wetRoughMin = wet ? 0.04 : 0;
+    const wetClearcoatRoughMul = wet ? 0.35 : 1;
+    const wetEnvMul = wet ? 1.15 : 1;
 
     // Paint stays as the base look when not preserving originals.
     applyPaintHeuristic(obj, runtime.paintHex);
@@ -2409,14 +2420,22 @@ const init = () => {
         if (bodyMats.size && !bodyMats.has(material.uuid)) continue;
 
         // Roughness/metalness are a big realism lever.
-        material.roughness = clamp01(finishRoughness);
+        material.roughness = clamp01(
+          Math.max(wetRoughMin, finishRoughness * wetRoughMul)
+        );
         material.metalness = clamp01(finishMetalness);
-        material.envMapIntensity = clamp(runtime.envIntensity, 0, 3);
+        material.envMapIntensity = clamp(
+          runtime.envIntensity * wetEnvMul,
+          0,
+          3
+        );
 
         // Use physical clearcoat where possible.
         if (material instanceof THREE.MeshPhysicalMaterial) {
-          material.clearcoat = clearcoat;
-          material.clearcoatRoughness = clamp01(0.08 + finishRoughness * 0.22);
+          material.clearcoat = wetClearcoat;
+          material.clearcoatRoughness = clamp01(
+            (0.08 + finishRoughness * 0.22) * wetClearcoatRoughMul
+          );
         }
 
         material.needsUpdate = true;
@@ -2472,14 +2491,20 @@ const init = () => {
             material.map.offset.set(ox, oy);
           }
           material.color.copy(wrapColor);
-          material.roughness = clamp01(finishRoughness);
+          material.roughness = clamp01(
+            Math.max(wetRoughMin, finishRoughness * wetRoughMul)
+          );
           material.metalness = clamp01(finishMetalness);
-          material.envMapIntensity = clamp(runtime.envIntensity, 0, 3);
+          material.envMapIntensity = clamp(
+            runtime.envIntensity * wetEnvMul,
+            0,
+            3
+          );
 
           if (material instanceof THREE.MeshPhysicalMaterial) {
-            material.clearcoat = clearcoat;
+            material.clearcoat = wetClearcoat;
             material.clearcoatRoughness = clamp01(
-              0.08 + finishRoughness * 0.22
+              (0.08 + finishRoughness * 0.22) * wetClearcoatRoughMul
             );
           }
           material.needsUpdate = true;
@@ -2738,6 +2763,7 @@ const init = () => {
     resetControlToDefault(paintInp);
     resetControlToDefault(finishSel);
     resetControlToDefault(clearcoatInp);
+    resetControlToDefault(wetChk);
     resetControlToDefault(wrapEnabledChk);
     resetControlToDefault(wrapPatternSel);
     resetControlToDefault(wrapColorInp);
@@ -3524,6 +3550,7 @@ const init = () => {
   // Look controls
   finishSel?.addEventListener('change', () => applyLook());
   clearcoatInp?.addEventListener('input', () => applyLook());
+  wetChk?.addEventListener('change', () => applyLook());
 
   wrapEnabledChk?.addEventListener('change', () => applyLook());
   wrapPatternSel?.addEventListener('change', () => applyLook());
@@ -3924,9 +3951,11 @@ const init = () => {
     // Finish
     const fin = (finishSel?.value || 'gloss').trim().toLowerCase();
     const coat = Number.parseFloat(clearcoatInp?.value || '0.8') || 0.8;
+    const wet = Boolean(wetChk?.checked);
     if (fin && fin !== 'gloss') url.searchParams.set('fin', fin);
     if (Math.abs(coat - 0.8) > 0.0001)
       url.searchParams.set('coat', coat.toFixed(3));
+    if (wet) url.searchParams.set('wet', '1');
 
     // Look
     const we = Boolean(wrapEnabledChk?.checked);
@@ -4363,6 +4392,7 @@ const init = () => {
 
     const fin = url.searchParams.get('fin');
     const coat = url.searchParams.get('coat');
+    const wet = url.searchParams.get('wet');
 
     // Look (wrap/glass/parts)
     const we = url.searchParams.get('we');
@@ -4435,6 +4465,7 @@ const init = () => {
 
     if (fin && finishSel) finishSel.value = fin;
     if (coat && clearcoatInp) clearcoatInp.value = coat;
+    if (wet && wetChk) wetChk.checked = wet === '1';
 
     if (we && wrapEnabledChk) wrapEnabledChk.checked = we === '1';
     if (wp && wrapPatternSel) wrapPatternSel.value = wp;
@@ -4598,6 +4629,9 @@ const init = () => {
   );
   const quickDecalsBtn = root.querySelector<HTMLButtonElement>(
     '[data-sr-quick-decals]'
+  );
+  const quickWetBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-quick-wet]'
   );
   const quickThirdsBtn = root.querySelector<HTMLButtonElement>(
     '[data-sr-quick-thirds]'
@@ -5312,6 +5346,13 @@ const init = () => {
         },
       },
       {
+        id: 'look.wet',
+        group: 'Look',
+        label: `Wet mode: ${onOff(Boolean(wetChk?.checked))}`,
+        keywords: 'wet rain gloss clearcoat reflections',
+        run: () => toggleCheckbox(wetChk),
+      },
+      {
         id: 'look.wrap.pattern',
         group: 'Look',
         label: `Wrap pattern: ${(wrapPatternSel?.value || 'solid').trim()}`,
@@ -5861,6 +5902,7 @@ const init = () => {
     setPressed(quickInteriorBtn, Boolean(interiorChk?.checked ?? false));
     setPressed(quickHotspotsBtn, Boolean(hotspotsChk?.checked ?? false));
     setPressed(quickDecalsBtn, Boolean(decalModeChk?.checked ?? false));
+    setPressed(quickWetBtn, Boolean(wetChk?.checked ?? false));
     setPressed(quickThirdsBtn, Boolean(thirdsChk?.checked ?? false));
     setPressed(quickCenterBtn, Boolean(centerChk?.checked ?? false));
     setPressed(quickHorizonBtn, Boolean(horizonChk?.checked ?? false));
@@ -5950,6 +5992,19 @@ const init = () => {
     setQuickOpen(false);
   });
 
+  quickWetBtn?.addEventListener('click', () => {
+    const next = !(wetChk?.checked ?? runtime.wet);
+    if (wetChk) {
+      wetChk.checked = next;
+      wetChk.dispatchEvent(new Event('change', { bubbles: true }));
+    } else {
+      runtime.wet = next;
+      if (loadState.gltf) applyLook();
+    }
+    syncQuickFromUi();
+    setQuickOpen(false);
+  });
+
   quickThirdsBtn?.addEventListener('click', () => {
     const next = !(thirdsChk?.checked ?? runtime.thirdsOverlay);
     if (thirdsChk) {
@@ -6004,6 +6059,7 @@ const init = () => {
   interiorChk?.addEventListener('change', () => syncQuickIfOpen());
   hotspotsChk?.addEventListener('change', () => syncQuickIfOpen());
   decalModeChk?.addEventListener('change', () => syncQuickIfOpen());
+  wetChk?.addEventListener('change', () => syncQuickIfOpen());
   thirdsChk?.addEventListener('change', () => syncQuickIfOpen());
   centerChk?.addEventListener('change', () => syncQuickIfOpen());
   horizonChk?.addEventListener('change', () => syncQuickIfOpen());
@@ -6482,6 +6538,7 @@ const init = () => {
 
       finish: (finishSel?.value || '').trim(),
       clearcoat: clearcoatInp?.value,
+      wet: Boolean(wetChk?.checked ?? false),
 
       wrapEnabled: Boolean(wrapEnabledChk?.checked ?? false),
       wrapPattern: (wrapPatternSel?.value || '').trim(),
@@ -6601,6 +6658,7 @@ const init = () => {
 
     setVal(finishSel, state.finish);
     setVal(clearcoatInp, state.clearcoat);
+    setChk(wetChk, state.wet);
 
     setChk(wrapEnabledChk, state.wrapEnabled);
     setVal(wrapPatternSel, state.wrapPattern);
