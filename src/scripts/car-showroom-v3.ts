@@ -3637,6 +3637,25 @@ const init = () => {
     if (!lookPresetSel) return;
     const id = (rawId || 'custom').trim().toLowerCase() as LookPresetId;
 
+    const setSelectValue = (
+      sel: HTMLSelectElement | null | undefined,
+      value: string
+    ) => {
+      if (!sel) return;
+      sel.value = value;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+
+    const setRangeValue = (
+      inp: HTMLInputElement | null | undefined,
+      value: number,
+      eventType: 'input' | 'change' = 'input'
+    ) => {
+      if (!inp) return;
+      inp.value = String(value);
+      inp.dispatchEvent(new Event(eventType, { bubbles: true }));
+    };
+
     if (id === 'custom') {
       lookPresetSel.value = 'custom';
       return;
@@ -3650,9 +3669,9 @@ const init = () => {
 
     applyingLookPreset = true;
     try {
-      if (finishSel && preset.finish) setSelect(finishSel, preset.finish);
+      if (finishSel && preset.finish) setSelectValue(finishSel, preset.finish);
       if (clearcoatInp && preset.clearcoat !== undefined)
-        setRange(clearcoatInp, preset.clearcoat, 'input');
+        setRangeValue(clearcoatInp, preset.clearcoat, 'input');
 
       if (wetChk && preset.wet !== undefined) {
         wetChk.checked = preset.wet;
@@ -3660,10 +3679,10 @@ const init = () => {
       }
 
       if (wetAmountInp && preset.wetAmount !== undefined)
-        setRange(wetAmountInp, preset.wetAmount, 'input');
+        setRangeValue(wetAmountInp, preset.wetAmount, 'input');
 
       if (grimeAmountInp && preset.grimeAmount !== undefined)
-        setRange(grimeAmountInp, preset.grimeAmount, 'input');
+        setRangeValue(grimeAmountInp, preset.grimeAmount, 'input');
 
       lookPresetSel.value = id;
     } finally {
@@ -6319,7 +6338,8 @@ const init = () => {
     const next = cur > 0.05 ? 0 : 0.6;
 
     if (grimeAmountInp) {
-      setRange(grimeAmountInp, next, 'input');
+      grimeAmountInp.value = String(next);
+      grimeAmountInp.dispatchEvent(new Event('input', { bubbles: true }));
     } else {
       runtime.grimeAmount = next;
       if (loadState.gltf) applyLook();
