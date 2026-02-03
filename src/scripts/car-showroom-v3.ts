@@ -5145,6 +5145,37 @@ const init = () => {
         },
       },
       {
+        id: 'tools.screenshot.copy.1x',
+        group: 'Tools',
+        label: 'Screenshot: Copy (1x)',
+        hint: 'C',
+        keywords: 'clipboard copy image png',
+        run: () => {
+          if (screenshotScaleSel) screenshotScaleSel.value = '1';
+          screenshotCopyBtn?.click();
+        },
+      },
+      {
+        id: 'tools.screenshot.copy.2x',
+        group: 'Tools',
+        label: 'Screenshot: Copy (2x)',
+        keywords: 'clipboard copy image png hi-res 4k',
+        run: () => {
+          if (screenshotScaleSel) screenshotScaleSel.value = '2';
+          screenshotCopyBtn?.click();
+        },
+      },
+      {
+        id: 'tools.screenshot.copy.4x',
+        group: 'Tools',
+        label: 'Screenshot: Copy (4x)',
+        keywords: 'clipboard copy image png hi-res 8k',
+        run: () => {
+          if (screenshotScaleSel) screenshotScaleSel.value = '4';
+          screenshotCopyBtn?.click();
+        },
+      },
+      {
         id: 'history.undo',
         group: 'History',
         label: 'Undo',
