@@ -3167,7 +3167,10 @@ const init = () => {
 
   const loadModel = async (
     raw: string,
-    opts?: { objectUrlToRevoke?: string | null }
+    opts?: {
+      objectUrlToRevoke?: string | null;
+      fileTypeHint?: 'glb' | 'gltf' | 'fbx' | null;
+    }
   ) => {
     const requestId = ++loadState.requestId;
 
@@ -3208,7 +3211,11 @@ const init = () => {
       loadState.objectUrlToRevoke = opts.objectUrlToRevoke;
 
     const resolved = resolveModelUrl(raw);
-    const isFbx = /\.fbx(?:\?.*)?$/i.test(resolved);
+    const hint = (opts?.fileTypeHint || null) as 'glb' | 'gltf' | 'fbx' | null;
+    const isFbx =
+      hint === 'fbx' ||
+      /\.fbx(?:\?.*)?$/i.test(resolved) ||
+      /\.fbx(?:\?.*)?$/i.test((raw || '').trim());
 
     setRootState(root, {
       carShowroomReady: '0',
@@ -3736,7 +3743,21 @@ const init = () => {
     if (!file) return;
     const url = URL.createObjectURL(file);
     if (modelUrl) modelUrl.value = url;
-    void loadModel(url, { objectUrlToRevoke: url });
+
+    const ext = (file.name.split('.').pop() || '').trim().toLowerCase();
+    const hint = (
+      ext === 'fbx' || ext === 'gltf' || ext === 'glb' ? ext : null
+    ) as 'fbx' | 'gltf' | 'glb' | null;
+
+    if (hint === 'gltf') {
+      setStatus(
+        false,
+        'Note: .gltf often needs extra files; prefer .glb for single-file import.'
+      );
+      window.setTimeout(() => setStatus(false, ''), 2200);
+    }
+
+    void loadModel(url, { objectUrlToRevoke: url, fileTypeHint: hint });
   });
 
   // Drag-and-drop import (GLB/GLTF/FBX) onto the viewer.
@@ -3751,7 +3772,21 @@ const init = () => {
         const url = URL.createObjectURL(file);
         if (modelUrl) modelUrl.value = url;
         setStatus(false, 'Loading dropped model…');
-        void loadModel(url, { objectUrlToRevoke: url });
+
+        const ext = (file.name.split('.').pop() || '').trim().toLowerCase();
+        const hint = (
+          ext === 'fbx' || ext === 'gltf' || ext === 'glb' ? ext : null
+        ) as 'fbx' | 'gltf' | 'glb' | null;
+
+        if (hint === 'gltf') {
+          setStatus(
+            false,
+            'Note: .gltf often needs extra files; prefer .glb for single-file import.'
+          );
+          window.setTimeout(() => setStatus(false, ''), 2200);
+        }
+
+        void loadModel(url, { objectUrlToRevoke: url, fileTypeHint: hint });
       },
     });
   }
@@ -3810,7 +3845,26 @@ const init = () => {
 
   const copyScreenshotToClipboard = async () => {
     hapticTap(15);
+    const scaleEl = root?.querySelector(
+      '[data-sr-screenshot-scale]'
+    ) as HTMLSelectElement | null;
+    const scale = clamp(Number(scaleEl?.value ?? 1), 1, 4);
+
+    const oldPixelRatio = renderer.getPixelRatio();
+    const oldCurrent = currentPixelRatio;
+
     try {
+      if (scale > 1) {
+        const boosted = clamp(oldPixelRatio * scale, 0.5, 8);
+        renderer.setPixelRatio(boosted);
+        composer?.setPixelRatio?.(boosted as never);
+        currentPixelRatio = boosted;
+        setSize();
+
+        if (composer && runtime.bloomStrength > 0.001) composer.render();
+        else renderer.render(scene, camera);
+      }
+
       const canvasEl = renderer.domElement;
       const blob = await new Promise<Blob>((resolve, reject) => {
         canvasEl.toBlob(b => {
@@ -3833,11 +3887,21 @@ const init = () => {
         new ClipboardItemCtor({ 'image/png': blob }),
       ]);
 
-      setStatus(false, 'Screenshot copied.');
+      setStatus(
+        false,
+        scale > 1 ? `Screenshot copied (${scale}x).` : 'Screenshot copied.'
+      );
       window.setTimeout(() => setStatus(false, ''), 1200);
     } catch {
       setStatus(false, 'Copy failed.');
       window.setTimeout(() => setStatus(false, ''), 1200);
+    } finally {
+      if (scale > 1) {
+        renderer.setPixelRatio(oldPixelRatio);
+        composer?.setPixelRatio?.(oldPixelRatio as never);
+        currentPixelRatio = oldCurrent;
+        setSize();
+      }
     }
   };
   screenshotCopyBtn?.addEventListener('click', () => {
