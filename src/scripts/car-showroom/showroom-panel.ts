@@ -189,7 +189,7 @@ export function initShowroomPanel({
     lastDragTime = performance.now();
   };
 
-  const onDragEnd = (e: PointerEvent) => {
+  const onDragEnd = (_e: PointerEvent) => {
     if (!dragActive || !panel) return;
     dragActive = false;
     panel.classList.remove('is-dragging');

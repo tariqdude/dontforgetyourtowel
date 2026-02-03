@@ -269,37 +269,69 @@ const render = (report: ProbeReport) => {
   const json = safeJson(report);
   const base = import.meta.env.BASE_URL || '/';
 
-  root.innerHTML = `
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <div class="text-sm font-semibold text-white">Probe report</div>
-        <div class="text-xs text-zinc-400">${report.timestamp}</div>
-      </div>
-      <div class="flex flex-wrap gap-2">
-        <button data-copy class="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10">Copy JSON</button>
-        <button data-clear class="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10">Reset offline cache</button>
-        <a data-open-gallery class="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10" href="${base}gallery/">Open gallery</a>
-      </div>
-    </div>
+  root.replaceChildren();
 
-    <pre class="mt-4 max-h-[70vh] overflow-auto rounded-xl border border-white/10 bg-black/40 p-4 text-xs text-zinc-200">${json}</pre>
-  `;
+  const header = document.createElement('div');
+  header.className = 'flex flex-wrap items-center justify-between gap-3';
 
-  const copyBtn = root.querySelector<HTMLButtonElement>('[data-copy]');
-  copyBtn?.addEventListener('click', async () => {
+  const left = document.createElement('div');
+  const title = document.createElement('div');
+  title.className = 'text-sm font-semibold text-white';
+  title.textContent = 'Probe report';
+
+  const stamp = document.createElement('div');
+  stamp.className = 'text-xs text-zinc-400';
+  stamp.textContent = report.timestamp;
+
+  left.append(title, stamp);
+
+  const actions = document.createElement('div');
+  actions.className = 'flex flex-wrap gap-2';
+
+  const copyBtn = document.createElement('button');
+  copyBtn.type = 'button';
+  copyBtn.dataset.copy = '1';
+  copyBtn.className =
+    'rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10';
+  copyBtn.textContent = 'Copy JSON';
+
+  const clearBtn = document.createElement('button');
+  clearBtn.type = 'button';
+  clearBtn.dataset.clear = '1';
+  clearBtn.className =
+    'rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10';
+  clearBtn.textContent = 'Reset offline cache';
+
+  const openGallery = document.createElement('a');
+  openGallery.dataset.openGallery = '1';
+  openGallery.className =
+    'rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10';
+  openGallery.href = `${base}gallery/`;
+  openGallery.textContent = 'Open gallery';
+
+  actions.append(copyBtn, clearBtn, openGallery);
+  header.append(left, actions);
+
+  const pre = document.createElement('pre');
+  pre.className =
+    'mt-4 max-h-[70vh] overflow-auto rounded-xl border border-white/10 bg-black/40 p-4 text-xs text-zinc-200';
+  pre.textContent = json;
+
+  root.append(header, pre);
+
+  copyBtn.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(json);
       copyBtn.textContent = 'Copied';
       window.setTimeout(() => {
-        if (copyBtn) copyBtn.textContent = 'Copy JSON';
+        copyBtn.textContent = 'Copy JSON';
       }, 1200);
     } catch {
       // ignore
     }
   });
 
-  const clearBtn = root.querySelector<HTMLButtonElement>('[data-clear]');
-  clearBtn?.addEventListener('click', async () => {
+  clearBtn.addEventListener('click', async () => {
     clearBtn.disabled = true;
     clearBtn.textContent = 'Clearing…';
     await clearOfflineCache();

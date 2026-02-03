@@ -76,18 +76,32 @@ export class TabSwipeHandler {
     this.indicator = document.createElement('div');
     this.indicator.className = 'csr-swipe-indicator';
     this.indicator.setAttribute('aria-hidden', 'true');
-    this.indicator.innerHTML = `
-      <div class="csr-swipe-indicator__arrow csr-swipe-indicator__arrow--left">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M15 18l-6-6 6-6"/>
-        </svg>
-      </div>
-      <div class="csr-swipe-indicator__arrow csr-swipe-indicator__arrow--right">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M9 18l6-6-6-6"/>
-        </svg>
-      </div>
-    `;
+
+    const makeArrow = (side: 'left' | 'right') => {
+      const wrap = document.createElement('div');
+      wrap.className = `csr-swipe-indicator__arrow csr-swipe-indicator__arrow--${side}`;
+
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.setAttribute('fill', 'none');
+      svg.setAttribute('stroke', 'currentColor');
+      svg.setAttribute('stroke-width', '2');
+
+      const path = document.createElementNS(
+        'http://www.w3.org/2000/svg',
+        'path'
+      );
+      path.setAttribute(
+        'd',
+        side === 'left' ? 'M15 18l-6-6 6-6' : 'M9 18l6-6-6-6'
+      );
+
+      svg.appendChild(path);
+      wrap.appendChild(svg);
+      return wrap;
+    };
+
+    this.indicator.replaceChildren(makeArrow('left'), makeArrow('right'));
     this.element.style.position = 'relative';
     this.element.appendChild(this.indicator);
   }

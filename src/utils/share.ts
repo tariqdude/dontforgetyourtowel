@@ -441,6 +441,6 @@ export function createShareButtons(
 
   return () => {
     cleanups.forEach(fn => fn());
-    container.innerHTML = '';
+    container.replaceChildren();
   };
 }

@@ -38,26 +38,52 @@ createAstroMount(ROOT_SELECTOR, () => {
 
     const debugText = JSON.stringify(debug, null, 2);
 
-    overlay.innerHTML = `
-      <div style="max-width:720px;text-align:left">
-        <div style="font-weight:800;font-size:18px;margin-bottom:10px">${title}</div>
-        <div style="opacity:0.9;font-size:14px;line-height:1.5;margin-bottom:12px">
-          ${details ? details : 'The 3D experience failed to start on this device.'}
-        </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <button type="button" data-copy style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.14);color:#e5e7eb;padding:8px 10px;border-radius:10px;cursor:pointer">
-            Copy diagnostics
-          </button>
-          <button type="button" data-open-diag style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:#e5e7eb;padding:8px 10px;border-radius:10px;cursor:pointer">
-            Open diagnostics
-          </button>
-        </div>
-        <pre style="margin-top:12px;max-height:220px;overflow:auto;padding:12px;border-radius:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.10);font-size:12px;line-height:1.4;white-space:pre-wrap">${debugText}</pre>
-      </div>
-    `;
+    overlay.replaceChildren();
 
-    const btn = overlay.querySelector<HTMLButtonElement>('[data-copy]');
-    btn?.addEventListener(
+    const card = document.createElement('div');
+    card.style.maxWidth = '720px';
+    card.style.textAlign = 'left';
+
+    const head = document.createElement('div');
+    head.style.cssText = 'font-weight:800;font-size:18px;margin-bottom:10px';
+    head.textContent = String(title || '');
+
+    const body = document.createElement('div');
+    body.style.cssText =
+      'opacity:0.9;font-size:14px;line-height:1.5;margin-bottom:12px';
+    body.textContent = details
+      ? String(details)
+      : 'The 3D experience failed to start on this device.';
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap';
+
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.dataset.copy = '1';
+    copyBtn.style.cssText =
+      'display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.14);color:#e5e7eb;padding:8px 10px;border-radius:10px;cursor:pointer';
+    copyBtn.textContent = 'Copy diagnostics';
+
+    const openBtn = document.createElement('button');
+    openBtn.type = 'button';
+    openBtn.dataset.openDiag = '1';
+    openBtn.style.cssText =
+      'display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:#e5e7eb;padding:8px 10px;border-radius:10px;cursor:pointer';
+    openBtn.textContent = 'Open diagnostics';
+
+    row.append(copyBtn, openBtn);
+
+    const pre = document.createElement('pre');
+    pre.style.cssText =
+      'margin-top:12px;max-height:220px;overflow:auto;padding:12px;border-radius:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.10);font-size:12px;line-height:1.4;white-space:pre-wrap';
+    pre.textContent = debugText;
+
+    card.append(head, body, row, pre);
+    overlay.appendChild(card);
+
+    const btn = copyBtn;
+    btn.addEventListener(
       'click',
       async () => {
         try {
@@ -73,9 +99,8 @@ createAstroMount(ROOT_SELECTOR, () => {
       { once: true }
     );
 
-    const diagBtn =
-      overlay.querySelector<HTMLButtonElement>('[data-open-diag]');
-    diagBtn?.addEventListener(
+    const diagBtn = openBtn;
+    diagBtn.addEventListener(
       'click',
       () => {
         window.open(diagnosticsUrl, '_blank', 'noopener');

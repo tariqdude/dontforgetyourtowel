@@ -133,7 +133,11 @@ const galleryHref = `${base}gallery/`;
 
               <label class="sr-field">
                 <span>Auto-rotate</span>
-                <input type="checkbox" data-sr-quick-autorotate />
+                <input
+                  type="checkbox"
+                  aria-label="Auto-rotate"
+                  data-sr-quick-autorotate
+                />
               </label>
             </div>
 
@@ -224,6 +228,7 @@ const galleryHref = `${base}gallery/`;
           <input
             type="file"
             accept=".glb,.gltf,.fbx,model/gltf-binary"
+            aria-label="Import model file"
             data-sr-model-file
             hidden
           />
@@ -274,6 +279,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Name</span>
                 <input
                   type="text"
+                  aria-label="Preset name"
                   placeholder="My setup"
                   autocomplete="off"
                   data-sr-preset-name
@@ -357,13 +363,18 @@ const galleryHref = `${base}gallery/`;
 
               <label class="sr-field">
                 <span>Cinematic mode</span>
-                <input type="checkbox" data-sr-cinematic />
+                <input
+                  type="checkbox"
+                  aria-label="Cinematic mode"
+                  data-sr-cinematic
+                />
               </label>
 
               <label class="sr-field">
                 <span>License plate text</span>
                 <input
                   type="text"
+                  aria-label="License plate text"
                   inputmode="text"
                   maxlength="10"
                   placeholder="DFYTWL"
@@ -383,13 +394,18 @@ const galleryHref = `${base}gallery/`;
 
               <label class="sr-field">
                 <span>Decal / sticker mode</span>
-                <input type="checkbox" data-sr-decal-mode />
+                <input
+                  type="checkbox"
+                  aria-label="Decal / sticker mode"
+                  data-sr-decal-mode
+                />
               </label>
 
               <label class="sr-field">
                 <span>Decal text</span>
                 <input
                   type="text"
+                  aria-label="Decal text"
                   inputmode="text"
                   maxlength="18"
                   placeholder="RACE"
@@ -400,13 +416,19 @@ const galleryHref = `${base}gallery/`;
 
               <label class="sr-field">
                 <span>Decal color</span>
-                <input type="color" value="#ffffff" data-sr-decal-color />
+                <input
+                  type="color"
+                  aria-label="Decal color"
+                  value="#ffffff"
+                  data-sr-decal-color
+                />
               </label>
 
               <label class="sr-field">
                 <span>Decal size</span>
                 <input
                   type="range"
+                  aria-label="Decal size"
                   min="0.05"
                   max="1.2"
                   step="0.01"
@@ -419,6 +441,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Decal rotation</span>
                 <input
                   type="range"
+                  aria-label="Decal rotation"
                   min="-180"
                   max="180"
                   step="1"
@@ -431,6 +454,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Decal opacity</span>
                 <input
                   type="range"
+                  aria-label="Decal opacity"
                   min="0.1"
                   max="1"
                   step="0.01"
@@ -515,6 +539,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Model URL</span>
                 <input
                   type="url"
+                  aria-label="Model URL"
                   inputmode="url"
                   placeholder="models/… or https://…"
                   data-sr-model-url
@@ -541,6 +566,7 @@ const galleryHref = `${base}gallery/`;
                   <span>Scale</span>
                   <input
                     type="range"
+                    aria-label="Model scale"
                     min="0.25"
                     max="2"
                     step="0.01"
@@ -553,6 +579,7 @@ const galleryHref = `${base}gallery/`;
                   <span>Yaw</span>
                   <input
                     type="range"
+                    aria-label="Model yaw"
                     min="-180"
                     max="180"
                     step="1"
@@ -565,6 +592,7 @@ const galleryHref = `${base}gallery/`;
                   <span>Lift</span>
                   <input
                     type="range"
+                    aria-label="Model lift"
                     min="-1.5"
                     max="1.5"
                     step="0.01"
@@ -621,7 +649,12 @@ const galleryHref = `${base}gallery/`;
 
               <label class="sr-field">
                 <span>Paint</span>
-                <input type="color" value="#00d1b2" data-sr-paint />
+                <input
+                  type="color"
+                  aria-label="Paint"
+                  value="#00d1b2"
+                  data-sr-paint
+                />
               </label>
 
               <label class="sr-field">
@@ -637,6 +670,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Clearcoat</span>
                 <input
                   type="range"
+                  aria-label="Clearcoat"
                   min="0"
                   max="1"
                   step="0.01"
@@ -647,13 +681,18 @@ const galleryHref = `${base}gallery/`;
 
               <label class="sr-field">
                 <span>Wet mode (glossier)</span>
-                <input type="checkbox" data-sr-wet />
+                <input
+                  type="checkbox"
+                  aria-label="Wet mode (glossier)"
+                  data-sr-wet
+                />
               </label>
 
               <label class="sr-field">
                 <span>Wet amount</span>
                 <input
                   type="range"
+                  aria-label="Wet amount"
                   min="0"
                   max="1"
                   step="0.01"
@@ -666,6 +705,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Grime amount</span>
                 <input
                   type="range"
+                  aria-label="Grime amount"
                   min="0"
                   max="1"
                   step="0.01"
@@ -676,7 +716,11 @@ const galleryHref = `${base}gallery/`;
 
               <label class="sr-field">
                 <span>Wrap mode</span>
-                <input type="checkbox" data-sr-wrap-enabled />
+                <input
+                  type="checkbox"
+                  aria-label="Wrap mode"
+                  data-sr-wrap-enabled
+                />
               </label>
 
               <label class="sr-field">
@@ -694,12 +738,18 @@ const galleryHref = `${base}gallery/`;
 
               <label class="sr-field">
                 <span>Wrap color</span>
-                <input type="color" value="#ffffff" data-sr-wrap-color />
+                <input
+                  type="color"
+                  value="#ffffff"
+                  aria-label="Wrap color"
+                  data-sr-wrap-color
+                />
               </label>
               <label class="sr-field">
                 <span>Wrap tint</span>
                 <input
                   type="range"
+                  aria-label="Wrap tint"
                   min="0"
                   max="1"
                   step="0.01"
@@ -711,6 +761,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Wrap scale</span>
                 <input
                   type="range"
+                  aria-label="Wrap scale"
                   min="0.25"
                   max="4"
                   step="0.01"
@@ -722,6 +773,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Wrap rotation</span>
                 <input
                   type="range"
+                  aria-label="Wrap rotation"
                   min="-180"
                   max="180"
                   step="1"
@@ -733,6 +785,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Wrap offset X</span>
                 <input
                   type="range"
+                  aria-label="Wrap offset X"
                   min="-1"
                   max="1"
                   step="0.01"
@@ -744,6 +797,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Wrap offset Y</span>
                 <input
                   type="range"
+                  aria-label="Wrap offset Y"
                   min="-1"
                   max="1"
                   step="0.01"
@@ -754,12 +808,17 @@ const galleryHref = `${base}gallery/`;
 
               <label class="sr-field">
                 <span>Glass mode</span>
-                <input type="checkbox" data-sr-glass-mode />
+                <input
+                  type="checkbox"
+                  aria-label="Glass mode"
+                  data-sr-glass-mode
+                />
               </label>
               <label class="sr-field">
                 <span>Glass tint</span>
                 <input
                   type="range"
+                  aria-label="Glass tint"
                   min="0"
                   max="1"
                   step="0.01"
@@ -770,24 +829,45 @@ const galleryHref = `${base}gallery/`;
 
               <label class="sr-field">
                 <span>Wheel color</span>
-                <input type="color" value="#111827" data-sr-wheel-color />
+                <input
+                  type="color"
+                  value="#111827"
+                  aria-label="Wheel color"
+                  data-sr-wheel-color
+                />
               </label>
               <label class="sr-field">
                 <span>Trim color</span>
-                <input type="color" value="#0b0f14" data-sr-trim-color />
+                <input
+                  type="color"
+                  value="#0b0f14"
+                  aria-label="Trim color"
+                  data-sr-trim-color
+                />
               </label>
               <label class="sr-field">
                 <span>Caliper color</span>
-                <input type="color" value="#ef4444" data-sr-caliper-color />
+                <input
+                  type="color"
+                  value="#ef4444"
+                  aria-label="Caliper color"
+                  data-sr-caliper-color
+                />
               </label>
               <label class="sr-field">
                 <span>Light color</span>
-                <input type="color" value="#ffffff" data-sr-light-color />
+                <input
+                  type="color"
+                  value="#ffffff"
+                  aria-label="Light color"
+                  data-sr-light-color
+                />
               </label>
               <label class="sr-field">
                 <span>Light glow</span>
                 <input
                   type="range"
+                  aria-label="Light glow"
                   min="0"
                   max="6"
                   step="0.01"
@@ -798,7 +878,11 @@ const galleryHref = `${base}gallery/`;
 
               <label class="sr-field">
                 <span>Keep original materials</span>
-                <input type="checkbox" data-sr-original-mats />
+                <input
+                  type="checkbox"
+                  aria-label="Keep original materials"
+                  data-sr-original-mats
+                />
               </label>
             </div>
           </section>
@@ -854,6 +938,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Intensity</span>
                 <input
                   type="range"
+                  aria-label="Light intensity"
                   min="0.2"
                   max="2.5"
                   step="0.01"
@@ -865,6 +950,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Warmth</span>
                 <input
                   type="range"
+                  aria-label="Light warmth"
                   min="0"
                   max="1"
                   step="0.01"
@@ -876,6 +962,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Rim boost</span>
                 <input
                   type="range"
+                  aria-label="Light rim boost"
                   min="0.5"
                   max="2"
                   step="0.01"
@@ -888,6 +975,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Env intensity</span>
                 <input
                   type="range"
+                  aria-label="Environment intensity"
                   min="0"
                   max="3"
                   step="0.01"
@@ -899,6 +987,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Env rotation</span>
                 <input
                   type="range"
+                  aria-label="Environment rotation"
                   min="-180"
                   max="180"
                   step="1"
@@ -924,15 +1013,20 @@ const galleryHref = `${base}gallery/`;
             <div class="sr-grid">
               <label class="sr-field">
                 <span>Grid</span>
-                <input type="checkbox" data-sr-grid />
+                <input type="checkbox" aria-label="Grid" data-sr-grid />
               </label>
               <label class="sr-field">
                 <span>Axes</span>
-                <input type="checkbox" data-sr-axes />
+                <input type="checkbox" aria-label="Axes" data-sr-axes />
               </label>
               <label class="sr-field">
                 <span>Haptics</span>
-                <input type="checkbox" checked data-sr-haptics />
+                <input
+                  type="checkbox"
+                  checked
+                  aria-label="Haptics"
+                  data-sr-haptics
+                />
               </label>
             </div>
           </section>
@@ -979,6 +1073,7 @@ const galleryHref = `${base}gallery/`;
                 <input
                   type="text"
                   placeholder="wheel / glass / body…"
+                  aria-label="Filter"
                   data-sr-inspector-filter
                 />
               </label>
@@ -989,20 +1084,38 @@ const galleryHref = `${base}gallery/`;
 
               <label class="sr-field">
                 <span>Pick on click</span>
-                <input type="checkbox" checked data-sr-inspector-pick />
+                <input
+                  type="checkbox"
+                  checked
+                  aria-label="Pick on click"
+                  data-sr-inspector-pick
+                />
               </label>
               <label class="sr-field">
                 <span>Isolate selection</span>
-                <input type="checkbox" data-sr-inspector-isolate />
+                <input
+                  type="checkbox"
+                  aria-label="Isolate selection"
+                  data-sr-inspector-isolate
+                />
               </label>
 
               <label class="sr-field">
                 <span>Highlight selection</span>
-                <input type="checkbox" checked data-sr-inspector-highlight />
+                <input
+                  type="checkbox"
+                  checked
+                  aria-label="Highlight selection"
+                  data-sr-inspector-highlight
+                />
               </label>
               <label class="sr-field">
                 <span>Wireframe</span>
-                <input type="checkbox" data-sr-wireframe />
+                <input
+                  type="checkbox"
+                  aria-label="Wireframe"
+                  data-sr-wireframe
+                />
               </label>
 
               <div class="sr-row">
@@ -1046,12 +1159,19 @@ const galleryHref = `${base}gallery/`;
               </label>
               <label class="sr-field">
                 <span>Play</span>
-                <input type="checkbox" checked data-sr-anim-play disabled />
+                <input
+                  type="checkbox"
+                  checked
+                  aria-label="Play"
+                  data-sr-anim-play
+                  disabled
+                />
               </label>
               <label class="sr-field">
                 <span>Speed</span>
                 <input
                   type="range"
+                  aria-label="Animation speed"
                   min="0"
                   max="2"
                   step="0.01"
@@ -1126,12 +1246,18 @@ const galleryHref = `${base}gallery/`;
             <div class="sr-grid">
               <label class="sr-field">
                 <span>Floor color</span>
-                <input type="color" value="#111827" data-sr-floor-color />
+                <input
+                  type="color"
+                  value="#111827"
+                  aria-label="Floor color"
+                  data-sr-floor-color
+                />
               </label>
               <label class="sr-field">
                 <span>Floor opacity</span>
                 <input
                   type="range"
+                  aria-label="Floor opacity"
                   min="0"
                   max="1"
                   step="0.01"
@@ -1143,6 +1269,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Roughness</span>
                 <input
                   type="range"
+                  aria-label="Floor roughness"
                   min="0"
                   max="1"
                   step="0.01"
@@ -1154,6 +1281,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Metalness</span>
                 <input
                   type="range"
+                  aria-label="Floor metalness"
                   min="0"
                   max="1"
                   step="0.01"
@@ -1163,12 +1291,17 @@ const galleryHref = `${base}gallery/`;
               </label>
               <label class="sr-field">
                 <span>Floor reflections</span>
-                <input type="checkbox" data-sr-floor-reflections />
+                <input
+                  type="checkbox"
+                  aria-label="Floor reflections"
+                  data-sr-floor-reflections
+                />
               </label>
               <label class="sr-field">
                 <span>Reflection strength</span>
                 <input
                   type="range"
+                  aria-label="Reflection strength"
                   min="0"
                   max="1"
                   step="0.01"
@@ -1178,12 +1311,18 @@ const galleryHref = `${base}gallery/`;
               </label>
               <label class="sr-field">
                 <span>Shadows</span>
-                <input type="checkbox" checked data-sr-shadows />
+                <input
+                  type="checkbox"
+                  checked
+                  aria-label="Shadows"
+                  data-sr-shadows
+                />
               </label>
               <label class="sr-field">
                 <span>Shadow strength</span>
                 <input
                   type="range"
+                  aria-label="Shadow strength"
                   min="0"
                   max="1"
                   step="0.01"
@@ -1195,6 +1334,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Shadow size</span>
                 <input
                   type="range"
+                  aria-label="Shadow size"
                   min="2"
                   max="20"
                   step="0.5"
@@ -1204,7 +1344,11 @@ const galleryHref = `${base}gallery/`;
               </label>
               <label class="sr-field">
                 <span>High quality shadows</span>
-                <input type="checkbox" data-sr-shadow-hq />
+                <input
+                  type="checkbox"
+                  aria-label="High quality shadows"
+                  data-sr-shadow-hq
+                />
               </label>
             </div>
           </section>
@@ -1237,12 +1381,21 @@ const galleryHref = `${base}gallery/`;
             <div class="sr-grid">
               <label class="sr-field">
                 <span>Interior mode</span>
-                <input type="checkbox" data-sr-interior />
+                <input
+                  type="checkbox"
+                  aria-label="Interior mode"
+                  data-sr-interior
+                />
               </label>
 
               <label class="sr-field">
                 <span>Hotspots (click to focus)</span>
-                <input type="checkbox" checked data-sr-hotspots />
+                <input
+                  type="checkbox"
+                  checked
+                  aria-label="Hotspots (click to focus)"
+                  data-sr-hotspots
+                />
               </label>
 
               <div class="sr-row">
@@ -1273,6 +1426,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Yaw</span>
                 <input
                   type="range"
+                  aria-label="Yaw"
                   min="-180"
                   max="180"
                   step="1"
@@ -1284,6 +1438,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Pitch</span>
                 <input
                   type="range"
+                  aria-label="Pitch"
                   min="-10"
                   max="85"
                   step="1"
@@ -1295,6 +1450,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Distance</span>
                 <input
                   type="range"
+                  aria-label="Distance"
                   min="1.5"
                   max="18"
                   step="0.1"
@@ -1306,6 +1462,7 @@ const galleryHref = `${base}gallery/`;
                 <span>FOV</span>
                 <input
                   type="range"
+                  aria-label="Field of view"
                   min="25"
                   max="75"
                   step="1"
@@ -1316,17 +1473,29 @@ const galleryHref = `${base}gallery/`;
 
               <label class="sr-field">
                 <span>Rule of thirds overlay</span>
-                <input type="checkbox" data-sr-thirds />
+                <input
+                  type="checkbox"
+                  aria-label="Rule of thirds overlay"
+                  data-sr-thirds
+                />
               </label>
 
               <label class="sr-field">
                 <span>Center marker</span>
-                <input type="checkbox" data-sr-center />
+                <input
+                  type="checkbox"
+                  aria-label="Center marker"
+                  data-sr-center
+                />
               </label>
 
               <label class="sr-field">
                 <span>Horizon line</span>
-                <input type="checkbox" data-sr-horizon />
+                <input
+                  type="checkbox"
+                  aria-label="Horizon line"
+                  data-sr-horizon
+                />
               </label>
               <div class="sr-row">
                 <button type="button" class="sr-btn" data-sr-camera-frame
@@ -1407,7 +1576,12 @@ const galleryHref = `${base}gallery/`;
             <div class="sr-grid">
               <label class="sr-field">
                 <span>Auto-rotate</span>
-                <input type="checkbox" checked data-sr-autorotate />
+                <input
+                  type="checkbox"
+                  checked
+                  aria-label="Auto-rotate"
+                  data-sr-autorotate
+                />
               </label>
               <label class="sr-field">
                 <span>Style</span>
@@ -1422,6 +1596,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Speed</span>
                 <input
                   type="range"
+                  aria-label="Auto-rotate speed"
                   min="0"
                   max="2"
                   step="0.01"
@@ -1433,6 +1608,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Zoom</span>
                 <input
                   type="range"
+                  aria-label="Zoom"
                   min="0"
                   max="1"
                   step="0.01"
@@ -1479,13 +1655,19 @@ const galleryHref = `${base}gallery/`;
               </label>
               <label class="sr-field">
                 <span>Auto quality (FPS)</span>
-                <input type="checkbox" checked data-sr-auto-quality />
+                <input
+                  type="checkbox"
+                  checked
+                  aria-label="Auto quality (FPS)"
+                  data-sr-auto-quality
+                />
               </label>
 
               <label class="sr-field">
                 <span>Target FPS</span>
                 <input
                   type="range"
+                  aria-label="Target FPS"
                   min="30"
                   max="90"
                   step="1"
@@ -1522,6 +1704,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Exposure</span>
                 <input
                   type="range"
+                  aria-label="Exposure"
                   min="0.5"
                   max="2"
                   step="0.01"
@@ -1544,6 +1727,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Bloom</span>
                 <input
                   type="range"
+                  aria-label="Bloom"
                   min="0"
                   max="2"
                   step="0.01"
@@ -1555,6 +1739,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Bloom threshold</span>
                 <input
                   type="range"
+                  aria-label="Bloom threshold"
                   min="0"
                   max="1"
                   step="0.01"
@@ -1566,6 +1751,7 @@ const galleryHref = `${base}gallery/`;
                 <span>Bloom radius</span>
                 <input
                   type="range"
+                  aria-label="Bloom radius"
                   min="0"
                   max="1"
                   step="0.01"
@@ -1597,6 +1783,7 @@ const galleryHref = `${base}gallery/`;
               type="text"
               class="sr__cmdkInput"
               placeholder="Search settings… (Ctrl+K / /)"
+              aria-label="Search settings"
               autocomplete="off"
               data-sr-cmdk-input
             />

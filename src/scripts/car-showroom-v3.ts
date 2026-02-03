@@ -1460,7 +1460,7 @@ const init = () => {
     activeAction = null;
     mixer = null;
     setAnimationEnabled(false);
-    if (animClipSel) animClipSel.innerHTML = '';
+    if (animClipSel) animClipSel.replaceChildren();
   };
 
   const playClipByName = (name: string) => {
@@ -1695,7 +1695,7 @@ const init = () => {
 
   const populateMeshSelect = () => {
     if (!inspectorMeshSel) return;
-    inspectorMeshSel.innerHTML = '';
+    inspectorMeshSel.replaceChildren();
 
     const filter = (inspectorFilter?.value || '').trim().toLowerCase();
     const frag = document.createDocumentFragment();
@@ -3383,7 +3383,7 @@ const init = () => {
       if (loadState.animations.length && obj) {
         mixer = new THREE.AnimationMixer(obj);
         if (animClipSel) {
-          animClipSel.innerHTML = '';
+          animClipSel.replaceChildren();
           const frag = document.createDocumentFragment();
           for (const clip of loadState.animations) {
             const opt = document.createElement('option');
@@ -5154,7 +5154,7 @@ const init = () => {
     const list = getCmdkList();
     if (cmdkIndex >= list.length) cmdkIndex = Math.max(0, list.length - 1);
 
-    cmdkList.innerHTML = '';
+    cmdkList.replaceChildren();
     if (!list.length) {
       const empty = document.createElement('div');
       empty.className = 'sr-readout sr-readout--mini';
@@ -6673,7 +6673,7 @@ const init = () => {
   const refreshCameraViewSelect = (selectedId?: string) => {
     if (!camViewSelect) return;
     const list = readCameraViews();
-    camViewSelect.innerHTML = '';
+    camViewSelect.replaceChildren();
 
     const empty = document.createElement('option');
     empty.value = '';
@@ -6853,7 +6853,7 @@ const init = () => {
   const refreshPresetSelect = (selectedId?: string) => {
     if (!presetSelect) return;
     const list = readPresets();
-    presetSelect.innerHTML = '';
+    presetSelect.replaceChildren();
 
     const empty = document.createElement('option');
     empty.value = '';

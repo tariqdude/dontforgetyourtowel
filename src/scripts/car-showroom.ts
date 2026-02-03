@@ -27,24 +27,19 @@ import {
   damp,
   normalizeHexColor,
   clamp01,
-  parseNum,
   copyToClipboard,
   safeParseJson,
   toBase64Url,
-  fromBase64Url,
   createPresetId,
   isMobilePanel,
   resolveAssetUrl,
 } from './car-showroom/showroom-utils';
 import {
   type SavedPreset,
-  type ManualPartKind,
   type PartMap,
-  PRESETS_STORAGE_KEY,
   PRESET_DATASET_KEYS,
   isManualPartKind,
   normalizePartMap,
-  getPartMapStorageKey,
   loadPartMapForModel,
   savePartMapForModel,
   loadSavedPresets,
@@ -587,11 +582,6 @@ createAstroMount(ROOT_SELECTOR, () => {
   };
 
   const panel = root.querySelector<HTMLElement>('[data-csr-panel]');
-  const panelHead =
-    panel?.querySelector<HTMLElement>('.csr-panel-head') || null;
-  const sheetHandle = root.querySelector<HTMLButtonElement>(
-    '[data-csr-sheet-handle]'
-  );
   const filterInput = root.querySelector<HTMLInputElement>('[data-csr-filter]');
   const filterClearBtn = root.querySelector<HTMLButtonElement>(
     '[data-csr-filter-clear]'
@@ -601,12 +591,6 @@ createAstroMount(ROOT_SELECTOR, () => {
   );
   const loadingEl = root.querySelector<HTMLElement>('[data-csr-loading]');
   const errorEl = root.querySelector<HTMLElement>('[data-csr-error]');
-  const togglePanelBtn = root.querySelector<HTMLButtonElement>(
-    '[data-csr-toggle-panel]'
-  );
-  const quickPanelBtn = root.querySelector<HTMLButtonElement>(
-    '[data-csr-quick-panel]'
-  );
   const quickFrameBtn = root.querySelector<HTMLButtonElement>(
     '[data-csr-quick-frame]'
   );
@@ -624,9 +608,6 @@ createAstroMount(ROOT_SELECTOR, () => {
   );
   const quickLightSel = root.querySelector<HTMLSelectElement>(
     '[data-csr-quick-light]'
-  );
-  const closePanelBtn = root.querySelector<HTMLButtonElement>(
-    '[data-csr-close-panel]'
   );
   const toolsFrameBtn = root.querySelector<HTMLButtonElement>(
     '[data-csr-tools-frame]'
@@ -1301,7 +1282,7 @@ createAstroMount(ROOT_SELECTOR, () => {
   );
 
   const isAutomation = detectAutomation();
-  const isDebug = detectShowroomDebug();
+  detectShowroomDebug();
 
   const syncStatus = () => {
     const ds = root.dataset;
@@ -1553,7 +1534,7 @@ createAstroMount(ROOT_SELECTOR, () => {
   const renderPresetOptions = () => {
     if (!presetSel) return;
 
-    presetSel.innerHTML = '';
+    presetSel.replaceChildren();
 
     if (savedPresets.length === 0) {
       const opt = document.createElement('option');

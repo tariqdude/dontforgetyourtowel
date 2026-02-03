@@ -327,33 +327,51 @@ createAstroMount(ROOT_SELECTOR, () => {
       root.appendChild(overlay);
     }
 
-    overlay.innerHTML = `
-      <div style="max-width:560px">
-        <div style="font-weight:700;font-size:18px;margin-bottom:8px">3D Gallery failed to start</div>
-        <div style="opacity:0.85;font-size:14px;line-height:1.5;margin-bottom:16px">${message}</div>
-        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-          <button data-gallery-reload style="cursor:pointer;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.06);color:#fff;padding:10px 14px;border-radius:10px;backdrop-filter:blur(10px)">Reload</button>
-          <button data-gallery-diagnostics style="cursor:pointer;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.02);color:#fff;padding:10px 14px;border-radius:10px;backdrop-filter:blur(10px)">Open diagnostics</button>
-        </div>
-      </div>
-    `;
+    overlay.replaceChildren();
 
-    const reloadBtn = overlay.querySelector<HTMLButtonElement>(
-      '[data-gallery-reload]'
-    );
+    const card = document.createElement('div');
+    card.style.maxWidth = '560px';
+
+    const head = document.createElement('div');
+    head.style.cssText = 'font-weight:700;font-size:18px;margin-bottom:8px';
+    head.textContent = '3D Gallery failed to start';
+
+    const body = document.createElement('div');
+    body.style.cssText =
+      'opacity:0.85;font-size:14px;line-height:1.5;margin-bottom:16px';
+    body.textContent = String(message || '');
+
+    const row = document.createElement('div');
+    row.style.cssText =
+      'display:flex;gap:10px;justify-content:center;flex-wrap:wrap';
+
+    const makeBtn = (label: string, bg: string) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.style.cssText = `cursor:pointer;border:1px solid rgba(255,255,255,0.18);background:${bg};color:#fff;padding:10px 14px;border-radius:10px;backdrop-filter:blur(10px)`;
+      btn.textContent = label;
+      return btn;
+    };
+
+    const reloadBtn = makeBtn('Reload', 'rgba(255,255,255,0.06)');
+    reloadBtn.dataset.galleryReload = '1';
+    const diagBtn = makeBtn('Open diagnostics', 'rgba(255,255,255,0.02)');
+    diagBtn.dataset.galleryDiagnostics = '1';
+
+    row.append(reloadBtn, diagBtn);
+    card.append(head, body, row);
+    overlay.appendChild(card);
+
     const onReload = () => window.location.reload();
-    reloadBtn?.addEventListener('click', onReload);
-    addGalleryCleanup(() => reloadBtn?.removeEventListener('click', onReload));
+    reloadBtn.addEventListener('click', onReload);
+    addGalleryCleanup(() => reloadBtn.removeEventListener('click', onReload));
 
-    const diagBtn = overlay.querySelector<HTMLButtonElement>(
-      '[data-gallery-diagnostics]'
-    );
     const onDiag = () => {
       const url = new URL('debug-webgl/', document.baseURI).toString();
       window.open(url, '_blank', 'noopener');
     };
-    diagBtn?.addEventListener('click', onDiag);
-    addGalleryCleanup(() => diagBtn?.removeEventListener('click', onDiag));
+    diagBtn.addEventListener('click', onDiag);
+    addGalleryCleanup(() => diagBtn.removeEventListener('click', onDiag));
 
     // Stop showing the loader after a short beat so the UI isn't stuck.
     if (loaderHideTimeout) clearTimeout(loaderHideTimeout);

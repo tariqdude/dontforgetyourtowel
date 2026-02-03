@@ -48,20 +48,42 @@ export function createHeroScene(
       host.appendChild(overlay);
     }
 
-    overlay.innerHTML = `
-      <div style="max-width:620px">
-        <div style="font-weight:800;font-size:16px;margin-bottom:8px">${title}</div>
-        <div style="opacity:0.9;font-size:13px;line-height:1.45;margin-bottom:14px">${details}</div>
-        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-          <button type="button" data-open-diag style="cursor:pointer;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.02);color:#fff;padding:10px 14px;border-radius:10px;backdrop-filter:blur(10px)">Open diagnostics</button>
-          <button type="button" data-reload style="cursor:pointer;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.06);color:#fff;padding:10px 14px;border-radius:10px;backdrop-filter:blur(10px)">Reload</button>
-        </div>
-      </div>
-    `;
+    overlay.replaceChildren();
 
-    const diagBtn =
-      overlay.querySelector<HTMLButtonElement>('[data-open-diag]');
-    diagBtn?.addEventListener(
+    const card = document.createElement('div');
+    card.style.maxWidth = '620px';
+
+    const head = document.createElement('div');
+    head.style.cssText = 'font-weight:800;font-size:16px;margin-bottom:8px';
+    head.textContent = String(title || '');
+
+    const body = document.createElement('div');
+    body.style.cssText =
+      'opacity:0.9;font-size:13px;line-height:1.45;margin-bottom:14px';
+    body.textContent = String(details || '');
+
+    const row = document.createElement('div');
+    row.style.cssText =
+      'display:flex;gap:10px;justify-content:center;flex-wrap:wrap';
+
+    const makeBtn = (label: string, bg: string) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.style.cssText = `cursor:pointer;border:1px solid rgba(255,255,255,0.18);background:${bg};color:#fff;padding:10px 14px;border-radius:10px;backdrop-filter:blur(10px)`;
+      btn.textContent = label;
+      return btn;
+    };
+
+    const diagBtn = makeBtn('Open diagnostics', 'rgba(255,255,255,0.02)');
+    diagBtn.dataset.openDiag = '1';
+    const reloadBtn = makeBtn('Reload', 'rgba(255,255,255,0.06)');
+    reloadBtn.dataset.reload = '1';
+
+    row.append(diagBtn, reloadBtn);
+    card.append(head, body, row);
+    overlay.appendChild(card);
+
+    diagBtn.addEventListener(
       'click',
       () => {
         window.open(diagnosticsUrl, '_blank', 'noopener');
@@ -69,8 +91,7 @@ export function createHeroScene(
       { once: true }
     );
 
-    const reloadBtn = overlay.querySelector<HTMLButtonElement>('[data-reload]');
-    reloadBtn?.addEventListener(
+    reloadBtn.addEventListener(
       'click',
       () => {
         window.location.reload();

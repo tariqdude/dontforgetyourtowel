@@ -1562,54 +1562,74 @@ const scenes = [
           document.body.appendChild(overlay);
         }
 
-        overlay.innerHTML = `
-          <div style="max-width:600px">
-            <div style="font-weight:700;font-size:18px;margin-bottom:8px">3D Gallery failed to start</div>
-            <div style="opacity:0.85;font-size:14px;line-height:1.5;margin-bottom:16px">
-              The gallery boot module didn’t execute. This is usually caused by a script load/MIME/base-path issue.
-              Open DevTools → Console/Network to see the failing request.
-            </div>
-            <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-              <button data-gallery-reload style="cursor:pointer;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.06);color:#fff;padding:10px 14px;border-radius:10px;backdrop-filter:blur(10px)">Reload</button>
-              <button data-gallery-reset-cache style="cursor:pointer;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.02);color:#fff;padding:10px 14px;border-radius:10px;backdrop-filter:blur(10px)">Reset offline cache</button>
-              <button data-gallery-diagnostics style="cursor:pointer;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.02);color:#fff;padding:10px 14px;border-radius:10px;backdrop-filter:blur(10px)">Open diagnostics</button>
-            </div>
-          </div>
-        `;
+        overlay.replaceChildren();
 
-        const btn = overlay.querySelector('[data-gallery-reload]');
-        if (btn) btn.addEventListener('click', () => window.location.reload());
+        const card = document.createElement('div');
+        card.style.maxWidth = '600px';
 
-        const resetBtn = overlay.querySelector('[data-gallery-reset-cache]');
-        if (resetBtn)
-          resetBtn.addEventListener('click', async () => {
-            try {
-              if ('serviceWorker' in navigator) {
-                const regs = await navigator.serviceWorker.getRegistrations();
-                await Promise.all(regs.map(r => r.unregister()));
-              }
+        const head = document.createElement('div');
+        head.style.cssText = 'font-weight:700;font-size:18px;margin-bottom:8px';
+        head.textContent = '3D Gallery failed to start';
 
-              if ('caches' in window) {
-                const keys = await caches.keys();
-                await Promise.all(
-                  keys
-                    .filter(k => k.startsWith('github-pages-project-'))
-                    .map(k => caches.delete(k))
-                );
-              }
-            } catch {
-              // ignore
-            } finally {
-              window.location.reload();
+        const body = document.createElement('div');
+        body.style.cssText =
+          'opacity:0.85;font-size:14px;line-height:1.5;margin-bottom:16px';
+        body.textContent =
+          'The gallery boot module didn’t execute. This is usually caused by a script load/MIME/base-path issue. Open DevTools → Console/Network to see the failing request.';
+
+        const row = document.createElement('div');
+        row.style.cssText =
+          'display:flex;gap:10px;justify-content:center;flex-wrap:wrap';
+
+        const makeBtn = (label, bg) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.style.cssText = `cursor:pointer;border:1px solid rgba(255,255,255,0.18);background:${bg};color:#fff;padding:10px 14px;border-radius:10px;backdrop-filter:blur(10px)`;
+          b.textContent = label;
+          return b;
+        };
+
+        const reloadBtn = makeBtn('Reload', 'rgba(255,255,255,0.06)');
+        reloadBtn.dataset.galleryReload = '1';
+        reloadBtn.addEventListener('click', () => window.location.reload());
+
+        const resetBtn = makeBtn(
+          'Reset offline cache',
+          'rgba(255,255,255,0.02)'
+        );
+        resetBtn.dataset.galleryResetCache = '1';
+        resetBtn.addEventListener('click', async () => {
+          try {
+            if ('serviceWorker' in navigator) {
+              const regs = await navigator.serviceWorker.getRegistrations();
+              await Promise.all(regs.map(r => r.unregister()));
             }
-          });
 
-        const diagBtn = overlay.querySelector('[data-gallery-diagnostics]');
-        if (diagBtn)
-          diagBtn.addEventListener('click', () => {
-            const url = new URL('debug-webgl/', document.baseURI).toString();
-            window.open(url, '_blank', 'noopener');
-          });
+            if ('caches' in window) {
+              const keys = await caches.keys();
+              await Promise.all(
+                keys
+                  .filter(k => k.startsWith('github-pages-project-'))
+                  .map(k => caches.delete(k))
+              );
+            }
+          } catch {
+            // ignore
+          } finally {
+            window.location.reload();
+          }
+        });
+
+        const diagBtn = makeBtn('Open diagnostics', 'rgba(255,255,255,0.02)');
+        diagBtn.dataset.galleryDiagnostics = '1';
+        diagBtn.addEventListener('click', () => {
+          const url = new URL('debug-webgl/', document.baseURI).toString();
+          window.open(url, '_blank', 'noopener');
+        });
+
+        row.append(reloadBtn, resetBtn, diagBtn);
+        card.append(head, body, row);
+        overlay.appendChild(card);
       }, 4500);
     })();
   </script>
