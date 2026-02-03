@@ -165,6 +165,9 @@ const galleryHref = `${base}gallery/`;
               <button type="button" class="sr-chip" data-sr-quick-decals>
                 Decals
               </button>
+              <button type="button" class="sr-chip" data-sr-quick-grime>
+                Grime
+              </button>
               <button type="button" class="sr-chip" data-sr-quick-wet>
                 Wet
               </button>
@@ -645,6 +648,18 @@ const galleryHref = `${base}gallery/`;
                   step="0.01"
                   value="0.85"
                   data-sr-wet-amount
+                />
+              </label>
+
+              <label class="sr-field">
+                <span>Grime amount</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0"
+                  data-sr-grime-amount
                 />
               </label>
 

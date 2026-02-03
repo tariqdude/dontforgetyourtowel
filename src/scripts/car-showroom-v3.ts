@@ -900,6 +900,9 @@ const init = () => {
   const wetAmountInp = root.querySelector<HTMLInputElement>(
     '[data-sr-wet-amount]'
   );
+  const grimeAmountInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-grime-amount]'
+  );
   const originalMatsChk = root.querySelector<HTMLInputElement>(
     '[data-sr-original-mats]'
   );
@@ -1832,6 +1835,7 @@ const init = () => {
     clearcoat: Number.parseFloat(clearcoatInp?.value || '0.8') || 0.8,
     wet: Boolean(wetChk?.checked ?? false),
     wetAmount: Number.parseFloat(wetAmountInp?.value || '0.85') || 0.85,
+    grimeAmount: Number.parseFloat(grimeAmountInp?.value || '0') || 0,
     wrapEnabled: Boolean(wrapEnabledChk?.checked ?? false),
     wrapPattern: (wrapPatternSel?.value || 'solid').trim().toLowerCase(),
     wrapColorHex: parseHexColor(wrapColorInp?.value || '') || '#ffffff',
@@ -2231,6 +2235,11 @@ const init = () => {
       Number.parseFloat(wetAmountInp?.value || `${runtime.wetAmount}`) ||
       runtime.wetAmount;
 
+    runtime.grimeAmount = clamp01(
+      Number.parseFloat(grimeAmountInp?.value || `${runtime.grimeAmount}`) ||
+        runtime.grimeAmount
+    );
+
     runtime.wrapEnabled = Boolean(
       wrapEnabledChk?.checked ?? runtime.wrapEnabled
     );
@@ -2391,9 +2400,17 @@ const init = () => {
     const clearcoat = clamp01(runtime.clearcoat);
     const wet = Boolean(runtime.wet);
     const wetAmount = wet ? clamp01(runtime.wetAmount) : 0;
+    const grimeAmount = clamp01(runtime.grimeAmount);
     const finishRoughness =
       finish === 'matte' ? 0.92 : finish === 'satin' ? 0.48 : 0.18;
     const finishMetalness = finish === 'matte' ? 0.08 : 0.14;
+
+    const grimeTint = new THREE.Color('#1b140f');
+    const grimeRoughAdd = 0.35 * grimeAmount;
+    const grimeMetalMul = 1 - 0.25 * grimeAmount;
+    const grimeClearcoatMul = 1 - 0.65 * grimeAmount;
+    const grimeClearcoatRoughAdd = 0.18 * grimeAmount;
+    const grimeTintAmt = 0.12 * grimeAmount;
 
     const wetClearcoat = clamp01(clearcoat + 0.15 * wetAmount);
     const wetRoughMul = 1 - 0.65 * wetAmount;
@@ -2429,9 +2446,9 @@ const init = () => {
 
         // Roughness/metalness are a big realism lever.
         material.roughness = clamp01(
-          Math.max(wetRoughMin, finishRoughness * wetRoughMul)
+          Math.max(wetRoughMin, finishRoughness * wetRoughMul + grimeRoughAdd)
         );
-        material.metalness = clamp01(finishMetalness);
+        material.metalness = clamp01(finishMetalness * grimeMetalMul);
         material.envMapIntensity = clamp(
           runtime.envIntensity * wetEnvMul,
           0,
@@ -2440,11 +2457,14 @@ const init = () => {
 
         // Use physical clearcoat where possible.
         if (material instanceof THREE.MeshPhysicalMaterial) {
-          material.clearcoat = wetClearcoat;
+          material.clearcoat = wetClearcoat * grimeClearcoatMul;
           material.clearcoatRoughness = clamp01(
-            (0.08 + finishRoughness * 0.22) * wetClearcoatRoughMul
+            (0.08 + finishRoughness * 0.22) * wetClearcoatRoughMul +
+              grimeClearcoatRoughAdd
           );
         }
+
+        if (grimeTintAmt > 0) material.color.lerp(grimeTint, grimeTintAmt);
 
         material.needsUpdate = true;
       }
@@ -2500,9 +2520,9 @@ const init = () => {
           }
           material.color.copy(wrapColor);
           material.roughness = clamp01(
-            Math.max(wetRoughMin, finishRoughness * wetRoughMul)
+            Math.max(wetRoughMin, finishRoughness * wetRoughMul + grimeRoughAdd)
           );
-          material.metalness = clamp01(finishMetalness);
+          material.metalness = clamp01(finishMetalness * grimeMetalMul);
           material.envMapIntensity = clamp(
             runtime.envIntensity * wetEnvMul,
             0,
@@ -2510,11 +2530,14 @@ const init = () => {
           );
 
           if (material instanceof THREE.MeshPhysicalMaterial) {
-            material.clearcoat = wetClearcoat;
+            material.clearcoat = wetClearcoat * grimeClearcoatMul;
             material.clearcoatRoughness = clamp01(
-              (0.08 + finishRoughness * 0.22) * wetClearcoatRoughMul
+              (0.08 + finishRoughness * 0.22) * wetClearcoatRoughMul +
+                grimeClearcoatRoughAdd
             );
           }
+
+          if (grimeTintAmt > 0) material.color.lerp(grimeTint, grimeTintAmt);
           material.needsUpdate = true;
         }
       });
@@ -2773,6 +2796,7 @@ const init = () => {
     resetControlToDefault(clearcoatInp);
     resetControlToDefault(wetChk);
     resetControlToDefault(wetAmountInp);
+    resetControlToDefault(grimeAmountInp);
     resetControlToDefault(wrapEnabledChk);
     resetControlToDefault(wrapPatternSel);
     resetControlToDefault(wrapColorInp);
@@ -3564,6 +3588,7 @@ const init = () => {
     applyLook();
   });
   wetAmountInp?.addEventListener('input', () => applyLook());
+  grimeAmountInp?.addEventListener('input', () => applyLook());
 
   wrapEnabledChk?.addEventListener('change', () => applyLook());
   wrapPatternSel?.addEventListener('change', () => applyLook());
@@ -3968,12 +3993,17 @@ const init = () => {
     const wetAmount = clamp01(
       Number.parseFloat(wetAmountInp?.value || '0.85') || 0.85
     );
+    const grimeAmount = clamp01(
+      Number.parseFloat(grimeAmountInp?.value || '0') || 0
+    );
     if (fin && fin !== 'gloss') url.searchParams.set('fin', fin);
     if (Math.abs(coat - 0.8) > 0.0001)
       url.searchParams.set('coat', coat.toFixed(3));
     if (wet) url.searchParams.set('wet', '1');
     if (wet && Math.abs(wetAmount - 0.85) > 0.0001)
       url.searchParams.set('wa', wetAmount.toFixed(3));
+    if (Math.abs(grimeAmount) > 0.0001)
+      url.searchParams.set('gr', grimeAmount.toFixed(3));
 
     // Look
     const we = Boolean(wrapEnabledChk?.checked);
@@ -4412,6 +4442,7 @@ const init = () => {
     const coat = url.searchParams.get('coat');
     const wet = url.searchParams.get('wet');
     const wa = url.searchParams.get('wa');
+    const gr = url.searchParams.get('gr');
 
     // Look (wrap/glass/parts)
     const we = url.searchParams.get('we');
@@ -4486,6 +4517,7 @@ const init = () => {
     if (coat && clearcoatInp) clearcoatInp.value = coat;
     if (wet && wetChk) wetChk.checked = wet === '1';
     if (wa && wetAmountInp) wetAmountInp.value = wa;
+    if (gr && grimeAmountInp) grimeAmountInp.value = gr;
 
     if (we && wrapEnabledChk) wrapEnabledChk.checked = we === '1';
     if (wp && wrapPatternSel) wrapPatternSel.value = wp;
@@ -4654,6 +4686,9 @@ const init = () => {
   );
   const quickWetBtn = root.querySelector<HTMLButtonElement>(
     '[data-sr-quick-wet]'
+  );
+  const quickGrimeBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-quick-grime]'
   );
   const quickThirdsBtn = root.querySelector<HTMLButtonElement>(
     '[data-sr-quick-thirds]'
@@ -5397,6 +5432,24 @@ const init = () => {
         },
       },
       {
+        id: 'look.grime.amount.cycle',
+        group: 'Look',
+        label: `Grime amount: ${Math.round((Number.parseFloat(grimeAmountInp?.value || '0') || 0) * 100)}%`,
+        keywords: 'grime dirt dust mud realism roughness',
+        run: () => {
+          if (!grimeAmountInp) return;
+
+          const steps = [0, 0.25, 0.5, 0.75, 1];
+          const cur = clamp01(
+            Number.parseFloat(grimeAmountInp.value || '0') || 0
+          );
+          const idx = steps.findIndex(v => Math.abs(v - cur) < 0.06);
+          const next = steps[(idx + 1 + steps.length) % steps.length];
+          grimeAmountInp.value = String(next);
+          grimeAmountInp.dispatchEvent(new Event('input', { bubbles: true }));
+        },
+      },
+      {
         id: 'look.wrap.pattern',
         group: 'Look',
         label: `Wrap pattern: ${(wrapPatternSel?.value || 'solid').trim()}`,
@@ -5947,6 +6000,10 @@ const init = () => {
     setPressed(quickHotspotsBtn, Boolean(hotspotsChk?.checked ?? false));
     setPressed(quickDecalsBtn, Boolean(decalModeChk?.checked ?? false));
     setPressed(quickWetBtn, Boolean(wetChk?.checked ?? false));
+    setPressed(
+      quickGrimeBtn,
+      (Number.parseFloat(grimeAmountInp?.value || '0') || 0) > 0.01
+    );
     setPressed(quickThirdsBtn, Boolean(thirdsChk?.checked ?? false));
     setPressed(quickCenterBtn, Boolean(centerChk?.checked ?? false));
     setPressed(quickHorizonBtn, Boolean(horizonChk?.checked ?? false));
@@ -6045,6 +6102,24 @@ const init = () => {
       runtime.wet = next;
       if (loadState.gltf) applyLook();
     }
+    syncQuickFromUi();
+    setQuickOpen(false);
+  });
+
+  quickGrimeBtn?.addEventListener('click', () => {
+    const cur = clamp01(
+      Number.parseFloat(grimeAmountInp?.value || `${runtime.grimeAmount}`) ||
+        runtime.grimeAmount
+    );
+    const next = cur > 0.05 ? 0 : 0.6;
+
+    if (grimeAmountInp) {
+      setRange(grimeAmountInp, next, 'input');
+    } else {
+      runtime.grimeAmount = next;
+      if (loadState.gltf) applyLook();
+    }
+
     syncQuickFromUi();
     setQuickOpen(false);
   });
@@ -6584,6 +6659,7 @@ const init = () => {
       clearcoat: clearcoatInp?.value,
       wet: Boolean(wetChk?.checked ?? false),
       wetAmount: wetAmountInp?.value,
+      grimeAmount: grimeAmountInp?.value,
 
       wrapEnabled: Boolean(wrapEnabledChk?.checked ?? false),
       wrapPattern: (wrapPatternSel?.value || '').trim(),
@@ -6705,6 +6781,7 @@ const init = () => {
     setVal(clearcoatInp, state.clearcoat);
     setChk(wetChk, state.wet);
     setVal(wetAmountInp, state.wetAmount);
+    setVal(grimeAmountInp, state.grimeAmount);
 
     setChk(wrapEnabledChk, state.wrapEnabled);
     setVal(wrapPatternSel, state.wrapPattern);
