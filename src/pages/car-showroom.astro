@@ -157,6 +157,14 @@ const galleryHref = `${base}gallery/`;
                   data-sr-quick-autorotate
                 />
               </label>
+              <label class="sr-field">
+                <span>Guided mode</span>
+                <input
+                  type="checkbox"
+                  aria-label="Guided mode"
+                  data-sr-quick-guided
+                />
+              </label>
             </div>
 
             <div class="sr__quickRow">
@@ -444,6 +452,7 @@ const galleryHref = `${base}gallery/`;
               type="button"
               class="sr-chip sr-tab"
               data-sr-jump="photomode"
+              data-sr-advanced="1"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path
@@ -460,6 +469,7 @@ const galleryHref = `${base}gallery/`;
               type="button"
               class="sr-chip sr-tab"
               data-sr-jump="materials-pro"
+              data-sr-advanced="1"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path
@@ -481,6 +491,7 @@ const galleryHref = `${base}gallery/`;
               type="button"
               class="sr-chip sr-tab"
               data-sr-jump="performance"
+              data-sr-advanced="1"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path
@@ -498,7 +509,12 @@ const galleryHref = `${base}gallery/`;
               </svg>
               <span>Performance</span>
             </button>
-            <button type="button" class="sr-chip sr-tab" data-sr-jump="post">
+            <button
+              type="button"
+              class="sr-chip sr-tab"
+              data-sr-jump="post"
+              data-sr-advanced="1"
+            >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path
                   d="M4 7h16M4 12h16M4 17h16"
@@ -515,7 +531,12 @@ const galleryHref = `${base}gallery/`;
               </svg>
               <span>Post</span>
             </button>
-            <button type="button" class="sr-chip sr-tab" data-sr-jump="tools">
+            <button
+              type="button"
+              class="sr-chip sr-tab"
+              data-sr-jump="tools"
+              data-sr-advanced="1"
+            >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path
                   d="M4 6h6v6H4zM14 12h6v6h-6z"
@@ -532,13 +553,19 @@ const galleryHref = `${base}gallery/`;
               <span>Meta</span>
             </button>
 
-            <button type="button" class="sr-chip sr-tab" data-sr-jump="scene">
+            <button
+              type="button"
+              class="sr-chip sr-tab"
+              data-sr-jump="scene"
+              data-sr-advanced="1"
+            >
               <span>Scene</span>
             </button>
             <button
               type="button"
               class="sr-chip sr-tab"
               data-sr-jump="inspector"
+              data-sr-advanced="1"
             >
               <span>Inspector</span>
             </button>
@@ -546,19 +573,26 @@ const galleryHref = `${base}gallery/`;
               type="button"
               class="sr-chip sr-tab"
               data-sr-jump="animation"
+              data-sr-advanced="1"
             >
               <span>Animation</span>
             </button>
             <button type="button" class="sr-chip sr-tab" data-sr-jump="floor">
               <span>Floor</span>
             </button>
-            <button type="button" class="sr-chip sr-tab" data-sr-jump="motion">
+            <button
+              type="button"
+              class="sr-chip sr-tab"
+              data-sr-jump="motion"
+              data-sr-advanced="1"
+            >
               <span>Motion</span>
             </button>
             <button
               type="button"
               class="sr-chip sr-tab"
               data-sr-jump="simulation"
+              data-sr-advanced="1"
             >
               <span>Simulation</span>
             </button>
@@ -1231,6 +1265,7 @@ const galleryHref = `${base}gallery/`;
             class="sr-section"
             id="sr-sec-materials-pro"
             data-sr-section="materials-pro"
+            data-sr-advanced="1"
           >
             <div class="sr-section__head">
               <h2>Materials Pro</h2>
@@ -1472,7 +1507,12 @@ const galleryHref = `${base}gallery/`;
             </div>
           </section>
 
-          <section class="sr-section" id="sr-sec-scene" data-sr-section="scene">
+          <section
+            class="sr-section"
+            id="sr-sec-scene"
+            data-sr-section="scene"
+            data-sr-advanced="1"
+          >
             <div class="sr-section__head">
               <h2>Scene</h2>
               <button
@@ -1509,6 +1549,7 @@ const galleryHref = `${base}gallery/`;
             class="sr-section"
             id="sr-sec-inspector"
             data-sr-section="inspector"
+            data-sr-advanced="1"
           >
             <div class="sr-section__head">
               <h2>Inspector</h2>
@@ -1614,6 +1655,7 @@ const galleryHref = `${base}gallery/`;
             class="sr-section"
             id="sr-sec-animation"
             data-sr-section="animation"
+            data-sr-advanced="1"
           >
             <div class="sr-section__head">
               <h2>Animation</h2>
@@ -2027,6 +2069,7 @@ const galleryHref = `${base}gallery/`;
             class="sr-section"
             id="sr-sec-motion"
             data-sr-section="motion"
+            data-sr-advanced="1"
           >
             <div class="sr-section__head">
               <h2>Motion</h2>
@@ -2140,6 +2183,7 @@ const galleryHref = `${base}gallery/`;
             class="sr-section"
             id="sr-sec-sim"
             data-sr-section="simulation"
+            data-sr-advanced="1"
           >
             <div class="sr-section__head">
               <h2>Simulation</h2>
@@ -2190,6 +2234,7 @@ const galleryHref = `${base}gallery/`;
             class="sr-section"
             id="sr-sec-performance"
             data-sr-section="performance"
+            data-sr-advanced="1"
           >
             <div class="sr-section__head">
               <h2>Performance</h2>
@@ -2310,6 +2355,7 @@ const galleryHref = `${base}gallery/`;
             class="sr-section"
             id="sr-sec-photomode"
             data-sr-section="photomode"
+            data-sr-advanced="1"
           >
             <div class="sr-section__head">
               <h2>Photo mode</h2>
@@ -2387,7 +2433,12 @@ const galleryHref = `${base}gallery/`;
             </div>
           </section>
 
-          <section class="sr-section" id="sr-sec-post" data-sr-section="post">
+          <section
+            class="sr-section"
+            id="sr-sec-post"
+            data-sr-section="post"
+            data-sr-advanced="1"
+          >
             <div class="sr-section__head">
               <h2>Post</h2>
               <div class="sr-section__headActions">
@@ -2497,7 +2548,12 @@ const galleryHref = `${base}gallery/`;
             </div>
           </section>
 
-          <section class="sr-section" id="sr-sec-tools" data-sr-section="tools">
+          <section
+            class="sr-section"
+            id="sr-sec-tools"
+            data-sr-section="tools"
+            data-sr-advanced="1"
+          >
             <div class="sr-section__head">
               <h2>Tools</h2>
               <button

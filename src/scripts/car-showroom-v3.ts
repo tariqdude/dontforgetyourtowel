@@ -740,6 +740,112 @@ const createPaintClearcoatNormalMap = (opts: {
   return tex;
 };
 
+type PaintSparkleUniforms = {
+  uPaintSparkle: { value: number };
+  uPaintFlakeScale: { value: number };
+  uPaintFlakeColor: { value: THREE.Color };
+};
+
+const ensurePaintSparkleShader = (material: THREE.MeshPhysicalMaterial) => {
+  const ud = material.userData as {
+    paintSparkle?: {
+      uniforms?: PaintSparkleUniforms;
+      target?: PaintSparkleUniforms;
+      enabled?: boolean;
+    };
+  };
+
+  if (ud.paintSparkle?.enabled) return;
+
+  if (!ud.paintSparkle) ud.paintSparkle = {};
+  ud.paintSparkle.enabled = true;
+
+  material.onBeforeCompile = shader => {
+    const uniforms: PaintSparkleUniforms = {
+      uPaintSparkle: { value: 0 },
+      uPaintFlakeScale: { value: 80 },
+      uPaintFlakeColor: { value: new THREE.Color(0xffffff) },
+    };
+
+    shader.uniforms.uPaintSparkle = uniforms.uPaintSparkle;
+    shader.uniforms.uPaintFlakeScale = uniforms.uPaintFlakeScale;
+    shader.uniforms.uPaintFlakeColor = uniforms.uPaintFlakeColor;
+
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+uniform float uPaintSparkle;
+uniform float uPaintFlakeScale;
+uniform vec3 uPaintFlakeColor;
+
+float paintHash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+`
+      )
+      .replace(
+        '#include <lights_fragment_end>',
+        `#include <lights_fragment_end>
+  float sparkleSeed = paintHash(floor(vViewPosition.xy * uPaintFlakeScale));
+  float sparkle = step(1.0 - uPaintSparkle, sparkleSeed);
+  outgoingLight += uPaintFlakeColor * sparkle * 0.35;
+`
+      );
+
+    ud.paintSparkle = {
+      enabled: true,
+      uniforms,
+      target: ud.paintSparkle?.target,
+    };
+
+    if (ud.paintSparkle?.target) {
+      uniforms.uPaintSparkle.value = ud.paintSparkle.target.uPaintSparkle.value;
+      uniforms.uPaintFlakeScale.value =
+        ud.paintSparkle.target.uPaintFlakeScale.value;
+      uniforms.uPaintFlakeColor.value.copy(
+        ud.paintSparkle.target.uPaintFlakeColor.value
+      );
+    }
+  };
+
+  material.needsUpdate = true;
+};
+
+const updatePaintSparkle = (
+  material: THREE.MeshPhysicalMaterial,
+  opts: {
+    sparkle: number;
+    flakeScale: number;
+    flakeColor: THREE.Color;
+  }
+) => {
+  ensurePaintSparkleShader(material);
+
+  const ud = material.userData as {
+    paintSparkle?: {
+      uniforms?: PaintSparkleUniforms;
+      target?: PaintSparkleUniforms;
+    };
+  };
+
+  const target: PaintSparkleUniforms = {
+    uPaintSparkle: { value: clamp01(opts.sparkle) },
+    uPaintFlakeScale: { value: Math.max(10, opts.flakeScale) },
+    uPaintFlakeColor: { value: opts.flakeColor.clone() },
+  };
+
+  if (!ud.paintSparkle) ud.paintSparkle = {};
+  ud.paintSparkle.target = target;
+
+  const uniforms = ud.paintSparkle.uniforms;
+  if (uniforms) {
+    uniforms.uPaintSparkle.value = target.uPaintSparkle.value;
+    uniforms.uPaintFlakeScale.value = target.uPaintFlakeScale.value;
+    uniforms.uPaintFlakeColor.value.copy(target.uPaintFlakeColor.value);
+  }
+};
+
 const createTireNormalMap = (): THREE.CanvasTexture => {
   const size = 512;
   const canvas = document.createElement('canvas');
@@ -932,6 +1038,7 @@ const setRootState = (
 };
 
 const isMobile = () => window.matchMedia('(max-width: 980px)').matches;
+const isCoarsePointer = () => window.matchMedia('(pointer: coarse)').matches;
 
 const initPanel = (root: HTMLElement) => {
   const panel = root.querySelector<HTMLElement>('[data-sr-panel]');
@@ -996,6 +1103,14 @@ const initPanel = (root: HTMLElement) => {
         'aria-expanded',
         next === 'collapsed' ? 'false' : 'true'
       );
+    }
+
+    try {
+      root.dispatchEvent(
+        new CustomEvent('sr-panel-snap', { detail: { snap: next } })
+      );
+    } catch {
+      // ignore
     }
 
     if (persist) {
@@ -1800,6 +1915,58 @@ const init = () => {
 
   // Panel system (new)
   const panelApi = initPanel(root);
+
+  const syncSmartLayout = () => {
+    const compact = isMobile() || isCoarsePointer();
+    root.dataset.srCompact = compact ? '1' : '0';
+
+    const snap = panelApi.getSnap();
+    const panelOpen = snap !== 'collapsed';
+    const hideTop = compact && panelOpen;
+    const hideHud = compact && panelOpen;
+    const hideSpec = compact && (snap === 'full' || snap === 'half');
+    const hideDock = compact;
+
+    root.dataset.srShowTop = hideTop ? '0' : '1';
+    root.dataset.srShowHud = hideHud ? '0' : '1';
+    root.dataset.srShowSpecbar = hideSpec ? '0' : '1';
+    root.dataset.srShowDock = hideDock ? '0' : '1';
+  };
+
+  root.addEventListener('sr-panel-snap', syncSmartLayout as EventListener);
+  window.addEventListener('resize', syncSmartLayout);
+  (window as ExtendedWindow).visualViewport?.addEventListener(
+    'resize',
+    syncSmartLayout
+  );
+  syncSmartLayout();
+
+  const GUIDED_KEY = 'sr3-guided-v1';
+  let guidedOn = false;
+  const setGuided = (next: boolean, persist: boolean) => {
+    guidedOn = next;
+    root.dataset.srGuided = next ? '1' : '0';
+    if (persist) {
+      try {
+        localStorage.setItem(GUIDED_KEY, next ? '1' : '0');
+      } catch {
+        // ignore
+      }
+    }
+  };
+  const initGuided = () => {
+    let saved: boolean | null = null;
+    try {
+      const raw = (localStorage.getItem(GUIDED_KEY) || '').trim();
+      if (raw === '1') saved = true;
+      else if (raw === '0') saved = false;
+    } catch {
+      // ignore
+    }
+    const defaultGuided = isMobile() || isCoarsePointer();
+    setGuided(saved ?? defaultGuided, false);
+  };
+  initGuided();
 
   const focusToggleBtns = Array.from(
     root.querySelectorAll<HTMLButtonElement>('[data-sr-focus-toggle]')
@@ -4048,6 +4215,7 @@ const init = () => {
     const wetRoughMin = 0.04 * wetAmount;
     const wetClearcoatRoughMul = 1 - 0.65 * wetAmount;
     const wetEnvMul = 1 + 0.15 * wetAmount;
+    const basePaintColor = new THREE.Color(runtime.paintHex);
 
     // Paint stays as the base look when not preserving originals.
     applyPaintHeuristic(obj, runtime.paintHex);
@@ -4160,6 +4328,31 @@ const init = () => {
             );
             material.clearcoatNormalScale.set(strength, strength);
           }
+
+          const glossFactor = clamp01(1 - finishRoughness);
+          const sparkle = clamp01(
+            (0.35 + flakeDensity * 0.85) * glossFactor * (1 - grimeAmount * 0.5)
+          );
+          const sparkleScale = 40 + flakeScale * 160;
+          const sparkleColor = basePaintColor
+            .clone()
+            .lerp(new THREE.Color(0xffffff), 0.45);
+          updatePaintSparkle(material, {
+            sparkle: sparkle * (1 - wetAmount * 0.3),
+            flakeScale: sparkleScale,
+            flakeColor: sparkleColor,
+          });
+
+          const anyPhysical = material as unknown as {
+            specularIntensity?: number;
+            specularColor?: THREE.Color;
+          };
+          if (typeof anyPhysical.specularIntensity === 'number') {
+            anyPhysical.specularIntensity = clamp01(0.35 + glossFactor * 0.55);
+          }
+          if (anyPhysical.specularColor) {
+            anyPhysical.specularColor.copy(sparkleColor);
+          }
         }
 
         if (grimeTintAmt > 0) material.color.lerp(grimeTint, grimeTintAmt);
@@ -4238,6 +4431,33 @@ const init = () => {
             material.sheenRoughness = runtime.sheenRoughness;
             material.iridescence = runtime.iridescence;
             material.iridescenceIOR = runtime.iridescenceIOR;
+
+            const glossFactor = clamp01(1 - finishRoughness);
+            const sparkle = clamp01(
+              (0.25 + runtime.paintV2.flakeDensity * 0.6) *
+                glossFactor *
+                (1 - grimeAmount * 0.5)
+            );
+            const sparkleScale = 40 + runtime.paintV2.flakeScale * 160;
+            const sparkleColor = wrapColor
+              .clone()
+              .lerp(new THREE.Color(0xffffff), 0.35);
+            updatePaintSparkle(material, {
+              sparkle: sparkle * (1 - wetAmount * 0.35),
+              flakeScale: sparkleScale,
+              flakeColor: sparkleColor,
+            });
+
+            const anyPhysical = material as unknown as {
+              specularIntensity?: number;
+              specularColor?: THREE.Color;
+            };
+            if (typeof anyPhysical.specularIntensity === 'number') {
+              anyPhysical.specularIntensity = clamp01(0.3 + glossFactor * 0.5);
+            }
+            if (anyPhysical.specularColor) {
+              anyPhysical.specularColor.copy(sparkleColor);
+            }
           }
 
           if (grimeTintAmt > 0) material.color.lerp(grimeTint, grimeTintAmt);
@@ -7521,6 +7741,29 @@ const init = () => {
     if (ssr && ssrChk) ssrChk.checked = ssr === '1';
     if (ssrs && ssrStrength) ssrStrength.value = ssrs;
 
+    const hasQualityParam = url.searchParams.has('q');
+    const hasFpsParam = url.searchParams.has('fps');
+    const hasSsrParam = url.searchParams.has('ssr');
+    const hasBloomParam = url.searchParams.has('bl');
+
+    const connection = (
+      navigator as unknown as {
+        connection?: { saveData?: boolean };
+      }
+    ).connection;
+    const deviceMemory = (navigator as unknown as { deviceMemory?: number })
+      .deviceMemory;
+    const lowPower =
+      Boolean(connection?.saveData) ||
+      (typeof deviceMemory === 'number' && deviceMemory <= 4);
+
+    if (lowPower && isMobile()) {
+      if (!hasQualityParam && qualitySel) qualitySel.value = 'eco';
+      if (!hasFpsParam && targetFps) targetFps.value = '45';
+      if (!hasSsrParam && ssrChk) ssrChk.checked = false;
+      if (!hasBloomParam && bloom) bloom.value = '0';
+    }
+
     if (cine && cinematicChk) cinematicChk.checked = cine === '1';
     if (plt && plateTextInp) plateTextInp.value = plt;
 
@@ -7727,6 +7970,9 @@ const init = () => {
   );
   const quickAutorotate = root.querySelector<HTMLInputElement>(
     '[data-sr-quick-autorotate]'
+  );
+  const quickGuided = root.querySelector<HTMLInputElement>(
+    '[data-sr-quick-guided]'
   );
   const quickFrameBtn = root.querySelector<HTMLButtonElement>(
     '[data-sr-quick-frame]'
@@ -9205,6 +9451,7 @@ const init = () => {
       quickQualitySel.value = (qualitySel.value || 'balanced').trim();
     if (quickAutorotate && autorotate)
       quickAutorotate.checked = Boolean(autorotate.checked);
+    if (quickGuided) quickGuided.checked = guidedOn;
 
     setPressed(quickCinematicBtn, Boolean(cinematicChk?.checked ?? false));
     setPressed(quickInteriorBtn, Boolean(interiorChk?.checked ?? false));
@@ -9379,6 +9626,11 @@ const init = () => {
     const next = Boolean(quickMenu?.hidden ?? true);
     if (next) syncQuickFromUi();
     setQuickOpen(next);
+  });
+
+  quickGuided?.addEventListener('change', () => {
+    setGuided(Boolean(quickGuided.checked), true);
+    syncQuickFromUi();
   });
 
   const syncQuickIfOpen = () => {
