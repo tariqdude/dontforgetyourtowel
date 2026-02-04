@@ -180,9 +180,11 @@ const collectMaterialTextures = (material: THREE.Material) => {
 const isExternalUrl = (value: string) =>
   /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(value);
 
+const DEFAULT_MODEL_KEY = 'models/porsche-911-gt3rs.glb';
+
 const resolveModelUrl = (raw: string): string => {
   const v = (raw || '').trim();
-  if (!v) return withBasePath('/models/porsche-911-gt3rs.glb');
+  if (!v) return withBasePath(`/${DEFAULT_MODEL_KEY}`);
   if (isExternalUrl(v) || v.startsWith('blob:')) return v;
   const normalized = v.startsWith('/') ? v : `/${v}`;
   return withBasePath(normalized);
@@ -4859,6 +4861,8 @@ const init = () => {
     // noop
   };
 
+  let didInitialModelFallback = false;
+
   const loadModel = async (
     raw: string,
     opts?: {
@@ -5088,6 +5092,26 @@ const init = () => {
         carShowroomLoadError: msg,
       });
       setStatus(false, `Failed to load model. ${msg}`);
+
+      // If the initial model comes from a bad URL (shared link / stale preset),
+      // fall back once to a known-good local model so the viewer isn't blank.
+      const rawTrim = (raw || '').trim();
+      const defaultKey = DEFAULT_MODEL_KEY;
+      const isFirstLoad = !lastLoadedModelKey;
+      const canFallback =
+        isFirstLoad &&
+        !didInitialModelFallback &&
+        rawTrim &&
+        !isExternalUrl(rawTrim) &&
+        !rawTrim.startsWith('blob:') &&
+        normalizeModelKey(rawTrim) !== normalizeModelKey(defaultKey);
+
+      if (canFallback) {
+        didInitialModelFallback = true;
+        if (modelSel) modelSel.value = defaultKey;
+        if (modelUrl) modelUrl.value = defaultKey;
+        window.setTimeout(() => void loadModel(defaultKey), 0);
+      }
     }
   };
 
@@ -9409,8 +9433,11 @@ const init = () => {
       return;
     }
 
-    // Use the rendered height (includes padding) to avoid overlap.
-    const h = Math.max(0, Math.round(jumpbar.getBoundingClientRect().height));
+    // Measure from the scroll container top to the jumpbar bottom.
+    // This accounts for mobile negative margins on the sticky jumpbar.
+    const bodyRect = panelBody.getBoundingClientRect();
+    const jumpRect = jumpbar.getBoundingClientRect();
+    const h = Math.max(0, Math.round(jumpRect.bottom - bodyRect.top));
     root.style.setProperty('--sr-panel-tools-top', `${h}px`);
   };
 

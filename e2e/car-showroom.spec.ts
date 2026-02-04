@@ -52,8 +52,10 @@ test.describe('Car Showroom', () => {
       timeout: 15_000,
     });
 
-    // v3 UI: always has a panel toggle in the top bar.
-    await expect(page.locator('[data-sr-panel-toggle]')).toBeVisible();
+    // v3 UI: there are two panel toggles (top bar + dock). Assert the top-bar one.
+    await expect(
+      page.getByRole('button', { name: 'Panel', exact: true })
+    ).toBeVisible();
     await expect(page.locator('[data-sr-panel]')).toHaveCount(1);
 
     // Ensure the default Porsche model actually loads.
