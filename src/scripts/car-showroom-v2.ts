@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
@@ -485,6 +487,22 @@ const init = () => {
   draco.setDecoderPath(withBasePath('/draco/gltf/'));
   const loader = new GLTFLoader();
   loader.setDRACOLoader(draco);
+
+  // Optional: modern glTF delivery features.
+  // Basis transcoders are copied to /public/basis/ via postinstall.
+  try {
+    const ktx2 = new KTX2Loader();
+    ktx2.setTranscoderPath(withBasePath('/basis/'));
+    ktx2.detectSupport(renderer);
+    loader.setKTX2Loader(ktx2);
+  } catch {
+    // ignore
+  }
+  try {
+    loader.setMeshoptDecoder(MeshoptDecoder);
+  } catch {
+    // ignore
+  }
 
   const loadState: LoadState = {
     requestId: 0,

@@ -8,6 +8,7 @@
   "packageManager": "npm@11.6.1",
   "scripts": {
     "prepare": "husky",
+    "postinstall": "node scripts/copy-three-decoders.mjs",
     "dev": "astro dev",
     "build": "astro build",
     "typecheck": "tsc --noEmit",

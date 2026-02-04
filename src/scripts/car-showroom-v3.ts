@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
@@ -1245,6 +1247,8 @@ const init = () => {
 
   const modelSel = root.querySelector<HTMLSelectElement>('[data-sr-model]');
   const modelUrl = root.querySelector<HTMLInputElement>('[data-sr-model-url]');
+  const variantRow = root.querySelector<HTMLElement>('[data-sr-variant-row]');
+  const variantSel = root.querySelector<HTMLSelectElement>('[data-sr-variant]');
   const loadBtn = root.querySelector<HTMLButtonElement>('[data-sr-model-load]');
   const importBtn = root.querySelector<HTMLButtonElement>(
     '[data-sr-model-import]'
@@ -2376,7 +2380,175 @@ const init = () => {
   draco.setDecoderPath(withBasePath('/draco/gltf/'));
   const loader = new GLTFLoader();
   loader.setDRACOLoader(draco);
+
+  // Enable modern GLTF delivery features when available.
+  // - EXT_meshopt_compression: geometry decoding
+  // - KHR_texture_basisu: KTX2/Basis textures
+  // Basis transcoders are copied to /public/basis/ via postinstall.
+  const ktx2 = new KTX2Loader();
+  ktx2.setTranscoderPath(withBasePath('/basis/'));
+  try {
+    ktx2.detectSupport(renderer);
+    loader.setKTX2Loader(ktx2);
+  } catch {
+    // ignore (KTX2 is optional)
+  }
+  try {
+    loader.setMeshoptDecoder(MeshoptDecoder);
+  } catch {
+    // ignore
+  }
   const fbxLoader = new FBXLoader();
+
+  // glTF variants runtime (KHR_materials_variants)
+  let gltfParser: unknown = null;
+  let gltfVariantNames: string[] = [];
+  const variantBaselineByMeshUuid = new Map<
+    string,
+    THREE.Material | THREE.Material[]
+  >();
+  let variantApplyRequestId = 0;
+
+  const isRecord = (v: unknown): v is Record<string, unknown> =>
+    Boolean(v) && typeof v === 'object' && !Array.isArray(v);
+
+  const getMeshVariantMappings = (
+    mesh: THREE.Mesh
+  ): Array<{ material: number; variants: number[] }> => {
+    const userData = mesh.userData as unknown;
+    if (!isRecord(userData)) return [];
+    const gltfExtensions = userData['gltfExtensions'];
+    if (!isRecord(gltfExtensions)) return [];
+    const ext = gltfExtensions['KHR_materials_variants'];
+    if (!isRecord(ext)) return [];
+    const mappings = ext['mappings'];
+    if (!Array.isArray(mappings)) return [];
+
+    const out: Array<{ material: number; variants: number[] }> = [];
+    for (const mapping of mappings) {
+      if (!isRecord(mapping)) continue;
+      const material = mapping['material'];
+      const variants = mapping['variants'];
+      if (typeof material !== 'number' || !Array.isArray(variants)) continue;
+      const variantIndices = variants.filter(v => typeof v === 'number');
+      if (!variantIndices.length) continue;
+      out.push({ material, variants: variantIndices });
+    }
+    return out;
+  };
+
+  const extractGltfVariantNames = (gltf: unknown): string[] => {
+    if (!isRecord(gltf)) return [];
+    const userData = gltf['userData'];
+    if (!isRecord(userData)) return [];
+    const variants = userData['variants'];
+    if (!Array.isArray(variants)) return [];
+    return variants.map(v => String(v)).filter(Boolean);
+  };
+
+  const setVariantsUi = (names: string[]) => {
+    gltfVariantNames = Array.isArray(names) ? names.filter(Boolean) : [];
+    if (!variantSel) {
+      if (variantRow) variantRow.hidden = true;
+      return;
+    }
+
+    if (!gltfVariantNames.length) {
+      variantSel.replaceChildren();
+      if (variantRow) variantRow.hidden = true;
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    const optDefault = document.createElement('option');
+    optDefault.value = '';
+    optDefault.textContent = 'Default';
+    frag.appendChild(optDefault);
+    for (const name of gltfVariantNames) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      frag.appendChild(opt);
+    }
+    variantSel.replaceChildren(frag);
+    if (variantRow) variantRow.hidden = false;
+
+    const desired = (runtime.gltfVariant || '').trim();
+    if (desired && gltfVariantNames.includes(desired))
+      variantSel.value = desired;
+    else variantSel.value = '';
+  };
+
+  const cacheVariantBaseline = (rootObj: THREE.Object3D) => {
+    variantBaselineByMeshUuid.clear();
+    rootObj.traverse(o => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      variantBaselineByMeshUuid.set(mesh.uuid, mesh.material);
+    });
+  };
+
+  const restoreVariantBaseline = (rootObj: THREE.Object3D) => {
+    rootObj.traverse(o => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const base = variantBaselineByMeshUuid.get(mesh.uuid);
+      if (base) mesh.material = base;
+    });
+  };
+
+  const applyGltfVariant = async (name: string) => {
+    if (!loadState.gltf) return;
+    const parser = gltfParser as {
+      getDependency: (t: string, i: number) => Promise<unknown>;
+    } | null;
+    if (!parser || typeof parser.getDependency !== 'function') return;
+    if (!gltfVariantNames.length) return;
+
+    const trimmed = (name || '').trim();
+    if (!trimmed) {
+      restoreVariantBaseline(loadState.gltf);
+      runtime.gltfVariant = '';
+      return;
+    }
+
+    const idx = gltfVariantNames.indexOf(trimmed);
+    if (idx < 0) return;
+
+    const requestId = ++variantApplyRequestId;
+    const tasks: Promise<void>[] = [];
+
+    loadState.gltf.traverse(o => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const mappings = getMeshVariantMappings(mesh);
+      if (!mappings.length) return;
+
+      for (const mapping of mappings) {
+        const variants = mapping.variants;
+        const matIndex = mapping.material;
+        if (!variants.includes(idx)) continue;
+        tasks.push(
+          parser
+            .getDependency('material', matIndex)
+            .then(mat => {
+              if (requestId !== variantApplyRequestId) return;
+              if (mat && typeof mat === 'object') {
+                mesh.material = mat as unknown as THREE.Material;
+              }
+            })
+            .catch(() => {
+              // ignore
+            })
+        );
+        break;
+      }
+    });
+
+    await Promise.all(tasks);
+    if (requestId !== variantApplyRequestId) return;
+    runtime.gltfVariant = trimmed;
+  };
 
   const loadState: LoadState = {
     requestId: 0,
@@ -3063,6 +3235,9 @@ const init = () => {
 
     loadingBoostT: 0,
     dynamicScale: 1,
+
+    // glTF: KHR_materials_variants (optional)
+    gltfVariant: '',
 
     modelScaleMul: Number.parseFloat(modelScale?.value || '1') || 1,
     modelYawDeg: Number.parseFloat(modelYaw?.value || '0') || 0,
@@ -5151,11 +5326,18 @@ const init = () => {
       if (isFbx) {
         obj = await fbxLoader.loadAsync(resolved);
         loadState.animations = [];
+
+        // No glTF parser/variants for FBX.
+        gltfParser = null;
+        setVariantsUi([]);
       } else {
         const gltf = await loader.loadAsync(resolved);
         if (requestId !== loadState.requestId) return;
         obj = gltf.scene || gltf.scenes?.[0] || null;
         loadState.animations = gltf.animations || [];
+
+        gltfParser = (gltf as unknown as { parser?: unknown })?.parser ?? null;
+        setVariantsUi(extractGltfVariantNames(gltf));
       }
       if (requestId !== loadState.requestId) return;
 
@@ -5193,6 +5375,14 @@ const init = () => {
       normalizeModelPlacement(obj);
       scene.add(obj);
       loadState.gltf = obj;
+
+      // Cache default materials so we can return to "Default" when variants are enabled.
+      cacheVariantBaseline(obj);
+
+      // Apply initial variant before look/inspector so stats + tweaks reflect the active materials.
+      if (!isFbx && runtime.gltfVariant) {
+        await applyGltfVariant(runtime.gltfVariant);
+      }
 
       lastLoadedModelKey = nextKey;
 
@@ -6380,6 +6570,14 @@ const init = () => {
     void loadModel(v);
   });
 
+  variantSel?.addEventListener('change', () => {
+    const v = (variantSel.value || '').trim();
+    runtime.gltfVariant = v;
+    void applyGltfVariant(v).then(() => {
+      if (loadState.gltf) applyLook();
+    });
+  });
+
   loadBtn?.addEventListener('click', () => {
     const v = (modelUrl?.value || modelSel?.value || '').trim();
     void loadModel(v);
@@ -6576,6 +6774,9 @@ const init = () => {
     const paint = (paintInp?.value || '').trim();
     if (paint) url.searchParams.set('paint', paint.replace('#', ''));
     url.searchParams.set('om', runtime.originalMats ? '1' : '0');
+
+    // glTF variants (KHR_materials_variants)
+    if (runtime.gltfVariant) url.searchParams.set('var', runtime.gltfVariant);
 
     // Finish
     const fin = (finishSel?.value || 'gloss').trim().toLowerCase();
@@ -7134,6 +7335,7 @@ const init = () => {
   try {
     const url = new URL(window.location.href);
     const m = url.searchParams.get('model');
+    const varParam = url.searchParams.get('var');
     const bg = url.searchParams.get('bg');
     const q = url.searchParams.get('q');
     const aq = url.searchParams.get('aq');
@@ -7215,6 +7417,7 @@ const init = () => {
       if (modelUrl) modelUrl.value = m;
       if (modelSel) modelSel.value = m;
     }
+    if (varParam) runtime.gltfVariant = varParam;
     if (bg && bgSel) bgSel.value = bg;
     if (q && qualitySel) qualitySel.value = q;
 

@@ -80,6 +80,7 @@ export default [
       'test-results',
       // Vendored third-party decoder assets (minified)
       'public/draco/**',
+      'public/basis/**',
       // Legacy/demo routes kept only for compatibility or archives
       'src/pages/blog/**',
       'src/pages/components.astro',

@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { withBasePath } from '../../utils/helpers';
 
 const getShowroomLoadTimeouts = () => {
@@ -536,6 +538,7 @@ export class CarShowroomScene {
   private pmrem: THREE.PMREMGenerator | null = null;
 
   private loader: GLTFLoader;
+  private ktx2Loader: KTX2Loader | null = null;
   private loaded: THREE.Object3D | null = null;
   private loadingUrl: string | null = null;
   private lastUiRevision = '__INIT__';
@@ -792,9 +795,23 @@ export class CarShowroomScene {
     draco.setDecoderPath(withBasePath('/draco/gltf/'));
     this.loader = new GLTFLoader();
     this.loader.setDRACOLoader(draco);
-    // None of our shipped models currently use EXT_meshopt_compression.
-    // Avoid setting MeshoptDecoder: it can introduce production-only issues
-    // (WASM asset resolution) and cause hangs in some environments.
+
+    // Support common real-world glTF compression extensions.
+    // Basis transcoders are copied to /public/basis/ via postinstall.
+    try {
+      this.ktx2Loader = new KTX2Loader();
+      this.ktx2Loader.setTranscoderPath(withBasePath('/basis/'));
+      this.ktx2Loader.detectSupport(renderer);
+      this.loader.setKTX2Loader(this.ktx2Loader);
+    } catch {
+      this.ktx2Loader = null;
+    }
+
+    try {
+      this.loader.setMeshoptDecoder(MeshoptDecoder);
+    } catch {
+      // ignore
+    }
 
     this.pmrem = new THREE.PMREMGenerator(renderer);
     try {
@@ -918,6 +935,7 @@ export class CarShowroomScene {
     (this.ground.geometry as THREE.BufferGeometry).dispose();
     this.envTex?.dispose();
     this.pmrem?.dispose();
+    this.ktx2Loader?.dispose();
   }
 
   resize(width: number, height: number) {
