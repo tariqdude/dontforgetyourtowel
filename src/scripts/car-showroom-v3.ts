@@ -6,6 +6,10 @@ import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { RGBShiftShader } from 'three/examples/jsm/shaders/RGBShiftShader.js';
+import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLightUniformsLib.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { DecalGeometry } from 'three/examples/jsm/geometries/DecalGeometry.js';
 import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
@@ -14,6 +18,11 @@ import { onReducedMotionChange } from '../utils/a11y';
 import { createDropZone } from '../utils/drag-drop';
 import { withBasePath } from '../utils/helpers';
 import { createSafeWebGLRenderer } from './tower3d/three/renderer-factory';
+import {
+  SHOWROOM_TOURS,
+  type ShowroomTourStep,
+  type TourCameraState,
+} from '../data/showroom-tours';
 
 type LoadState = {
   requestId: number;
@@ -39,6 +48,101 @@ interface ExtendedWindow extends Window {
   webkitAudioContext?: typeof AudioContext;
   ClipboardItem?: ClipboardItemConstructor;
 }
+
+type StudioRigCardState = {
+  enabled: boolean;
+  position: [number, number, number];
+  target: [number, number, number];
+  size: [number, number];
+  colorHex: string;
+  intensity: number;
+};
+
+type StudioRigState = {
+  preset: string;
+  envPreset: string;
+  envIntensity: number;
+  envRotationDeg: number;
+  cards: StudioRigCardState[];
+};
+
+type PaintV2State = {
+  orangePeel: number;
+  flakeDensity: number;
+  flakeScale: number;
+  clearcoatStrength: number;
+  clearcoatRoughness: number;
+};
+
+type TiresV2State = {
+  sidewallNormalStrength: number;
+  treadNormalStrength: number;
+  treadWetSheen: number;
+  treadRoughness: number;
+  sidewallRoughness: number;
+};
+
+type BrakesV2State = {
+  brakeAggression: number;
+  coolingRate: number;
+  airflowFactor: number;
+  tempMax: number;
+  tempToEmissiveCurve: number;
+};
+
+type PhotoModeState = {
+  enabled: boolean;
+  focalLengthMm: number;
+  apertureFStop: number;
+  focusDistance: number;
+  dofStrength: number;
+  vignette: number;
+  chromaticAberration: number;
+  shutterLook: number;
+};
+
+type MaterialOverride = {
+  colorHex?: string;
+  roughness?: number;
+  metalness?: number;
+  envMapIntensity?: number;
+  clearcoat?: number;
+  clearcoatRoughness?: number;
+  normalScaleMul?: number;
+  emissiveIntensity?: number;
+};
+
+type InspectorState = {
+  enabled: boolean;
+  selectedMaterialKey: string;
+  overrides: Record<string, MaterialOverride>;
+};
+
+type PerformanceGovernorState = {
+  enabled: boolean;
+  targetFps: number;
+  dynamicResolution: boolean;
+  maxAnisotropy: number;
+  postQualityTier: number;
+  textureBudgetHint: number;
+  lodBias: number;
+};
+
+type TourRuntimeState = {
+  enabled: boolean;
+  activeTourId: string;
+  stepIndex: number;
+  playing: boolean;
+  autoplay: boolean;
+  allowUserInterrupt: boolean;
+  deepLinkEnabled: boolean;
+};
+
+const clampInt = (v: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, Math.round(v)));
+
+const vec3FromTuple = (t: [number, number, number]) =>
+  new THREE.Vector3(t[0], t[1], t[2]);
 
 const ROOT = '[data-sr-root]';
 
@@ -566,26 +670,55 @@ const createFloorTexture = (): THREE.CanvasTexture => {
   return tex;
 };
 
-const createFlakeNormalMap = (): THREE.CanvasTexture => {
-  const size = 128;
+const createPaintClearcoatNormalMap = (opts: {
+  flakeDensity01: number;
+  flakeScale01: number;
+  orangePeel01: number;
+}): THREE.CanvasTexture => {
+  const size = 256;
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
   if (!ctx) return new THREE.CanvasTexture(canvas);
 
-  // Fill with base normal (0.5, 0.5, 1.0) -> RGB(128, 128, 255)
+  // Base normal (0.5, 0.5, 1.0) -> RGB(128, 128, 255)
   ctx.fillStyle = 'rgb(128,128,255)';
   ctx.fillRect(0, 0, size, size);
 
-  for (let i = 0; i < 1500; i++) {
+  const flakeDensity = clamp01(opts.flakeDensity01);
+  const flakeScale = clamp01(opts.flakeScale01);
+  const orangePeel = clamp01(opts.orangePeel01);
+
+  // Flake: small high-frequency perturbations.
+  const flakeCount = clampInt(Math.round(800 + flakeDensity * 2400), 0, 5000);
+  const flakeAmp = 14 + flakeDensity * 22;
+  const flakeSize = clampInt(Math.round(1 + flakeScale * 2), 1, 3);
+  for (let i = 0; i < flakeCount; i++) {
     const x = Math.random() * size;
     const y = Math.random() * size;
-    const nx = Math.random() * 60 - 30;
-    const ny = Math.random() * 60 - 30;
+    const nx = Math.round((Math.random() * 2 - 1) * flakeAmp);
+    const ny = Math.round((Math.random() * 2 - 1) * flakeAmp);
     ctx.fillStyle = `rgb(${128 + nx}, ${128 + ny}, 255)`;
-    ctx.fillRect(x, y, 1, 1);
+    ctx.fillRect(x, y, flakeSize, flakeSize);
   }
+
+  // Orange peel: low-frequency "lumpy" perturbations.
+  const peelCount = clampInt(Math.round(18 + orangePeel * 90), 0, 180);
+  const peelAmp = 6 + orangePeel * 22;
+  ctx.globalAlpha = 0.9;
+  for (let i = 0; i < peelCount; i++) {
+    const cx = Math.random() * size;
+    const cy = Math.random() * size;
+    const r = 10 + Math.random() * (28 + orangePeel * 34);
+    const nx = Math.round((Math.random() * 2 - 1) * peelAmp);
+    const ny = Math.round((Math.random() * 2 - 1) * peelAmp);
+    ctx.fillStyle = `rgb(${128 + nx}, ${128 + ny}, 255)`;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = THREE.RepeatWrapping;
@@ -644,8 +777,9 @@ const createTireNormalMap = (): THREE.CanvasTexture => {
   return tex;
 };
 
-let flakeNormalMap: THREE.CanvasTexture | null = null;
 let tireNormalMap: THREE.CanvasTexture | null = null;
+let paintClearcoatNormalMap: THREE.CanvasTexture | null = null;
+let paintClearcoatNormalKey = '';
 
 const createWrapTexture = (pattern: string, tint01: number) => {
   const size = 512;
@@ -1388,6 +1522,58 @@ const init = () => {
     '[data-sr-exposure-reset]'
   );
 
+  // PhotoMode (Studio Pro)
+  const photoModeEnabledChk = root.querySelector<HTMLInputElement>(
+    '[data-sr-photomode-enabled]'
+  );
+  const photoModeDofInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-photomode-dof]'
+  );
+  const photoModeFocusInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-photomode-focus]'
+  );
+  const photoModeVignetteInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-photomode-vignette]'
+  );
+  const photoModeCaInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-photomode-ca]'
+  );
+  const photoModeShutterInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-photomode-shutter]'
+  );
+
+  // Materials Pro (Paint V2 / Tires V2 / Brakes V2)
+  const orangePeelInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-orange-peel]'
+  );
+  const flakeDensityInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-flake-density]'
+  );
+  const flakeScaleInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-flake-scale]'
+  );
+  const tireTreadNormalInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-tire-tread-normal]'
+  );
+  const tireSidewallNormalInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-tire-sidewall-normal]'
+  );
+  const tireWetSheenInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-tire-wet-sheen]'
+  );
+  const brakeAggressionInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-brake-aggression]'
+  );
+  const brakeCoolingInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-brake-cooling]'
+  );
+  const brakeCurveInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-brake-curve]'
+  );
+  const brakeTempMaxInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-brake-tempmax]'
+  );
+
   const screenshotBtns = Array.from(
     root.querySelectorAll<HTMLButtonElement>('[data-sr-screenshot]')
   );
@@ -1598,6 +1784,9 @@ const init = () => {
   const focusToggleBtns = Array.from(
     root.querySelectorAll<HTMLButtonElement>('[data-sr-focus-toggle]')
   );
+  const focusExitBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-focus-exit]'
+  );
   const FOCUS_KEY = 'sr3-focus-v1';
   let focusOn = false;
   let focusPrevSnap: PanelSnap | null = null;
@@ -1639,6 +1828,8 @@ const init = () => {
   for (const btn of focusToggleBtns) {
     btn.addEventListener('click', () => setFocus(!focusOn, true));
   }
+
+  focusExitBtn?.addEventListener('click', () => setFocus(false, true));
 
   initFocus();
 
@@ -2064,6 +2255,48 @@ const init = () => {
   const loadingBoostLight = new THREE.AmbientLight(0xffffff, 0);
   scene.add(loadingBoostLight);
 
+  // Studio Rig (RectAreaLight cards)
+  try {
+    RectAreaLightUniformsLib.init();
+  } catch {
+    // ignore
+  }
+
+  const studioRigGroup = new THREE.Group();
+  studioRigGroup.name = 'studioRig';
+  scene.add(studioRigGroup);
+
+  type StudioRigCardRuntime = {
+    light: THREE.RectAreaLight;
+    plate: THREE.Mesh;
+  };
+
+  const studioRigCards: StudioRigCardRuntime[] = [];
+
+  const ensureStudioRigCards = () => {
+    if (studioRigCards.length) return;
+
+    const plateGeom = new THREE.PlaneGeometry(1, 1);
+    for (let i = 0; i < 4; i++) {
+      const light = new THREE.RectAreaLight(0xffffff, 0, 1.2, 0.8);
+      light.position.set(2.2, 2.0, 1.8);
+
+      const plateMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.18,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+      });
+      const plate = new THREE.Mesh(plateGeom, plateMat);
+
+      studioRigGroup.add(light);
+      studioRigGroup.add(plate);
+      studioRigCards.push({ light, plate });
+    }
+  };
+
   // Scene helpers
   const grid = new THREE.GridHelper(10, 20, 0x334155, 0x1f2937);
   grid.visible = Boolean(gridChk?.checked);
@@ -2449,12 +2682,62 @@ const init = () => {
   // Post
   let composer: EffectComposer | null = null;
   let bloomPass: UnrealBloomPass | null = null;
+  let bokehPass: BokehPass | null = null;
+  let vignettePass: ShaderPass | null = null;
+  let rgbShiftPass: ShaderPass | null = null;
+
+  const vignetteShader = {
+    uniforms: {
+      tDiffuse: { value: null as unknown as THREE.Texture },
+      offset: { value: 1.0 },
+      darkness: { value: 1.15 },
+    },
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D tDiffuse;
+      uniform float offset;
+      uniform float darkness;
+      varying vec2 vUv;
+      void main() {
+        vec4 c = texture2D(tDiffuse, vUv);
+        float d = distance(vUv, vec2(0.5));
+        float vig = smoothstep(0.8, offset * 0.799, d);
+        c.rgb *= 1.0 - vig * (darkness - 1.0);
+        gl_FragColor = c;
+      }
+    `,
+  };
+
   const ensureComposer = () => {
     if (composer) return;
     composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
+
+    // PhotoMode (disabled by default)
+    bokehPass = new BokehPass(scene, camera, {
+      focus: 6.0,
+      aperture: 0.00012,
+      maxblur: 0.01,
+    });
+    bokehPass.enabled = false;
+    composer.addPass(bokehPass);
+
     bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0, 0, 0.9);
     composer.addPass(bloomPass);
+
+    vignettePass = new ShaderPass(vignetteShader);
+    vignettePass.enabled = false;
+    composer.addPass(vignettePass);
+
+    rgbShiftPass = new ShaderPass(RGBShiftShader);
+    rgbShiftPass.enabled = false;
+    composer.addPass(rgbShiftPass);
   };
 
   const runtime = {
@@ -2576,6 +2859,91 @@ const init = () => {
     caliperColorHex: parseHexColor(caliperColorInp?.value || '') || '#ef4444',
     lightColorHex: parseHexColor(lightColorInp?.value || '') || '#ffffff',
     lightGlow: Number.parseFloat(lightGlowInp?.value || '1.25') || 1.25,
+
+    studioRig: {
+      preset: 'default',
+      envPreset: 'room',
+      envIntensity: Number.parseFloat(envIntensity?.value || '0.9') || 0.9,
+      envRotationDeg: Number.parseFloat(envRotation?.value || '0') || 0,
+      cards: Array.from(
+        { length: 4 },
+        () =>
+          ({
+            enabled: false,
+            position: [2.2, 2.0, 1.8],
+            target: [0, 0.5, 0],
+            size: [1.2, 0.8],
+            colorHex: '#ffffff',
+            intensity: 6,
+          }) as StudioRigCardState
+      ),
+    } as StudioRigState,
+
+    paintV2: {
+      orangePeel: Number.parseFloat(orangePeelInp?.value || '0') || 0,
+      flakeDensity: Number.parseFloat(flakeDensityInp?.value || '0.55') || 0.55,
+      flakeScale: Number.parseFloat(flakeScaleInp?.value || '0.4') || 0.4,
+      clearcoatStrength: Number.parseFloat(clearcoatInp?.value || '0.8') || 0.8,
+      clearcoatRoughness:
+        Number.parseFloat(clearcoatRoughInp?.value || '0.03') || 0.03,
+    } as PaintV2State,
+
+    tiresV2: {
+      sidewallNormalStrength:
+        Number.parseFloat(tireSidewallNormalInp?.value || '0.22') || 0.22,
+      treadNormalStrength:
+        Number.parseFloat(tireTreadNormalInp?.value || '0.42') || 0.42,
+      treadWetSheen: Number.parseFloat(tireWetSheenInp?.value || '0') || 0,
+      treadRoughness: 0.75,
+      sidewallRoughness: 0.86,
+    } as TiresV2State,
+
+    brakesV2: {
+      brakeAggression:
+        Number.parseFloat(brakeAggressionInp?.value || '1') || 1.0,
+      coolingRate: Number.parseFloat(brakeCoolingInp?.value || '0.35') || 0.35,
+      airflowFactor: 1.0,
+      tempMax: Number.parseFloat(brakeTempMaxInp?.value || '1') || 1.0,
+      tempToEmissiveCurve:
+        Number.parseFloat(brakeCurveInp?.value || '1.35') || 1.35,
+    } as BrakesV2State,
+
+    photoMode: {
+      enabled: false,
+      focalLengthMm: 50,
+      apertureFStop: 2.8,
+      focusDistance: 6,
+      dofStrength: 0.65,
+      vignette: 0.25,
+      chromaticAberration: 0.2,
+      shutterLook: 0,
+    } as PhotoModeState,
+
+    inspector: {
+      enabled: false,
+      selectedMaterialKey: '',
+      overrides: {},
+    } as InspectorState,
+
+    performanceGovernor: {
+      enabled: false,
+      targetFps: Number.parseFloat(targetFps?.value || '55') || 55,
+      dynamicResolution: true,
+      maxAnisotropy: 4,
+      postQualityTier: 2,
+      textureBudgetHint: 1,
+      lodBias: 0,
+    } as PerformanceGovernorState,
+
+    tour: {
+      enabled: false,
+      activeTourId: SHOWROOM_TOURS[0]?.id || 'porsche',
+      stepIndex: 0,
+      playing: false,
+      autoplay: false,
+      allowUserInterrupt: true,
+      deepLinkEnabled: true,
+    } as TourRuntimeState,
   };
 
   const applyThirdsOverlay = () => {
@@ -3276,11 +3644,25 @@ const init = () => {
           // Special handling for tires
           if (flags.isTire) {
             if (!tireNormalMap) tireNormalMap = createTireNormalMap();
-            material.roughness = 0.85;
-            material.metalness = 0.05;
+            const tv2 = runtime.tiresV2;
+            const name =
+              `${mesh.name || ''} ${material.name || ''}`.toLowerCase();
+            const sidewallish = /(sidewall|side_wall|side-wall|wall)/.test(
+              name
+            );
+            const roughBase = sidewallish
+              ? clamp01(tv2?.sidewallRoughness ?? 0.86)
+              : clamp01(tv2?.treadRoughness ?? 0.75);
+            const wetSheen = clamp01(tv2?.treadWetSheen ?? 0);
+
+            material.roughness = clamp01(roughBase * (1 - 0.35 * wetSheen));
+            material.metalness = 0.03;
             if (material instanceof THREE.MeshStandardMaterial) {
               material.normalMap = tireNormalMap;
-              material.normalScale.set(0.35, 0.35);
+              const ns = sidewallish
+                ? clamp(tv2?.sidewallNormalStrength ?? 0.22, 0, 1)
+                : clamp(tv2?.treadNormalStrength ?? 0.42, 0, 1);
+              material.normalScale.set(ns, ns);
             }
           }
           continue;
@@ -3312,13 +3694,35 @@ const init = () => {
           material.iridescence = runtime.iridescence;
           material.iridescenceIOR = runtime.iridescenceIOR;
 
-          // Phase 19: Metallic Flake
-          if (!flakeNormalMap) {
-            flakeNormalMap = createFlakeNormalMap();
+          // Paint V2: metallic flake + orange peel on the clearcoat normal.
+          const pv2 = runtime.paintV2;
+          const orangePeel = clamp01(pv2?.orangePeel ?? 0);
+          const flakeDensity = clamp01(pv2?.flakeDensity ?? 0.55);
+          const flakeScale = clamp01(pv2?.flakeScale ?? 0.4);
+          const key = `${orangePeel.toFixed(3)}|${flakeDensity.toFixed(3)}|${flakeScale.toFixed(3)}`;
+          if (key !== paintClearcoatNormalKey) {
+            paintClearcoatNormalKey = key;
+            try {
+              paintClearcoatNormalMap?.dispose?.();
+            } catch {
+              // ignore
+            }
+            paintClearcoatNormalMap = createPaintClearcoatNormalMap({
+              flakeDensity01: flakeDensity,
+              flakeScale01: flakeScale,
+              orangePeel01: orangePeel,
+            });
           }
-          if (flakeNormalMap) {
-            material.clearcoatNormalMap = flakeNormalMap;
-            material.clearcoatNormalScale.set(0.2, 0.2); // Subtle sparkle
+
+          const ccNormal = paintClearcoatNormalMap;
+          if (ccNormal) {
+            material.clearcoatNormalMap = ccNormal;
+            const strength = clamp(
+              0.08 + flakeDensity * 0.12 + orangePeel * 0.32,
+              0,
+              0.85
+            );
+            material.clearcoatNormalScale.set(strength, strength);
           }
         }
 
@@ -3738,6 +4142,19 @@ const init = () => {
     const rad = (runtime.envRotationDeg * Math.PI) / 180;
     const rot = new THREE.Matrix4().makeRotationY(rad);
 
+    try {
+      const s = scene as unknown as {
+        environmentRotation?: THREE.Euler;
+        backgroundRotation?: THREE.Euler;
+        environmentIntensity?: number;
+      };
+      s.environmentIntensity = env;
+      if (s.environmentRotation) s.environmentRotation.set(0, rad, 0);
+      else s.environmentRotation = new THREE.Euler(0, rad, 0);
+    } catch {
+      // ignore
+    }
+
     const cool = new THREE.Color('#dbeafe');
     const warm = new THREE.Color('#ffd7a1');
     const mixed = cool.clone().lerp(warm, warmth);
@@ -3766,6 +4183,54 @@ const init = () => {
 
     key.position.copy(keyBase).applyMatrix4(rot);
     rim.position.copy(rimBase).applyMatrix4(rot);
+
+    applyStudioRig();
+  };
+
+  const applyStudioRig = () => {
+    const rig = runtime.studioRig;
+    if (!rig) return;
+
+    ensureStudioRigCards();
+    studioRigGroup.visible = true;
+
+    for (let i = 0; i < studioRigCards.length; i++) {
+      const cardState = rig.cards[i];
+      const card = studioRigCards[i];
+      if (!card || !cardState) continue;
+
+      const enabled = Boolean(cardState.enabled);
+
+      const w = clamp(cardState.size[0] ?? 1.2, 0.05, 12);
+      const h = clamp(cardState.size[1] ?? 0.8, 0.05, 12);
+
+      card.light.width = w;
+      card.light.height = h;
+      card.light.color.set(cardState.colorHex || '#ffffff');
+      card.light.intensity = enabled
+        ? clamp(cardState.intensity ?? 6, 0, 80)
+        : 0;
+      card.light.visible = enabled;
+
+      card.light.position.set(
+        cardState.position[0] ?? 2.2,
+        cardState.position[1] ?? 2.0,
+        cardState.position[2] ?? 1.8
+      );
+      card.light.lookAt(
+        cardState.target[0] ?? 0,
+        cardState.target[1] ?? 0.5,
+        cardState.target[2] ?? 0
+      );
+
+      card.plate.visible = enabled;
+      card.plate.position.copy(card.light.position);
+      card.plate.quaternion.copy(card.light.quaternion);
+      card.plate.scale.set(w, h, 1);
+      const mat = card.plate.material as THREE.MeshBasicMaterial;
+      mat.color.copy(card.light.color);
+      mat.opacity = 0.12 + clamp01((card.light.intensity / 50) * 0.25);
+    }
   };
 
   const resetControlToDefault = (
@@ -4041,18 +4506,64 @@ const init = () => {
     renderer.toneMapping = getToneMappingFromUi();
     runtime.baseExposure = Number.parseFloat(exposure?.value || '1.25') || 1.25;
 
+    const pm = runtime.photoMode;
+    const photoActive =
+      Boolean(pm?.enabled) &&
+      (pm.dofStrength > 0.001 ||
+        pm.vignette > 0.001 ||
+        pm.chromaticAberration > 0.001);
+
+    const shutter = clamp(pm?.shutterLook ?? 0, -1, 1);
+    renderer.toneMappingExposure = clamp(
+      runtime.baseExposure * (1 + shutter * 0.18),
+      0.1,
+      3
+    );
+
     runtime.bloomStrength = Number.parseFloat(bloom?.value || '0') || 0;
     runtime.bloomThreshold =
       Number.parseFloat(bloomThreshold?.value || '0.9') || 0.9;
     runtime.bloomRadius = Number.parseFloat(bloomRadius?.value || '0') || 0;
 
-    if (runtime.bloomStrength > 0.001) {
-      ensureComposer();
-      if (bloomPass) {
-        bloomPass.strength = runtime.bloomStrength;
-        bloomPass.threshold = runtime.bloomThreshold;
-        bloomPass.radius = runtime.bloomRadius;
-      }
+    if (runtime.bloomStrength > 0.001 || photoActive) ensureComposer();
+
+    if (bloomPass) {
+      bloomPass.enabled = runtime.bloomStrength > 0.001;
+      bloomPass.strength = runtime.bloomStrength;
+      bloomPass.threshold = runtime.bloomThreshold;
+      bloomPass.radius = runtime.bloomRadius;
+    }
+
+    if (bokehPass && pm) {
+      const enabled = Boolean(pm.enabled) && pm.dofStrength > 0.001;
+      bokehPass.enabled = enabled;
+      const focus = clamp(pm.focusDistance, 0.1, 80);
+      const aperture = clamp(pm.dofStrength * 0.03, 0, 0.06);
+      const maxblur = clamp(pm.dofStrength * 0.02, 0, 0.045);
+      bokehPass.materialBokeh.uniforms.focus.value = focus;
+      bokehPass.materialBokeh.uniforms.aperture.value = aperture;
+      bokehPass.materialBokeh.uniforms.maxblur.value = maxblur;
+    }
+
+    if (vignettePass && pm) {
+      vignettePass.enabled = Boolean(pm.enabled) && pm.vignette > 0.001;
+      const u = vignettePass.uniforms as unknown as Record<
+        string,
+        { value: unknown }
+      >;
+      if (u.amount) u.amount.value = clamp(pm.vignette, 0, 1);
+    }
+
+    if (rgbShiftPass && pm) {
+      rgbShiftPass.enabled =
+        Boolean(pm.enabled) && pm.chromaticAberration > 0.001;
+      const u = rgbShiftPass.uniforms as unknown as Record<
+        string,
+        { value: unknown }
+      >;
+      if (u.amount)
+        u.amount.value = clamp(pm.chromaticAberration, 0, 1) * 0.002;
+      if (u.angle) u.angle.value = 0.12;
     }
   };
 
@@ -4531,6 +5042,13 @@ const init = () => {
       axes.visible = Boolean(axesChk?.checked ?? runtime.axes);
       applyWireframe();
 
+      if (runtime.tour?.enabled) {
+        const id = runtime.tour.activeTourId;
+        if (toursById.has(id)) {
+          goToTourStep(runtime.tour.stepIndex, { play: runtime.tour.playing });
+        }
+      }
+
       setRootState(root, {
         carShowroomReady: '1',
         carShowroomLoading: '0',
@@ -4552,6 +5070,256 @@ const init = () => {
       setStatus(false, `Failed to load model. ${msg}`);
     }
   };
+
+  // Tours (guided camera + optional highlight)
+  const toursById = new Map(SHOWROOM_TOURS.map(t => [t.id, t] as const));
+
+  const tourSelect = root.querySelector<HTMLSelectElement>(
+    '[data-sr-tour-select]'
+  );
+  const tourToggleBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-tour-toggle]'
+  );
+  const tourPrevBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-tour-prev]'
+  );
+  const tourNextBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-tour-next]'
+  );
+  const tourExitBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-tour-exit]'
+  );
+  const tourMessageEl = root.querySelector<HTMLElement>(
+    '[data-sr-tour-message]'
+  );
+
+  const populateTourSelect = () => {
+    if (!tourSelect) return;
+    const prev = (tourSelect.value || runtime.tour?.activeTourId || '').trim();
+    tourSelect.replaceChildren();
+
+    const frag = document.createDocumentFragment();
+    for (const t of SHOWROOM_TOURS) {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = t.name;
+      frag.appendChild(opt);
+    }
+    tourSelect.appendChild(frag);
+    tourSelect.value = toursById.has(prev) ? prev : SHOWROOM_TOURS[0]?.id || '';
+  };
+
+  const setTourMessage = (msg: string) => {
+    if (!tourMessageEl) return;
+    const text = (msg || '').trim();
+    tourMessageEl.textContent = text;
+    tourMessageEl.hidden = !text;
+  };
+
+  type CameraTween = {
+    startMs: number;
+    durationMs: number;
+    fromPos: THREE.Vector3;
+    fromTarget: THREE.Vector3;
+    fromFov: number;
+    toPos: THREE.Vector3;
+    toTarget: THREE.Vector3;
+    toFov: number;
+    onDone?: () => void;
+  };
+
+  let tourTween: CameraTween | null = null;
+  let tourNextAtMs: number | null = null;
+
+  const stopTour = (opts?: { clearSelection?: boolean }) => {
+    runtime.tour.enabled = false;
+    runtime.tour.playing = false;
+    tourTween = null;
+    tourNextAtMs = null;
+    setTourMessage('');
+    if (opts?.clearSelection) setSelectedMesh(null);
+
+    if (tourToggleBtn) tourToggleBtn.setAttribute('aria-pressed', 'false');
+  };
+
+  const startCameraTween = (to: TourCameraState, durationMs: number) => {
+    const fromPos = camera.position.clone();
+    const fromTarget = controls.target.clone();
+    const fromFov = camera.fov;
+
+    const toPos = vec3FromTuple(to.position);
+    const toTarget = vec3FromTuple(to.target);
+    const toFov = clamp(Number(to.fov ?? fromFov), 20, 90);
+
+    const tween: CameraTween = {
+      startMs: performance.now(),
+      durationMs: clampInt(durationMs, 250, 9000),
+      fromPos,
+      fromTarget,
+      fromFov,
+      toPos,
+      toTarget,
+      toFov,
+    };
+    tourTween = tween;
+    return tween;
+  };
+
+  const easeInOutCubic = (t: number) =>
+    t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+  const updateTourTween = (nowMs: number) => {
+    if (!tourTween) return;
+    const t = clamp01((nowMs - tourTween.startMs) / tourTween.durationMs);
+    const k = easeInOutCubic(t);
+
+    camera.position.lerpVectors(tourTween.fromPos, tourTween.toPos, k);
+    controls.target.lerpVectors(tourTween.fromTarget, tourTween.toTarget, k);
+    camera.fov = THREE.MathUtils.lerp(tourTween.fromFov, tourTween.toFov, k);
+    camera.updateProjectionMatrix();
+
+    if (t >= 1) {
+      const done = tourTween.onDone;
+      tourTween = null;
+      done?.();
+    }
+  };
+
+  const applyTourHighlight = (step: ShowroomTourStep) => {
+    const hl = step.highlight;
+    if (!hl || !loadState.gltf) return;
+
+    const meshNeedle = normalizeName(hl.meshNameIncludes || '');
+    const matNeedle = normalizeName(hl.materialNameIncludes || '');
+    if (!meshNeedle && !matNeedle) return;
+
+    let found: THREE.Mesh | null = null;
+    loadState.gltf.traverse(o => {
+      if (found) return;
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+
+      const name = normalizeName(mesh.name || '');
+      const mats = Array.isArray(mesh.material)
+        ? mesh.material
+        : [mesh.material];
+      const matName = normalizeName(
+        mats
+          .map(m =>
+            m && 'name' in m ? String((m as { name?: string }).name || '') : ''
+          )
+          .join(' ')
+      );
+
+      const meshMatch = meshNeedle ? name.includes(meshNeedle) : false;
+      const matMatch = matNeedle ? matName.includes(matNeedle) : false;
+      if (meshMatch || matMatch) found = mesh;
+    });
+
+    if (found) setSelectedMesh(found, { force: true });
+  };
+
+  const goToTourStep = (index: number, opts?: { play?: boolean }) => {
+    const tourId = runtime.tour.activeTourId;
+    const tour = toursById.get(tourId);
+    if (!tour) return;
+
+    const nextIndex = clampInt(index, 0, Math.max(0, tour.steps.length - 1));
+    runtime.tour.stepIndex = nextIndex;
+    runtime.tour.enabled = true;
+
+    const step = tour.steps[nextIndex];
+    if (!step) return;
+
+    if (step.message) {
+      setTourMessage(step.message);
+      setStatus(false, step.message);
+      window.setTimeout(() => setStatus(false, ''), 1200);
+    } else {
+      setTourMessage('');
+    }
+
+    applyTourHighlight(step);
+
+    const dur = step.durationMs ?? 1500;
+    const tween = startCameraTween(step.camera, dur);
+
+    tourNextAtMs = null;
+    tween.onDone = () => {
+      if (!runtime.tour.playing) return;
+      const holdMs = clampInt(
+        Math.round((step.durationMs ?? 1500) * 0.35 + 350),
+        250,
+        1600
+      );
+      tourNextAtMs = performance.now() + holdMs;
+    };
+
+    if (tourToggleBtn)
+      tourToggleBtn.setAttribute(
+        'aria-pressed',
+        String(Boolean(opts?.play ?? runtime.tour.playing))
+      );
+  };
+
+  const nextTourStep = () => {
+    const tour = toursById.get(runtime.tour.activeTourId);
+    if (!tour) return;
+    goToTourStep(runtime.tour.stepIndex + 1);
+    if (runtime.tour.stepIndex >= tour.steps.length - 1)
+      runtime.tour.playing = false;
+  };
+
+  const prevTourStep = () => {
+    goToTourStep(runtime.tour.stepIndex - 1);
+  };
+
+  populateTourSelect();
+  if (tourSelect) {
+    tourSelect.addEventListener('change', () => {
+      const id = (tourSelect.value || '').trim();
+      if (!toursById.has(id)) return;
+      runtime.tour.activeTourId = id;
+      runtime.tour.stepIndex = 0;
+      runtime.tour.enabled = true;
+      runtime.tour.playing = false;
+      goToTourStep(0);
+    });
+  }
+  tourToggleBtn?.addEventListener('click', () => {
+    hapticTap(10);
+    runtime.tour.enabled = true;
+    runtime.tour.playing = !runtime.tour.playing;
+    if (tourToggleBtn)
+      tourToggleBtn.setAttribute('aria-pressed', String(runtime.tour.playing));
+    if (runtime.tour.playing)
+      goToTourStep(runtime.tour.stepIndex, { play: true });
+  });
+  tourPrevBtn?.addEventListener('click', () => {
+    hapticTap(8);
+    runtime.tour.playing = false;
+    prevTourStep();
+  });
+  tourNextBtn?.addEventListener('click', () => {
+    hapticTap(8);
+    runtime.tour.playing = false;
+    nextTourStep();
+  });
+  tourExitBtn?.addEventListener('click', () => {
+    hapticTap(8);
+    stopTour({ clearSelection: true });
+  });
+
+  // Optional user interrupt
+  canvas.addEventListener('pointerdown', () => {
+    if (!runtime.tour.enabled) return;
+    if (!runtime.tour.allowUserInterrupt) return;
+    if (!runtime.tour.playing && !tourTween) return;
+    runtime.tour.playing = false;
+    tourTween = null;
+    tourNextAtMs = null;
+    if (tourToggleBtn) tourToggleBtn.setAttribute('aria-pressed', 'false');
+  });
 
   // Bind UI
   bgSel?.addEventListener('change', () => setBackground(bgSel.value));
@@ -5011,12 +5779,16 @@ const init = () => {
 
   envIntensity?.addEventListener('input', () => {
     runtime.envIntensity = Number.parseFloat(envIntensity.value) || 0;
+    if (runtime.studioRig)
+      runtime.studioRig.envIntensity = runtime.envIntensity;
     applyLighting();
     if (loadState.gltf) applyLook();
   });
 
   envRotation?.addEventListener('input', () => {
     runtime.envRotationDeg = Number.parseFloat(envRotation.value) || 0;
+    if (runtime.studioRig)
+      runtime.studioRig.envRotationDeg = runtime.envRotationDeg;
     applyLighting();
   });
   applyLighting();
@@ -5105,11 +5877,133 @@ const init = () => {
   bloomThreshold?.addEventListener('input', syncPostUi);
   bloomRadius?.addEventListener('input', syncPostUi);
 
+  const syncPhotoModeUi = () => {
+    const pm = runtime.photoMode;
+    pm.enabled = Boolean(photoModeEnabledChk?.checked ?? pm.enabled);
+    pm.dofStrength = clamp01(
+      Number.parseFloat(photoModeDofInp?.value || `${pm.dofStrength}`) ||
+        pm.dofStrength
+    );
+    pm.focusDistance = clamp(
+      Number.parseFloat(photoModeFocusInp?.value || `${pm.focusDistance}`) ||
+        pm.focusDistance,
+      0.1,
+      80
+    );
+    pm.vignette = clamp01(
+      Number.parseFloat(photoModeVignetteInp?.value || `${pm.vignette}`) ||
+        pm.vignette
+    );
+    pm.chromaticAberration = clamp01(
+      Number.parseFloat(photoModeCaInp?.value || `${pm.chromaticAberration}`) ||
+        pm.chromaticAberration
+    );
+    pm.shutterLook = clamp(
+      Number.parseFloat(photoModeShutterInp?.value || `${pm.shutterLook}`) ||
+        pm.shutterLook,
+      -1,
+      1
+    );
+
+    const enabled = Boolean(pm.enabled);
+    if (photoModeDofInp) photoModeDofInp.disabled = !enabled;
+    if (photoModeFocusInp) photoModeFocusInp.disabled = !enabled;
+    if (photoModeVignetteInp) photoModeVignetteInp.disabled = !enabled;
+    if (photoModeCaInp) photoModeCaInp.disabled = !enabled;
+    if (photoModeShutterInp) photoModeShutterInp.disabled = !enabled;
+    syncPostUi();
+  };
+
+  photoModeEnabledChk?.addEventListener('change', syncPhotoModeUi);
+  photoModeDofInp?.addEventListener('input', syncPhotoModeUi);
+  photoModeFocusInp?.addEventListener('input', syncPhotoModeUi);
+  photoModeVignetteInp?.addEventListener('input', syncPhotoModeUi);
+  photoModeCaInp?.addEventListener('input', syncPhotoModeUi);
+  photoModeShutterInp?.addEventListener('input', syncPhotoModeUi);
+
+  const syncMaterialsProUi = () => {
+    const pv2 = runtime.paintV2;
+    pv2.orangePeel = clamp01(
+      Number.parseFloat(orangePeelInp?.value || `${pv2.orangePeel}`) ||
+        pv2.orangePeel
+    );
+    pv2.flakeDensity = clamp01(
+      Number.parseFloat(flakeDensityInp?.value || `${pv2.flakeDensity}`) ||
+        pv2.flakeDensity
+    );
+    pv2.flakeScale = clamp01(
+      Number.parseFloat(flakeScaleInp?.value || `${pv2.flakeScale}`) ||
+        pv2.flakeScale
+    );
+
+    const tv2 = runtime.tiresV2;
+    tv2.treadNormalStrength = clamp(
+      Number.parseFloat(
+        tireTreadNormalInp?.value || `${tv2.treadNormalStrength}`
+      ) || tv2.treadNormalStrength,
+      0,
+      1
+    );
+    tv2.sidewallNormalStrength = clamp(
+      Number.parseFloat(
+        tireSidewallNormalInp?.value || `${tv2.sidewallNormalStrength}`
+      ) || tv2.sidewallNormalStrength,
+      0,
+      1
+    );
+    tv2.treadWetSheen = clamp01(
+      Number.parseFloat(tireWetSheenInp?.value || `${tv2.treadWetSheen}`) ||
+        tv2.treadWetSheen
+    );
+
+    const bv2 = runtime.brakesV2;
+    bv2.brakeAggression = clamp(
+      Number.parseFloat(
+        brakeAggressionInp?.value || `${bv2.brakeAggression}`
+      ) || bv2.brakeAggression,
+      0,
+      4
+    );
+    bv2.coolingRate = clamp(
+      Number.parseFloat(brakeCoolingInp?.value || `${bv2.coolingRate}`) ||
+        bv2.coolingRate,
+      0.05,
+      3
+    );
+    bv2.tempToEmissiveCurve = clamp(
+      Number.parseFloat(brakeCurveInp?.value || `${bv2.tempToEmissiveCurve}`) ||
+        bv2.tempToEmissiveCurve,
+      0.5,
+      4
+    );
+    bv2.tempMax = clamp(
+      Number.parseFloat(brakeTempMaxInp?.value || `${bv2.tempMax}`) ||
+        bv2.tempMax,
+      0.5,
+      2
+    );
+
+    if (loadState.gltf) applyLook();
+  };
+
+  orangePeelInp?.addEventListener('input', syncMaterialsProUi);
+  flakeDensityInp?.addEventListener('input', syncMaterialsProUi);
+  flakeScaleInp?.addEventListener('input', syncMaterialsProUi);
+  tireTreadNormalInp?.addEventListener('input', syncMaterialsProUi);
+  tireSidewallNormalInp?.addEventListener('input', syncMaterialsProUi);
+  tireWetSheenInp?.addEventListener('input', syncMaterialsProUi);
+  brakeAggressionInp?.addEventListener('input', syncMaterialsProUi);
+  brakeCoolingInp?.addEventListener('input', syncMaterialsProUi);
+  brakeCurveInp?.addEventListener('input', syncMaterialsProUi);
+  brakeTempMaxInp?.addEventListener('input', syncMaterialsProUi);
+
   exposureResetBtn?.addEventListener('click', () => {
     if (exposure) exposure.value = '1.25';
     syncPostUi();
   });
   syncPostUi();
+  syncPhotoModeUi();
+  syncMaterialsProUi();
 
   camPreset?.addEventListener('change', applyCameraFromUi);
   camMode?.addEventListener('change', applyCameraFromUi);
@@ -5267,6 +6161,16 @@ const init = () => {
     });
   }
 
+  const shouldRenderWithComposer = () => {
+    const pm = runtime.photoMode;
+    const photoActive =
+      Boolean(pm?.enabled) &&
+      (pm.dofStrength > 0.001 ||
+        pm.vignette > 0.001 ||
+        pm.chromaticAberration > 0.001);
+    return Boolean(composer) && (runtime.bloomStrength > 0.001 || photoActive);
+  };
+
   const downloadScreenshot = () => {
     hapticTap(15);
 
@@ -5288,7 +6192,7 @@ const init = () => {
       setSize();
 
       // High-quality capture (force sync render)
-      if (composer && runtime.bloomStrength > 0.001) composer.render();
+      if (composer && shouldRenderWithComposer()) composer.render();
       else renderer.render(scene, camera);
 
       const a = document.createElement('a');
@@ -5335,7 +6239,7 @@ const init = () => {
       setSize();
 
       // High-quality capture
-      if (composer && runtime.bloomStrength > 0.001) composer.render();
+      if (composer && shouldRenderWithComposer()) composer.render();
       else renderer.render(scene, camera);
 
       const canvasEl = renderer.domElement;
@@ -5516,6 +6420,27 @@ const init = () => {
     if (Math.abs(ms - 1) > 0.0001) url.searchParams.set('ms', ms.toFixed(3));
     if (Math.abs(my) > 0.0001) url.searchParams.set('my', my.toFixed(1));
     if (Math.abs(ml) > 0.0001) url.searchParams.set('ml', ml.toFixed(3));
+
+    // PhotoMode
+    if (runtime.photoMode?.enabled) {
+      const pm = runtime.photoMode;
+      url.searchParams.set('pm', '1');
+      url.searchParams.set('pmd', clamp01(pm.dofStrength).toFixed(3));
+      url.searchParams.set('pmf', clamp(pm.focusDistance, 0.1, 80).toFixed(3));
+      url.searchParams.set('pmv', clamp01(pm.vignette).toFixed(3));
+      url.searchParams.set('pmc', clamp01(pm.chromaticAberration).toFixed(3));
+      url.searchParams.set('pms', clamp(pm.shutterLook, -1, 1).toFixed(3));
+    }
+
+    // Tours
+    if (runtime.tour?.enabled) {
+      url.searchParams.set('tour', runtime.tour.activeTourId);
+      url.searchParams.set(
+        'step',
+        String(clampInt(runtime.tour.stepIndex, 0, 999))
+      );
+      if (runtime.tour.playing) url.searchParams.set('tp', '1');
+    }
     return url;
   };
 
@@ -5572,12 +6497,21 @@ const init = () => {
     lastTick = now;
 
     // Brake Glow Logic
+    const bv2 = runtime.brakesV2;
+    const aggression = clamp(bv2?.brakeAggression ?? 1, 0, 4);
+    const coolingRate = clamp(bv2?.coolingRate ?? 0.35, 0.05, 3);
+    const airflow = clamp(bv2?.airflowFactor ?? 1, 0, 4);
     if (loadState.lastSpeed > runtime.motionSpeed + 0.05) {
+      const decel = loadState.lastSpeed - runtime.motionSpeed;
       loadState.brakeGlow = clamp01(
-        loadState.brakeGlow + (loadState.lastSpeed - runtime.motionSpeed) * 3
+        loadState.brakeGlow + decel * 3 * aggression
       );
     }
-    loadState.brakeGlow = Math.max(0, loadState.brakeGlow - deltaS * 0.5);
+    const coolMul = (0.75 + runtime.motionSpeed * 0.35) * airflow;
+    loadState.brakeGlow = Math.max(
+      0,
+      loadState.brakeGlow - deltaS * coolingRate * coolMul
+    );
     loadState.lastSpeed = runtime.motionSpeed;
 
     // Audio Update
@@ -5632,8 +6566,12 @@ const init = () => {
                 ? new THREE.Color(runtime.caliperColorHex)
                 : new THREE.Color(0x000000);
               const glowColor = new THREE.Color(0xff4400);
-              m.emissive.copy(baseColor).lerp(glowColor, loadState.brakeGlow);
-              m.emissiveIntensity = loadState.brakeGlow * 12;
+              const heat = clamp01(loadState.brakeGlow * (bv2?.tempMax ?? 1));
+              const curve = clamp(bv2?.tempToEmissiveCurve ?? 1.35, 0.5, 4);
+              const t = Math.pow(heat, curve);
+              m.emissive.copy(baseColor).lerp(glowColor, t);
+              const caliperMul = isCaliperPart ? 0.55 : 1;
+              m.emissiveIntensity = t * 18 * caliperMul;
             }
           });
         }
@@ -5731,7 +6669,9 @@ const init = () => {
     // Pendulum motion (optional)
     if (
       runtime.autorotate &&
-      (runtime.motionStyle || '').trim().toLowerCase() === 'pendulum'
+      (runtime.motionStyle || '').trim().toLowerCase() === 'pendulum' &&
+      !runtime.tour.enabled &&
+      !tourTween
     ) {
       const amp = (18 * Math.PI) / 180;
       const t = now * 0.001;
@@ -5740,6 +6680,17 @@ const init = () => {
       const base = new THREE.Vector3(dist, dist * 0.35, dist);
       const rot = new THREE.Matrix4().makeRotationY(yaw);
       camera.position.copy(controls.target).add(base.applyMatrix4(rot));
+    }
+
+    updateTourTween(now);
+    if (
+      runtime.tour.playing &&
+      !tourTween &&
+      tourNextAtMs &&
+      now >= tourNextAtMs
+    ) {
+      tourNextAtMs = null;
+      nextTourStep();
     }
 
     controls.update();
@@ -5756,7 +6707,7 @@ const init = () => {
         Math.sin(t * 1.3 + 1.2) * amp
       );
       camera.position.add(off);
-      if (composer && runtime.bloomStrength > 0.001) composer.render();
+      if (composer && shouldRenderWithComposer()) composer.render();
       else renderer.render(scene, camera);
       camera.position.sub(off);
 
@@ -5788,7 +6739,7 @@ const init = () => {
       }
     }
 
-    if (composer && runtime.bloomStrength > 0.001) composer.render();
+    if (composer && shouldRenderWithComposer()) composer.render();
     else renderer.render(scene, camera);
 
     requestAnimationFrame(tick);
@@ -5971,6 +6922,17 @@ const init = () => {
     const lc = url.searchParams.get('lc');
     const lg = url.searchParams.get('lg');
 
+    // Studio Pro: PhotoMode + Tours
+    const pm = url.searchParams.get('pm');
+    const pmd = url.searchParams.get('pmd');
+    const pmf = url.searchParams.get('pmf');
+    const pmv = url.searchParams.get('pmv');
+    const pmc = url.searchParams.get('pmc');
+    const pms = url.searchParams.get('pms');
+    const tour = url.searchParams.get('tour');
+    const step = url.searchParams.get('step');
+    const tp = url.searchParams.get('tp');
+
     if (m) {
       if (modelUrl) modelUrl.value = m;
       if (modelSel) modelSel.value = m;
@@ -6057,6 +7019,28 @@ const init = () => {
     if (lc && lightColorInp)
       lightColorInp.value = lc.startsWith('#') ? lc : `#${lc}`;
     if (lg && lightGlowInp) lightGlowInp.value = lg;
+
+    if (pm && photoModeEnabledChk) photoModeEnabledChk.checked = pm === '1';
+    if (pmd && photoModeDofInp) photoModeDofInp.value = pmd;
+    if (pmf && photoModeFocusInp) photoModeFocusInp.value = pmf;
+    if (pmv && photoModeVignetteInp) photoModeVignetteInp.value = pmv;
+    if (pmc && photoModeCaInp) photoModeCaInp.value = pmc;
+    if (pms && photoModeShutterInp) photoModeShutterInp.value = pms;
+
+    if (tour) {
+      const id = tour.trim();
+      if (toursById.has(id)) {
+        runtime.tour.activeTourId = id;
+        runtime.tour.enabled = true;
+        runtime.tour.stepIndex = clampInt(
+          Number.parseInt(step || '0', 10) || 0,
+          0,
+          999
+        );
+        runtime.tour.playing = tp === '1';
+        if (tourSelect) tourSelect.value = id;
+      }
+    }
   } catch {
     // ignore
   }
@@ -6089,6 +7073,10 @@ const init = () => {
   runtime.envRotationDeg =
     Number.parseFloat(envRotation?.value || `${runtime.envRotationDeg}`) ||
     runtime.envRotationDeg;
+  if (runtime.studioRig) {
+    runtime.studioRig.envIntensity = runtime.envIntensity;
+    runtime.studioRig.envRotationDeg = runtime.envRotationDeg;
+  }
   runtime.grid = Boolean(gridChk?.checked ?? runtime.grid);
   runtime.axes = Boolean(axesChk?.checked ?? runtime.axes);
   runtime.thirdsOverlay = Boolean(thirdsChk?.checked ?? runtime.thirdsOverlay);
@@ -6140,7 +7128,7 @@ const init = () => {
   applyFloor();
   syncPaint();
   applyQuality();
-  applyPost();
+  syncPhotoModeUi();
 
   // Initialize cinematic after URL hydration so the preset captures the prior values.
   setCinematic(runtime.cinematic);

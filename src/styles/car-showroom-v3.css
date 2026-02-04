@@ -297,6 +297,15 @@
   pointer-events: auto;
 }
 
+.sr__focusExit {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 31;
+  display: none;
+  pointer-events: auto;
+}
+
 .sr__canvas {
   position: absolute;
   inset: 0;
@@ -1222,9 +1231,8 @@
 .sr[data-sr-idle='1'] .sr__quick,
 .sr[data-sr-idle='1'] .sr__spec,
 .sr[data-sr-idle='1'] .sr__dock {
-  opacity: 0.1;
+  opacity: 0.15;
   transition: opacity 320ms var(--sr-ease);
-  pointer-events: none;
 }
 
 .sr[data-sr-idle='1'] .sr__hud {
@@ -1239,6 +1247,10 @@
 .sr[data-sr-focus='1'] .sr__hud {
   opacity: 0;
   pointer-events: none;
+}
+
+.sr[data-sr-focus='1'] .sr__focusExit {
+  display: inline-flex;
 }
 
 .sr[data-sr-compact='1'] .sr__panelHead {
