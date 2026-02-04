@@ -1,5 +1,13 @@
 /* Car Showroom v3 — new UI from scratch (mobile + desktop panels) */
 
+:global(body.car-showroom-fullscreen) {
+  overflow: hidden;
+}
+
+.sr-chip {
+  text-decoration: none;
+}
+
 :root {
   --sr-bg: #121212;
   --sr-panel-alpha: 0.62;
@@ -135,6 +143,87 @@
   inset: 0;
   z-index: 0;
   min-height: 100svh;
+}
+
+/* Fullscreen menu (gallery-style) */
+.sr__menu {
+  position: fixed;
+  inset: 0;
+  z-index: 44;
+}
+
+.sr__menuBackdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 4, 10, 0.62);
+  backdrop-filter: blur(10px);
+}
+
+.sr__menuPanel {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  width: min(520px, calc(100vw - 32px));
+  border-radius: 18px;
+  border: 1px solid var(--sr-border);
+  background: rgba(10, 14, 22, 0.92);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.72);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sr__menuHead {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(10, 14, 22, 0.96);
+  backdrop-filter: blur(14px);
+}
+
+.sr__menuTitle {
+  font-weight: 850;
+  letter-spacing: -0.02em;
+}
+
+.sr__menuSection {
+  padding: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sr__menuSectionTitle {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sr-muted);
+  margin-bottom: 10px;
+}
+
+.sr__menuRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sr__menuRow--wrap {
+  gap: 8px;
+}
+
+.sr__menuGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 520px) {
+  .sr__menuGrid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .sr__thirds {
@@ -331,7 +420,8 @@
 [data-sr-root][data-sr-cinematic='1'] .sr__hud,
 [data-sr-root][data-sr-cinematic='1'] .sr__spec,
 [data-sr-root][data-sr-cinematic='1'] .sr__dock,
-[data-sr-root][data-sr-cinematic='1'] .sr__quick {
+[data-sr-root][data-sr-cinematic='1'] .sr__quick,
+[data-sr-root][data-sr-cinematic='1'] .sr__guide {
   display: none;
 }
 
@@ -644,6 +734,66 @@
   backdrop-filter: blur(18px);
   box-shadow: 0 22px 60px rgba(0, 0, 0, 0.6);
   padding: 10px;
+}
+
+.sr__guide {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 41;
+  pointer-events: auto;
+  width: min(380px, calc(100vw - 28px));
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(10, 14, 22, 0.78);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.65);
+  padding: 10px;
+}
+
+.sr__guideHead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.sr__guideTitle {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.sr__guideProgress {
+  margin-left: auto;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.sr__guideMessage {
+  margin-top: 8px;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.sr__guideActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.sr-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .sr__quickRow {
@@ -1330,6 +1480,7 @@
 .sr[data-sr-idle='1'] .sr__top,
 .sr[data-sr-idle='1'] .sr__panel,
 .sr[data-sr-idle='1'] .sr__quick,
+.sr[data-sr-idle='1'] .sr__guide,
 .sr[data-sr-idle='1'] .sr__spec,
 .sr[data-sr-idle='1'] .sr__dock {
   opacity: 0.15;
@@ -1343,6 +1494,7 @@
 .sr[data-sr-focus='1'] .sr__top,
 .sr[data-sr-focus='1'] .sr__panel,
 .sr[data-sr-focus='1'] .sr__quick,
+.sr[data-sr-focus='1'] .sr__guide,
 .sr[data-sr-focus='1'] .sr__spec,
 .sr[data-sr-focus='1'] .sr__dock,
 .sr[data-sr-focus='1'] .sr__hud {
@@ -1481,6 +1633,13 @@
     );
     z-index: 42;
     display: block;
+  }
+
+  .sr__guide {
+    left: 12px;
+    bottom: calc(
+      var(--sr-panel-height, 0px) + 12px + env(safe-area-inset-bottom, 0px)
+    );
   }
 
   .sr__quickMenu {

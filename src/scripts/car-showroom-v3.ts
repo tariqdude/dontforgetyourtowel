@@ -27,6 +27,12 @@ import {
   type TourCameraState,
 } from '../data/showroom-tours';
 
+declare global {
+  interface Window {
+    __carShowroomV3Bound?: boolean;
+  }
+}
+
 type LoadState = {
   requestId: number;
   objectUrlToRevoke: string | null;
@@ -73,6 +79,7 @@ type PaintV2State = {
   orangePeel: number;
   flakeDensity: number;
   flakeScale: number;
+  sparkle: number;
   clearcoatStrength: number;
   clearcoatRoughness: number;
 };
@@ -148,6 +155,15 @@ const vec3FromTuple = (t: [number, number, number]) =>
   new THREE.Vector3(t[0], t[1], t[2]);
 
 const ROOT = '[data-sr-root]';
+
+let cleanupCurrent: (() => void) | null = null;
+let mountedRoot: HTMLElement | null = null;
+
+function cleanup(): void {
+  cleanupCurrent?.();
+  cleanupCurrent = null;
+  mountedRoot = null;
+}
 
 const clamp = (v: number, min: number, max: number) =>
   Math.min(max, Math.max(min, v));
@@ -1040,7 +1056,7 @@ const setRootState = (
 const isMobile = () => window.matchMedia('(max-width: 980px)').matches;
 const isCoarsePointer = () => window.matchMedia('(pointer: coarse)').matches;
 
-const initPanel = (root: HTMLElement) => {
+const initPanel = (root: HTMLElement, signal?: AbortSignal) => {
   const panel = root.querySelector<HTMLElement>('[data-sr-panel]');
   const toggles = Array.from(
     root.querySelectorAll<HTMLButtonElement>('[data-sr-panel-toggle]')
@@ -1219,6 +1235,25 @@ const initPanel = (root: HTMLElement) => {
   let resizeStartX = 0;
   let resizeStartW = 0;
 
+  const addWindowListener = <K extends keyof WindowEventMap>(
+    type: K,
+    listener: (this: Window, ev: WindowEventMap[K]) => unknown,
+    options?: AddEventListenerOptions
+  ) => {
+    if (signal) {
+      window.addEventListener(
+        type,
+        listener as EventListener,
+        {
+          ...(options || {}),
+          signal,
+        } as AddEventListenerOptions
+      );
+      return;
+    }
+    window.addEventListener(type, listener as EventListener, options);
+  };
+
   const onResizeMove = (e: PointerEvent) => {
     if (!resizing || isMobile()) return;
     const dx = resizeStartX - e.clientX;
@@ -1239,8 +1274,8 @@ const initPanel = (root: HTMLElement) => {
     resizeStartX = e.clientX;
     resizeStartW = panelWidth;
     resizeHandle.setPointerCapture?.(e.pointerId);
-    window.addEventListener('pointermove', onResizeMove);
-    window.addEventListener('pointerup', onResizeUp);
+    addWindowListener('pointermove', onResizeMove);
+    addWindowListener('pointerup', onResizeUp);
   });
 
   const onUp = () => {
@@ -1301,8 +1336,8 @@ const initPanel = (root: HTMLElement) => {
       // ignore
     }
 
-    window.addEventListener('pointermove', onMove, { passive: false });
-    window.addEventListener('pointerup', onUp, { once: true, passive: true });
+    addWindowListener('pointermove', onMove, { passive: false });
+    addWindowListener('pointerup', onUp, { once: true, passive: true });
   };
 
   handle?.addEventListener('pointerdown', e => {
@@ -1316,7 +1351,8 @@ const initPanel = (root: HTMLElement) => {
     startDragFrom(e, dragArea);
   });
 
-  window.addEventListener('resize', () => initState());
+  const onResize = () => initState();
+  addWindowListener('resize', onResize);
   initState();
   initPanelWidth();
 
@@ -1329,8 +1365,81 @@ const initPanel = (root: HTMLElement) => {
 };
 
 const init = () => {
+  if (typeof window === 'undefined') return;
+
+  // Tear down any previous init so we don't keep stale listeners/observers
+  // alive across Astro view transitions.
+  cleanup();
+
   const root = document.querySelector<HTMLElement>(ROOT);
   if (!root) return;
+
+  const controller = new AbortController();
+  const cleanups: Array<() => void> = [];
+  const addCleanup = (fn: (() => void) | null | undefined) => {
+    if (fn) cleanups.push(fn);
+  };
+
+  const addWindowListener = <K extends keyof WindowEventMap>(
+    type: K,
+    listener: (this: Window, ev: WindowEventMap[K]) => unknown,
+    options?: AddEventListenerOptions
+  ) => {
+    window.addEventListener(
+      type,
+      listener as EventListener,
+      {
+        ...(options || {}),
+        signal: controller.signal,
+      } as AddEventListenerOptions
+    );
+  };
+
+  const addDocumentListener = <K extends keyof DocumentEventMap>(
+    type: K,
+    listener: (this: Document, ev: DocumentEventMap[K]) => unknown,
+    options?: AddEventListenerOptions
+  ) => {
+    document.addEventListener(
+      type,
+      listener as EventListener,
+      {
+        ...(options || {}),
+        signal: controller.signal,
+      } as AddEventListenerOptions
+    );
+  };
+
+  const addVisualViewportListener = <K extends keyof VisualViewportEventMap>(
+    type: K,
+    listener: (this: VisualViewport, ev: VisualViewportEventMap[K]) => unknown,
+    options?: AddEventListenerOptions
+  ) => {
+    (window as ExtendedWindow).visualViewport?.addEventListener(
+      type,
+      listener as EventListener,
+      {
+        ...(options || {}),
+        signal: controller.signal,
+      } as AddEventListenerOptions
+    );
+  };
+
+  // Ensure we always have a cleanup handle, even if init returns early.
+  cleanupCurrent = () => {
+    try {
+      controller.abort();
+    } catch {
+      // ignore
+    }
+    for (const fn of cleanups.splice(0)) {
+      try {
+        fn();
+      } catch {
+        // ignore
+      }
+    }
+  };
 
   const html = document.documentElement;
   html.dataset.carShowroomBoot = '0';
@@ -1682,6 +1791,9 @@ const init = () => {
   const flakeScaleInp = root.querySelector<HTMLInputElement>(
     '[data-sr-flake-scale]'
   );
+  const flakeSparkleInp = root.querySelector<HTMLInputElement>(
+    '[data-sr-flake-sparkle]'
+  );
   const tireTreadNormalInp = root.querySelector<HTMLInputElement>(
     '[data-sr-tire-tread-normal]'
   );
@@ -1914,7 +2026,7 @@ const init = () => {
   };
 
   // Panel system (new)
-  const panelApi = initPanel(root);
+  const panelApi = initPanel(root, controller.signal);
 
   const syncSmartLayout = () => {
     const compact = isMobile() || isCoarsePointer();
@@ -1934,11 +2046,10 @@ const init = () => {
   };
 
   root.addEventListener('sr-panel-snap', syncSmartLayout as EventListener);
-  window.addEventListener('resize', syncSmartLayout);
-  (window as ExtendedWindow).visualViewport?.addEventListener(
-    'resize',
-    syncSmartLayout
-  );
+  window.addEventListener('resize', syncSmartLayout, {
+    signal: controller.signal,
+  } as AddEventListenerOptions);
+  addVisualViewportListener('resize', syncSmartLayout);
   syncSmartLayout();
 
   const GUIDED_KEY = 'sr3-guided-v1';
@@ -2082,6 +2193,7 @@ const init = () => {
   let idleController: null | {
     setEnabled: (next: boolean) => void;
     setDelay: (nextMs: number) => void;
+    destroy?: () => void;
   } = null;
 
   const applyLayout = (state: LayoutState, persist: boolean) => {
@@ -2360,6 +2472,14 @@ const init = () => {
 
   html.dataset.carShowroomWebgl = '1';
 
+  addCleanup(() => {
+    try {
+      renderer.dispose();
+    } catch {
+      // ignore
+    }
+  });
+
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = getToneMappingFromUi();
   renderer.toneMappingExposure =
@@ -2394,6 +2514,34 @@ const init = () => {
   let audioCtx: AudioContext | null = null;
   let oscillator: OscillatorNode | null = null;
   let gainNode: GainNode | null = null;
+
+  addCleanup(() => {
+    try {
+      if (oscillator) {
+        try {
+          oscillator.stop();
+        } catch {
+          // ignore
+        }
+        oscillator.disconnect();
+      }
+    } catch {
+      // ignore
+    }
+    try {
+      gainNode?.disconnect();
+    } catch {
+      // ignore
+    }
+    try {
+      void audioCtx?.close?.();
+    } catch {
+      // ignore
+    }
+    audioCtx = null;
+    oscillator = null;
+    gainNode = null;
+  });
 
   const initAudio = () => {
     if (audioCtx) return;
@@ -2443,6 +2591,14 @@ const init = () => {
   controls.maxDistance = 18;
   controls.target.set(0, 0.8, 0);
   controls.update();
+
+  addCleanup(() => {
+    try {
+      controls.dispose();
+    } catch {
+      // ignore
+    }
+  });
 
   // Lights
   const hemi = new THREE.HemisphereLight(0xffffff, 0x121a25, 0.95);
@@ -2730,6 +2886,27 @@ const init = () => {
     brakeGlow: 0,
     lastSpeed: 0,
   };
+
+  addCleanup(() => {
+    try {
+      if (loadState.gltf) {
+        scene.remove(loadState.gltf);
+        disposeObject(loadState.gltf);
+        loadState.gltf = null;
+      }
+    } catch {
+      // ignore
+    }
+
+    try {
+      if (loadState.objectUrlToRevoke) {
+        URL.revokeObjectURL(loadState.objectUrlToRevoke);
+        loadState.objectUrlToRevoke = null;
+      }
+    } catch {
+      // ignore
+    }
+  });
 
   // Model base transform (grounded placement after normalization)
   let modelBaseY = 0;
@@ -3486,6 +3663,7 @@ const init = () => {
       orangePeel: Number.parseFloat(orangePeelInp?.value || '0') || 0,
       flakeDensity: Number.parseFloat(flakeDensityInp?.value || '0.55') || 0.55,
       flakeScale: Number.parseFloat(flakeScaleInp?.value || '0.4') || 0.4,
+      sparkle: Number.parseFloat(flakeSparkleInp?.value || '0.6') || 0.6,
       clearcoatStrength: Number.parseFloat(clearcoatInp?.value || '0.8') || 0.8,
       clearcoatRoughness:
         Number.parseFloat(clearcoatRoughInp?.value || '0.03') || 0.03,
@@ -3540,7 +3718,9 @@ const init = () => {
 
     tour: {
       enabled: false,
-      activeTourId: SHOWROOM_TOURS[0]?.id || 'porsche',
+      activeTourId: SHOWROOM_TOURS.some(t => t.id === 'studio')
+        ? 'studio'
+        : SHOWROOM_TOURS[0]?.id || 'porsche',
       stepIndex: 0,
       playing: false,
       autoplay: false,
@@ -4303,6 +4483,7 @@ const init = () => {
           const orangePeel = clamp01(pv2?.orangePeel ?? 0);
           const flakeDensity = clamp01(pv2?.flakeDensity ?? 0.55);
           const flakeScale = clamp01(pv2?.flakeScale ?? 0.4);
+          const sparkleIntensity = clamp01(pv2?.sparkle ?? 0.6);
           const key = `${orangePeel.toFixed(3)}|${flakeDensity.toFixed(3)}|${flakeScale.toFixed(3)}`;
           if (key !== paintClearcoatNormalKey) {
             paintClearcoatNormalKey = key;
@@ -4331,7 +4512,10 @@ const init = () => {
 
           const glossFactor = clamp01(1 - finishRoughness);
           const sparkle = clamp01(
-            (0.35 + flakeDensity * 0.85) * glossFactor * (1 - grimeAmount * 0.5)
+            (0.35 + flakeDensity * 0.85) *
+              glossFactor *
+              (1 - grimeAmount * 0.5) *
+              sparkleIntensity
           );
           const sparkleScale = 40 + flakeScale * 160;
           const sparkleColor = basePaintColor
@@ -4436,7 +4620,8 @@ const init = () => {
             const sparkle = clamp01(
               (0.25 + runtime.paintV2.flakeDensity * 0.6) *
                 glossFactor *
-                (1 - grimeAmount * 0.5)
+                (1 - grimeAmount * 0.5) *
+                clamp01(runtime.paintV2.sparkle ?? 0.6)
             );
             const sparkleScale = 40 + runtime.paintV2.flakeScale * 160;
             const sparkleColor = wrapColor
@@ -4943,6 +5128,10 @@ const init = () => {
     resetControlToDefault(sheenRoughInp);
     resetControlToDefault(iridescenceInp);
     resetControlToDefault(iridescenceIorInp);
+    resetControlToDefault(orangePeelInp);
+    resetControlToDefault(flakeDensityInp);
+    resetControlToDefault(flakeScaleInp);
+    resetControlToDefault(flakeSparkleInp);
     resetControlToDefault(wetChk);
     resetControlToDefault(wetAmountInp);
     resetControlToDefault(grimeAmountInp);
@@ -5825,6 +6014,30 @@ const init = () => {
     '[data-sr-tour-message]'
   );
 
+  const guideEl = root.querySelector<HTMLElement>('[data-sr-guide]');
+  const guideTitleEl = root.querySelector<HTMLElement>('[data-sr-guide-title]');
+  const guideProgressEl = root.querySelector<HTMLElement>(
+    '[data-sr-guide-progress]'
+  );
+  const guideMessageEl = root.querySelector<HTMLElement>(
+    '[data-sr-guide-message]'
+  );
+  const guideToggleBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-guide-toggle]'
+  );
+  const guidePrevBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-guide-prev]'
+  );
+  const guideNextBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-guide-next]'
+  );
+  const guideExitBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-guide-exit]'
+  );
+
+  const GUIDED_TOUR_KEY = 'sr3-guided-tour-once-v1';
+  let guidedAutoTourStarted = false;
+
   const populateTourSelect = () => {
     if (!tourSelect) return;
     const prev = (tourSelect.value || runtime.tour?.activeTourId || '').trim();
@@ -5842,10 +6055,60 @@ const init = () => {
   };
 
   const setTourMessage = (msg: string) => {
-    if (!tourMessageEl) return;
     const text = (msg || '').trim();
-    tourMessageEl.textContent = text;
-    tourMessageEl.hidden = !text;
+    if (tourMessageEl) {
+      tourMessageEl.textContent = text;
+      tourMessageEl.hidden = !text;
+    }
+    if (guideMessageEl) {
+      guideMessageEl.textContent = text;
+      guideMessageEl.hidden = !text;
+    }
+  };
+
+  const syncGuideOverlay = () => {
+    if (!guideEl) return;
+
+    const compact =
+      root.dataset.srCompact === '1' || isMobile() || isCoarsePointer();
+    const show = compact && (guidedOn || runtime.tour.enabled);
+
+    guideEl.hidden = !show;
+    if (!show) return;
+
+    const tour =
+      toursById.get(runtime.tour.activeTourId) ??
+      (SHOWROOM_TOURS[0] ? toursById.get(SHOWROOM_TOURS[0].id) : undefined);
+    const steps = tour?.steps ?? [];
+    const maxIdx = Math.max(0, steps.length - 1);
+    const idx = clampInt(runtime.tour.stepIndex, 0, maxIdx);
+    const step = steps[idx];
+
+    if (guideTitleEl)
+      guideTitleEl.textContent = step?.label
+        ? step.label
+        : tour?.name || 'Tour';
+    if (guideProgressEl)
+      guideProgressEl.textContent = steps.length
+        ? `${idx + 1}/${steps.length}`
+        : '';
+
+    if (guideToggleBtn) {
+      const enabled = Boolean(runtime.tour.enabled);
+      const playing = Boolean(runtime.tour.playing);
+      guideToggleBtn.setAttribute('aria-pressed', playing ? 'true' : 'false');
+      guideToggleBtn.textContent = !enabled
+        ? 'Start'
+        : playing
+          ? 'Pause'
+          : 'Play';
+    }
+
+    if (guidePrevBtn) guidePrevBtn.disabled = !runtime.tour.enabled || idx <= 0;
+    if (guideNextBtn)
+      guideNextBtn.disabled =
+        !runtime.tour.enabled || steps.length === 0 || idx >= steps.length - 1;
+    if (guideExitBtn) guideExitBtn.disabled = !runtime.tour.enabled;
   };
 
   type CameraTween = {
@@ -5872,6 +6135,7 @@ const init = () => {
     if (opts?.clearSelection) setSelectedMesh(null);
 
     if (tourToggleBtn) tourToggleBtn.setAttribute('aria-pressed', 'false');
+    syncGuideOverlay();
   };
 
   const startCameraTween = (to: TourCameraState, durationMs: number) => {
@@ -5992,6 +6256,8 @@ const init = () => {
         'aria-pressed',
         String(Boolean(opts?.play ?? runtime.tour.playing))
       );
+
+    syncGuideOverlay();
   };
 
   const nextTourStep = () => {
@@ -6007,6 +6273,8 @@ const init = () => {
   };
 
   populateTourSelect();
+  root.addEventListener('sr-panel-snap', syncGuideOverlay as EventListener);
+
   if (tourSelect) {
     tourSelect.addEventListener('change', () => {
       const id = (tourSelect.value || '').trim();
@@ -6042,6 +6310,83 @@ const init = () => {
     stopTour({ clearSelection: true });
   });
 
+  guideToggleBtn?.addEventListener('click', () => {
+    hapticTap(10);
+
+    const fallbackId = SHOWROOM_TOURS[0]?.id || '';
+    const id = toursById.has(runtime.tour.activeTourId)
+      ? runtime.tour.activeTourId
+      : toursById.has(fallbackId)
+        ? fallbackId
+        : '';
+    if (!id) return;
+
+    runtime.tour.activeTourId = id;
+    if (tourSelect) tourSelect.value = id;
+
+    if (!runtime.tour.enabled) {
+      runtime.tour.enabled = true;
+      runtime.tour.playing = true;
+      runtime.tour.stepIndex = clampInt(runtime.tour.stepIndex, 0, 999);
+      goToTourStep(runtime.tour.stepIndex || 0, { play: true });
+      return;
+    }
+
+    runtime.tour.enabled = true;
+    runtime.tour.playing = !runtime.tour.playing;
+    if (runtime.tour.playing)
+      goToTourStep(runtime.tour.stepIndex, { play: true });
+    else syncGuideOverlay();
+  });
+
+  guidePrevBtn?.addEventListener('click', () => {
+    hapticTap(8);
+    runtime.tour.playing = false;
+    prevTourStep();
+    syncGuideOverlay();
+  });
+
+  guideNextBtn?.addEventListener('click', () => {
+    hapticTap(8);
+    runtime.tour.playing = false;
+    nextTourStep();
+    syncGuideOverlay();
+  });
+
+  guideExitBtn?.addEventListener('click', () => {
+    hapticTap(8);
+    stopTour({ clearSelection: true });
+  });
+
+  const scheduleGuidedTourStart = () => {
+    if (!guidedOn) return;
+    if (!SHOWROOM_TOURS.length) return;
+    if (guidedAutoTourStarted) return;
+    try {
+      const seen = (localStorage.getItem(GUIDED_TOUR_KEY) || '').trim();
+      if (seen === '1') return;
+    } catch {
+      // ignore
+    }
+
+    guidedAutoTourStarted = true;
+    window.setTimeout(() => {
+      if (!guidedOn) return;
+      if (!loadState.gltf) return;
+      runtime.tour.enabled = true;
+      runtime.tour.playing = true;
+      runtime.tour.stepIndex = 0;
+      if (tourSelect && SHOWROOM_TOURS[0]?.id)
+        tourSelect.value = SHOWROOM_TOURS[0].id;
+      goToTourStep(0, { play: true });
+      try {
+        localStorage.setItem(GUIDED_TOUR_KEY, '1');
+      } catch {
+        // ignore
+      }
+    }, 1200);
+  };
+
   // Optional user interrupt
   canvas.addEventListener('pointerdown', () => {
     if (!runtime.tour.enabled) return;
@@ -6051,7 +6396,12 @@ const init = () => {
     tourTween = null;
     tourNextAtMs = null;
     if (tourToggleBtn) tourToggleBtn.setAttribute('aria-pressed', 'false');
+    syncGuideOverlay();
   });
+
+  // Guided mode can auto-start a tour on first load.
+  scheduleGuidedTourStart();
+  syncGuideOverlay();
 
   // Bind UI
   bgSel?.addEventListener('change', () => setBackground(bgSel.value));
@@ -6669,6 +7019,10 @@ const init = () => {
       Number.parseFloat(flakeScaleInp?.value || `${pv2.flakeScale}`) ||
         pv2.flakeScale
     );
+    pv2.sparkle = clamp01(
+      Number.parseFloat(flakeSparkleInp?.value || `${pv2.sparkle}`) ||
+        pv2.sparkle
+    );
 
     const tv2 = runtime.tiresV2;
     tv2.treadNormalStrength = clamp(
@@ -6723,6 +7077,7 @@ const init = () => {
   orangePeelInp?.addEventListener('input', syncMaterialsProUi);
   flakeDensityInp?.addEventListener('input', syncMaterialsProUi);
   flakeScaleInp?.addEventListener('input', syncMaterialsProUi);
+  flakeSparkleInp?.addEventListener('input', syncMaterialsProUi);
   tireTreadNormalInp?.addEventListener('input', syncMaterialsProUi);
   tireSidewallNormalInp?.addEventListener('input', syncMaterialsProUi);
   tireWetSheenInp?.addEventListener('input', syncMaterialsProUi);
@@ -6891,7 +7246,7 @@ const init = () => {
 
   // Drag-and-drop import (GLB/GLTF/FBX) onto the viewer.
   if (viewer) {
-    createDropZone(viewer, {
+    const destroyDropZone = createDropZone(viewer, {
       accept: ['.glb', '.gltf', '.fbx', 'model/gltf-binary'],
       multiple: false,
       dragOverClass: 'sr-drop-over',
@@ -6918,6 +7273,7 @@ const init = () => {
         void loadModel(url, { objectUrlToRevoke: url, fileTypeHint: hint });
       },
     });
+    addCleanup(destroyDropZone);
   }
 
   const shouldRenderWithComposer = () => {
@@ -7252,7 +7608,32 @@ const init = () => {
   });
 
   // Resize + loop
-  const ro = new ResizeObserver(() => setSize());
+  let rafId: number | null = null;
+  let needsRender = true;
+  let controlsActive = false;
+  let controlsInertiaUntilMs = 0;
+
+  const scheduleTick = () => {
+    if (document.hidden) return;
+    if (rafId != null) return;
+    rafId = requestAnimationFrame(tick);
+  };
+
+  const invalidate = () => {
+    needsRender = true;
+    scheduleTick();
+  };
+
+  const stopTick = () => {
+    if (rafId == null) return;
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  };
+
+  const ro = new ResizeObserver(() => {
+    setSize();
+    invalidate();
+  });
   ro.observe(canvas);
   setSize();
 
@@ -7263,6 +7644,7 @@ const init = () => {
   let lastTick = lastSample;
   let frames = 0;
   const tick = () => {
+    rafId = null;
     frames += 1;
     const now = performance.now();
 
@@ -7360,7 +7742,6 @@ const init = () => {
     }
 
     updateLabels();
-    updateAudio();
 
     // Streamlines animation
     if (runtime.streamlines) {
@@ -7478,7 +7859,8 @@ const init = () => {
       else renderer.render(scene, camera);
       camera.position.sub(off);
 
-      requestAnimationFrame(tick);
+      needsRender = false;
+      scheduleTick();
       return;
     }
 
@@ -7509,9 +7891,86 @@ const init = () => {
     if (composer && shouldRenderWithComposer()) composer.render();
     else renderer.render(scene, camera);
 
-    requestAnimationFrame(tick);
+    needsRender = false;
+
+    const mixerPlaying =
+      Boolean(mixer) &&
+      Boolean(animationEnabled) &&
+      Boolean(animPlayChk?.checked ?? true);
+    const tourAnimating =
+      Boolean(runtime.tour?.enabled) &&
+      (Boolean(runtime.tour.playing) ||
+        Boolean(tourTween) ||
+        Boolean(tourNextAtMs));
+    const motionAnimating =
+      Boolean(runtime.cinematic) ||
+      Boolean(runtime.autorotate) ||
+      Boolean(runtime.wheelSpin) ||
+      Boolean(runtime.floorScroll) ||
+      Boolean(runtime.streamlines) ||
+      Boolean(runtime.acoustics);
+    const loadingAnimating =
+      root.dataset.carShowroomLoading === '1' ||
+      (Number(runtime.loadingBoostT) || 0) > 0.001;
+    const brakeAnimating = (loadState.brakeGlow || 0) > 0.001;
+    const controlsAnimating = controlsActive || now < controlsInertiaUntilMs;
+
+    const animating =
+      needsRender ||
+      loadingAnimating ||
+      brakeAnimating ||
+      motionAnimating ||
+      mixerPlaying ||
+      tourAnimating ||
+      controlsAnimating;
+
+    if (animating) scheduleTick();
   };
-  requestAnimationFrame(tick);
+
+  // Invalidate rendering on common UI interactions.
+  root.addEventListener('input', () => invalidate(), true);
+  root.addEventListener('change', () => invalidate(), true);
+  root.addEventListener('pointerdown', () => invalidate(), {
+    passive: true,
+    capture: true,
+  });
+  root.addEventListener('click', () => invalidate(), true);
+  canvas.addEventListener('pointerdown', () => invalidate(), { passive: true });
+  addWindowListener('keydown', () => invalidate(), { passive: true });
+
+  // OrbitControls emits events; use them to keep damping/inertia smooth.
+  controls.addEventListener('start', () => {
+    controlsActive = true;
+    invalidate();
+  });
+  controls.addEventListener('end', () => {
+    controlsActive = false;
+    controlsInertiaUntilMs = performance.now() + 450;
+    invalidate();
+  });
+  controls.addEventListener('change', () => invalidate());
+
+  // Pause rendering in background tabs; resume on return.
+  addDocumentListener('visibilitychange', () => {
+    if (document.hidden) stopTick();
+    else invalidate();
+  });
+
+  addCleanup(() => {
+    try {
+      ro.disconnect();
+    } catch {
+      // ignore
+    }
+    stopTick();
+  });
+
+  // Best-effort cleanup for non-Astro navigations (bfcache/unload).
+  addWindowListener('pagehide', () => {
+    cleanup();
+  });
+
+  scheduleTick();
 
   let captureHistoryState: (() => Record<string, unknown>) | null = null;
 
@@ -8045,7 +8504,7 @@ const init = () => {
   };
 
   // Keyboard shortcuts
-  window.addEventListener('keydown', e => {
+  addWindowListener('keydown', e => {
     if (isTypingContext()) return;
 
     const mod = e.ctrlKey || e.metaKey;
@@ -8198,10 +8657,29 @@ const init = () => {
 
   initRangeValueReadouts();
 
-  const initIdleFade = () => {
+  const initIdleFade = (signal?: AbortSignal) => {
     let idleTimer = 0;
     let enabled = idleConfig.enabled;
     let delayMs = idleConfig.delayMs;
+
+    const addWindowListener = <K extends keyof WindowEventMap>(
+      type: K,
+      listener: (this: Window, ev: WindowEventMap[K]) => unknown,
+      options?: AddEventListenerOptions
+    ) => {
+      if (signal) {
+        window.addEventListener(
+          type,
+          listener as EventListener,
+          {
+            ...(options || {}),
+            signal,
+          } as AddEventListenerOptions
+        );
+        return;
+      }
+      window.addEventListener(type, listener as EventListener, options);
+    };
 
     const setIdle = (next: boolean) => {
       root.dataset.srIdle = next ? '1' : '0';
@@ -8224,8 +8702,13 @@ const init = () => {
       'touchstart',
     ];
 
-    for (const ev of events)
-      window.addEventListener(ev, bump, { passive: true });
+    for (const ev of events) addWindowListener(ev, bump, { passive: true });
+
+    const destroy = () => {
+      setIdle(false);
+      if (idleTimer) window.clearTimeout(idleTimer);
+      idleTimer = 0;
+    };
 
     return {
       setEnabled: (next: boolean) => {
@@ -8236,10 +8719,12 @@ const init = () => {
         delayMs = Math.max(1000, Math.round(nextMs));
         bump();
       },
+      destroy,
     };
   };
 
-  idleController = initIdleFade();
+  idleController = initIdleFade(controller.signal);
+  addCleanup(() => idleController?.destroy?.());
 
   const CMDK_RECENTS_KEY = 'sr3-cmdk-recents-v1';
 
@@ -9352,7 +9837,7 @@ const init = () => {
   });
 
   // Global shortcuts
-  window.addEventListener('keydown', e => {
+  addWindowListener('keydown', e => {
     if (e.defaultPrevented) return;
     if (isTypingContext()) return;
 
@@ -9435,6 +9920,180 @@ const init = () => {
     quickMenu.hidden = !open;
     quickToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
   };
+
+  // Fullscreen menu (gallery-style)
+  const menu = root.querySelector<HTMLElement>('[data-sr-menu]');
+  const menuBackdrop = root.querySelector<HTMLElement>(
+    '[data-sr-menu-backdrop]'
+  );
+  const menuToggles = Array.from(
+    root.querySelectorAll<HTMLButtonElement>('[data-sr-menu-toggle]')
+  );
+  const menuCloseBtns = Array.from(
+    root.querySelectorAll<HTMLButtonElement>('[data-sr-menu-close]')
+  );
+  const menuBgSel = root.querySelector<HTMLSelectElement>('[data-sr-menu-bg]');
+  const menuQualitySel = root.querySelector<HTMLSelectElement>(
+    '[data-sr-menu-quality]'
+  );
+  const menuAutorotate = root.querySelector<HTMLInputElement>(
+    '[data-sr-menu-autorotate]'
+  );
+  const menuGuided = root.querySelector<HTMLInputElement>(
+    '[data-sr-menu-guided]'
+  );
+  const menuActionBtns = Array.from(
+    root.querySelectorAll<HTMLButtonElement>('[data-sr-menu-action]')
+  );
+
+  let menuOpen = false;
+
+  const syncMenuFromUi = () => {
+    if (menuBgSel && bgSel) menuBgSel.value = (bgSel.value || 'studio').trim();
+    if (menuQualitySel && qualitySel)
+      menuQualitySel.value = (qualitySel.value || 'balanced').trim();
+    if (menuAutorotate && autorotate)
+      menuAutorotate.checked = Boolean(autorotate.checked);
+    if (menuGuided) menuGuided.checked = guidedOn;
+  };
+
+  const setMenuOpen = (open: boolean) => {
+    if (!menu) return;
+    menuOpen = open;
+    menu.hidden = !open;
+    for (const b of menuToggles)
+      b.setAttribute('aria-expanded', open ? 'true' : 'false');
+
+    if (open) {
+      // Avoid stacked overlays.
+      setQuickOpen(false);
+      if (cmdkOpen) setCmdkOpen(false);
+      if (helpOpen) closeHelp();
+      syncMenuFromUi();
+      window.setTimeout(() => {
+        (menuCloseBtns[0] || menu).focus?.();
+      }, 0);
+    }
+  };
+
+  for (const b of menuToggles)
+    b.addEventListener(
+      'click',
+      () => {
+        setMenuOpen(!menuOpen);
+      },
+      { signal: controller.signal } as AddEventListenerOptions
+    );
+
+  for (const b of menuCloseBtns)
+    b.addEventListener('click', () => setMenuOpen(false), {
+      signal: controller.signal,
+    } as AddEventListenerOptions);
+
+  menuBackdrop?.addEventListener('click', () => setMenuOpen(false), {
+    signal: controller.signal,
+  } as AddEventListenerOptions);
+
+  addWindowListener('keydown', e => {
+    if (!menuOpen) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setMenuOpen(false);
+    }
+  });
+
+  menuBgSel?.addEventListener(
+    'change',
+    () => {
+      if (!bgSel) return;
+      bgSel.value = menuBgSel.value;
+      bgSel.dispatchEvent(new Event('change', { bubbles: true }));
+      syncQuickFromUi();
+    },
+    { signal: controller.signal } as AddEventListenerOptions
+  );
+
+  menuQualitySel?.addEventListener(
+    'change',
+    () => {
+      if (!qualitySel) return;
+      qualitySel.value = menuQualitySel.value;
+      qualitySel.dispatchEvent(new Event('change', { bubbles: true }));
+      syncQuickFromUi();
+    },
+    { signal: controller.signal } as AddEventListenerOptions
+  );
+
+  menuAutorotate?.addEventListener(
+    'change',
+    () => {
+      if (!autorotate) return;
+      autorotate.checked = Boolean(menuAutorotate.checked);
+      autorotate.dispatchEvent(new Event('change', { bubbles: true }));
+      syncQuickFromUi();
+    },
+    { signal: controller.signal } as AddEventListenerOptions
+  );
+
+  menuGuided?.addEventListener(
+    'change',
+    () => {
+      const next = Boolean(menuGuided.checked);
+      setGuided(next, true);
+      if (quickGuided) quickGuided.checked = next;
+      if (guidedOn) scheduleGuidedTourStart();
+      else if (runtime.tour?.enabled) stopTour({ clearSelection: true });
+      syncGuideOverlay();
+      syncQuickFromUi();
+      syncMenuFromUi();
+    },
+    { signal: controller.signal } as AddEventListenerOptions
+  );
+
+  for (const btn of menuActionBtns) {
+    btn.addEventListener(
+      'click',
+      () => {
+        const kind = String(btn.dataset.srMenuAction || '').trim();
+        if (!kind) return;
+
+        const map: Record<string, (() => void) | undefined> = {
+          frame: () => quickFrameBtn?.click(),
+          photo: () => quickPhotoBtn?.click(),
+          thirds: () => quickThirdsBtn?.click(),
+          center: () => quickCenterBtn?.click(),
+          horizon: () => quickHorizonBtn?.click(),
+          cinematic: () => quickCinematicBtn?.click(),
+          interior: () => quickInteriorBtn?.click(),
+          hotspots: () => quickHotspotsBtn?.click(),
+          decals: () => quickDecalsBtn?.click(),
+          grime: () => quickGrimeBtn?.click(),
+          wet: () => quickWetBtn?.click(),
+          reground: () => regroundBtn?.click(),
+        };
+
+        map[kind]?.();
+        // Actions are "one-tap"; keep the scene visible.
+        setMenuOpen(false);
+      },
+      { signal: controller.signal } as AddEventListenerOptions
+    );
+  }
+
+  menu?.addEventListener(
+    'click',
+    e => {
+      if (!menuOpen) return;
+      const target = e.target as HTMLElement | null;
+      const el = target?.closest<HTMLElement>(
+        '[data-sr-cmdk-open],[data-sr-help-open],[data-sr-screenshot],[data-sr-share],[data-sr-panel-toggle],[data-sr-focus-toggle]'
+      );
+      if (!el) return;
+      // Let the primary handler run; close menu immediately after.
+      window.setTimeout(() => setMenuOpen(false), 0);
+    },
+    { signal: controller.signal } as AddEventListenerOptions
+  );
 
   const setPressed = (
     btn: HTMLButtonElement | null | undefined,
@@ -9630,6 +10289,9 @@ const init = () => {
 
   quickGuided?.addEventListener('change', () => {
     setGuided(Boolean(quickGuided.checked), true);
+    if (guidedOn) scheduleGuidedTourStart();
+    else if (runtime.tour?.enabled) stopTour({ clearSelection: true });
+    syncGuideOverlay();
     syncQuickFromUi();
   });
 
@@ -9648,7 +10310,7 @@ const init = () => {
   horizonChk?.addEventListener('change', () => syncQuickIfOpen());
 
   // Click outside closes the quick menu.
-  window.addEventListener('pointerdown', e => {
+  addWindowListener('pointerdown', e => {
     initAudio();
     if (!quick || !quickMenu || quickMenu.hidden) return;
     const t = e.target as Node | null;
@@ -9694,34 +10356,36 @@ const init = () => {
   });
 
   // Reduced motion: disable auto-rotate + animation playback and remove camera shake.
-  onReducedMotionChange(prefersReduced => {
-    reducedMotionPref = prefersReduced;
-    root.dataset.srReducedMotion = prefersReduced ? '1' : '0';
+  addCleanup(
+    onReducedMotionChange(prefersReduced => {
+      reducedMotionPref = prefersReduced;
+      root.dataset.srReducedMotion = prefersReduced ? '1' : '0';
 
-    if (prefersReduced) {
-      if (autorotate) {
-        autorotate.checked = false;
-        autorotate.disabled = true;
-      }
-      if (quickAutorotate) {
-        quickAutorotate.checked = false;
-        quickAutorotate.disabled = true;
-      }
-      runtime.autorotate = false;
-      applyMotion();
+      if (prefersReduced) {
+        if (autorotate) {
+          autorotate.checked = false;
+          autorotate.disabled = true;
+        }
+        if (quickAutorotate) {
+          quickAutorotate.checked = false;
+          quickAutorotate.disabled = true;
+        }
+        runtime.autorotate = false;
+        applyMotion();
 
-      if (animPlayChk) {
-        animPlayChk.checked = false;
-        animPlayChk.disabled = true;
+        if (animPlayChk) {
+          animPlayChk.checked = false;
+          animPlayChk.disabled = true;
+        }
+      } else {
+        if (autorotate) autorotate.disabled = false;
+        if (quickAutorotate) quickAutorotate.disabled = false;
+        if (animPlayChk) animPlayChk.disabled = false;
       }
-    } else {
-      if (autorotate) autorotate.disabled = false;
-      if (quickAutorotate) quickAutorotate.disabled = false;
-      if (animPlayChk) animPlayChk.disabled = false;
-    }
 
-    if (quickMenu && !quickMenu.hidden) syncQuickFromUi();
-  });
+      if (quickMenu && !quickMenu.hidden) syncQuickFromUi();
+    })
+  );
 
   const setSectionCollapsed = (
     section: HTMLElement,
@@ -10574,6 +11238,10 @@ const init = () => {
       wet: Boolean(wetChk?.checked ?? false),
       wetAmount: wetAmountInp?.value,
       grimeAmount: grimeAmountInp?.value,
+      orangePeel: orangePeelInp?.value,
+      flakeDensity: flakeDensityInp?.value,
+      flakeScale: flakeScaleInp?.value,
+      flakeSparkle: flakeSparkleInp?.value,
 
       wrapEnabled: Boolean(wrapEnabledChk?.checked ?? false),
       wrapPattern: (wrapPatternSel?.value || '').trim(),
@@ -10703,6 +11371,10 @@ const init = () => {
     setChk(wetChk, state.wet);
     setVal(wetAmountInp, state.wetAmount);
     setVal(grimeAmountInp, state.grimeAmount);
+    setVal(orangePeelInp, state.orangePeel);
+    setVal(flakeDensityInp, state.flakeDensity);
+    setVal(flakeScaleInp, state.flakeScale);
+    setVal(flakeSparkleInp, state.flakeSparkle);
 
     setChk(wrapEnabledChk, state.wrapEnabled);
     setVal(wrapPatternSel, state.wrapPattern);
@@ -11394,8 +12066,46 @@ const init = () => {
   html.dataset.carShowroomBoot = '1';
 };
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init, { once: true });
-} else {
-  init();
+function bindOnce(): void {
+  if (typeof window === 'undefined') return;
+
+  const runMount = () => {
+    const root = document.querySelector<HTMLElement>(ROOT);
+
+    if (!root) {
+      cleanup();
+      return;
+    }
+
+    if (root === mountedRoot && cleanupCurrent) return;
+
+    init();
+    mountedRoot = document.querySelector<HTMLElement>(ROOT);
+  };
+
+  const scheduleMount = () => {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', runMount, { once: true });
+    } else {
+      runMount();
+    }
+  };
+
+  if (window.__carShowroomV3Bound) {
+    scheduleMount();
+    return;
+  }
+  window.__carShowroomV3Bound = true;
+
+  scheduleMount();
+
+  document.addEventListener('astro:page-load', () => {
+    runMount();
+  });
+
+  document.addEventListener('astro:before-swap', () => {
+    cleanup();
+  });
 }
+
+bindOnce();

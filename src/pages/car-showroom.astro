@@ -7,6 +7,7 @@ const description =
   'A dedicated, manufacturer-style 3D car showroom: models, materials, colors, camera, and studio backgrounds.';
 
 const base = import.meta.env.BASE_URL ?? '/';
+const enterHref = base;
 const galleryHref = `${base}gallery/`;
 ---
 
@@ -14,7 +15,8 @@ const galleryHref = `${base}gallery/`;
   title={title}
   description={description}
   mainClass="p-0"
-  bodyClass="bg-black"
+  bodyClass="bg-black overflow-hidden car-showroom-fullscreen"
+  showHeader={false}
   showFooter={false}
   showStickyCTA={false}
   showMobileNav={false}
@@ -28,6 +30,9 @@ const galleryHref = `${base}gallery/`;
           <p>Studio-grade 3D preview • mobile sheet + desktop panel</p>
         </div>
         <div class="sr__actions">
+          <button type="button" class="sr-btn sr-btn--icon" data-sr-menu-toggle>
+            Menu
+          </button>
           <a class="sr-btn" href={galleryHref}>3D Gallery</a>
           <button type="button" class="sr-btn sr-btn--icon" data-sr-cmdk-open>
             Search
@@ -106,6 +111,9 @@ const galleryHref = `${base}gallery/`;
 
           <div class="sr__quickMenu" data-sr-quick-menu hidden>
             <div class="sr__quickRow">
+              <button type="button" class="sr-chip" data-sr-menu-toggle>
+                Menu
+              </button>
               <button type="button" class="sr-chip" data-sr-quick-panel>
                 Panel
               </button>
@@ -210,10 +218,240 @@ const galleryHref = `${base}gallery/`;
               <button type="button" class="sr-chip" data-sr-share>
                 Copy link
               </button>
+              <a class="sr-chip" href={enterHref} data-sr-enter-site>
+                Enter full site →
+              </a>
               <button type="button" class="sr-chip" data-sr-reground>
                 Re-ground
               </button>
             </div>
+          </div>
+        </div>
+
+        <nav class="sr__menu" data-sr-menu hidden aria-label="Showroom menu">
+          <div class="sr__menuBackdrop" data-sr-menu-backdrop></div>
+          <div class="sr__menuPanel" role="dialog" aria-modal="true">
+            <div class="sr__menuHead">
+              <div class="sr__menuTitle">Menu</div>
+              <button
+                type="button"
+                class="sr-btn sr-btn--icon"
+                data-sr-menu-close
+                aria-label="Close menu"
+              >
+                Close
+              </button>
+            </div>
+
+            <div class="sr__menuSection">
+              <div class="sr__menuSectionTitle">Navigate</div>
+              <div class="sr__menuRow">
+                <a class="sr-chip" href={enterHref} data-sr-enter-site>
+                  Enter full site →
+                </a>
+                <a class="sr-chip" href={galleryHref}>3D Gallery</a>
+              </div>
+            </div>
+
+            <div class="sr__menuSection">
+              <div class="sr__menuSectionTitle">Tools</div>
+              <div class="sr__menuRow">
+                <button type="button" class="sr-chip" data-sr-cmdk-open>
+                  Search
+                </button>
+                <button type="button" class="sr-chip" data-sr-help-open>
+                  Help
+                </button>
+                <button type="button" class="sr-chip" data-sr-screenshot>
+                  Screenshot
+                </button>
+                <button type="button" class="sr-chip" data-sr-share>
+                  Copy link
+                </button>
+              </div>
+            </div>
+
+            <div class="sr__menuSection">
+              <div class="sr__menuSectionTitle">View</div>
+              <div class="sr__menuRow">
+                <button
+                  type="button"
+                  class="sr-chip"
+                  data-sr-panel-toggle
+                  aria-expanded="true"
+                >
+                  Panel
+                </button>
+                <button
+                  type="button"
+                  class="sr-chip"
+                  data-sr-focus-toggle
+                  aria-pressed="false"
+                >
+                  Focus
+                </button>
+              </div>
+            </div>
+
+            <div class="sr__menuSection">
+              <div class="sr__menuSectionTitle">Quick settings</div>
+              <div class="sr__menuGrid">
+                <label class="sr-field">
+                  <span>Background</span>
+                  <select data-sr-menu-bg>
+                    <option value="studio">Studio</option>
+                    <option value="day">Day</option>
+                    <option value="sunset">Sunset</option>
+                    <option value="night">Night</option>
+                    <option value="grid">Grid</option>
+                    <option value="void">Void</option>
+                  </select>
+                </label>
+                <label class="sr-field">
+                  <span>Quality</span>
+                  <select data-sr-menu-quality>
+                    <option value="eco">Eco</option>
+                    <option value="balanced">Balanced</option>
+                    <option value="ultra">Ultra</option>
+                  </select>
+                </label>
+                <label class="sr-field">
+                  <span>Auto-rotate</span>
+                  <input
+                    type="checkbox"
+                    aria-label="Auto-rotate"
+                    data-sr-menu-autorotate
+                  />
+                </label>
+                <label class="sr-field">
+                  <span>Guided mode</span>
+                  <input
+                    type="checkbox"
+                    aria-label="Guided mode"
+                    data-sr-menu-guided
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div class="sr__menuSection">
+              <div class="sr__menuSectionTitle">One-tap actions</div>
+              <div class="sr__menuRow sr__menuRow--wrap">
+                <button
+                  type="button"
+                  class="sr-chip"
+                  data-sr-menu-action="frame"
+                >
+                  Frame
+                </button>
+                <button
+                  type="button"
+                  class="sr-chip"
+                  data-sr-menu-action="photo"
+                >
+                  Photo
+                </button>
+                <button
+                  type="button"
+                  class="sr-chip"
+                  data-sr-menu-action="thirds"
+                >
+                  Thirds
+                </button>
+                <button
+                  type="button"
+                  class="sr-chip"
+                  data-sr-menu-action="center"
+                >
+                  Center
+                </button>
+                <button
+                  type="button"
+                  class="sr-chip"
+                  data-sr-menu-action="horizon"
+                >
+                  Horizon
+                </button>
+                <button
+                  type="button"
+                  class="sr-chip"
+                  data-sr-menu-action="cinematic"
+                >
+                  Cine
+                </button>
+                <button
+                  type="button"
+                  class="sr-chip"
+                  data-sr-menu-action="interior"
+                >
+                  Interior
+                </button>
+                <button
+                  type="button"
+                  class="sr-chip"
+                  data-sr-menu-action="hotspots"
+                >
+                  Hotspots
+                </button>
+                <button
+                  type="button"
+                  class="sr-chip"
+                  data-sr-menu-action="decals"
+                >
+                  Decals
+                </button>
+                <button
+                  type="button"
+                  class="sr-chip"
+                  data-sr-menu-action="grime"
+                >
+                  Grime
+                </button>
+                <button type="button" class="sr-chip" data-sr-menu-action="wet">
+                  Wet
+                </button>
+                <button
+                  type="button"
+                  class="sr-chip"
+                  data-sr-menu-action="reground"
+                >
+                  Re-ground
+                </button>
+              </div>
+            </div>
+          </div>
+        </nav>
+
+        <div class="sr__guide" data-sr-guide hidden>
+          <div class="sr__guideHead">
+            <strong class="sr__guideTitle" data-sr-guide-title>Tour</strong>
+            <span class="sr__guideProgress" data-sr-guide-progress></span>
+          </div>
+
+          <div class="sr__guideMessage" data-sr-guide-message hidden></div>
+
+          <div
+            class="sr__guideActions"
+            role="group"
+            aria-label="Guided tour controls"
+          >
+            <button type="button" class="sr-chip" data-sr-guide-prev>
+              Back
+            </button>
+            <button
+              type="button"
+              class="sr-chip"
+              data-sr-guide-toggle
+              aria-pressed="false"
+            >
+              Start
+            </button>
+            <button type="button" class="sr-chip" data-sr-guide-next>
+              Next
+            </button>
+            <button type="button" class="sr-chip" data-sr-guide-exit>
+              Exit
+            </button>
           </div>
         </div>
 
@@ -1312,6 +1550,17 @@ const galleryHref = `${base}gallery/`;
                   step="0.01"
                   value="0.4"
                   data-sr-flake-scale
+                />
+              </label>
+              <label class="sr-field">
+                <span>Sparkle</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.6"
+                  data-sr-flake-sparkle
                 />
               </label>
 
