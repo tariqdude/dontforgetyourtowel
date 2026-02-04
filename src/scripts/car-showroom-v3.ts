@@ -20,6 +20,8 @@ type LoadState = {
   objectUrlToRevoke: string | null;
   gltf: THREE.Object3D | null;
   animations: THREE.AnimationClip[];
+  brakeGlow: number;
+  lastSpeed: number;
 };
 
 type PanelSnap = 'collapsed' | 'peek' | 'half' | 'full';
@@ -27,6 +29,15 @@ type PanelSnap = 'collapsed' | 'peek' | 'half' | 'full';
 interface SimulationMesh extends THREE.Mesh {
   _streamOffset?: number;
   _waveTime?: number;
+}
+
+type ClipboardItemConstructor = new (
+  items: Record<string, Blob | Promise<Blob>>
+) => ClipboardItem;
+
+interface ExtendedWindow extends Window {
+  webkitAudioContext?: typeof AudioContext;
+  ClipboardItem?: ClipboardItemConstructor;
 }
 
 const ROOT = '[data-sr-root]';
@@ -434,7 +445,9 @@ const classifyMeshByName = (meshName: string, matName: string) => {
     n.includes('exhaust') ||
     n.includes('handle');
 
-  return { isWheel, isCaliper, isGlass, isLight, isTrim };
+  const isTire = n.includes('tire') || n.includes('tyre');
+
+  return { isWheel, isCaliper, isGlass, isLight, isTrim, isTire };
 };
 
 const scoreBodyCandidate = (combinedName: string, triCount: number) => {
@@ -552,6 +565,87 @@ const createFloorTexture = (): THREE.CanvasTexture => {
   tex.repeat.set(10, 10);
   return tex;
 };
+
+const createFlakeNormalMap = (): THREE.CanvasTexture => {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return new THREE.CanvasTexture(canvas);
+
+  // Fill with base normal (0.5, 0.5, 1.0) -> RGB(128, 128, 255)
+  ctx.fillStyle = 'rgb(128,128,255)';
+  ctx.fillRect(0, 0, size, size);
+
+  for (let i = 0; i < 1500; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const nx = Math.random() * 60 - 30;
+    const ny = Math.random() * 60 - 30;
+    ctx.fillStyle = `rgb(${128 + nx}, ${128 + ny}, 255)`;
+    ctx.fillRect(x, y, 1, 1);
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+};
+
+const createTireNormalMap = (): THREE.CanvasTexture => {
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return new THREE.CanvasTexture(canvas);
+
+  // Base normal
+  ctx.fillStyle = 'rgb(128,128,255)';
+  ctx.fillRect(0, 0, size, size);
+
+  // Micro-texture (grain)
+  for (let i = 0; i < 8000; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const n = Math.random() * 20 - 10;
+    ctx.fillStyle = `rgb(${128 + n}, ${128 + n}, 255)`;
+    ctx.fillRect(x, y, 1, 1);
+  }
+
+  // Sidewall grooves
+  ctx.strokeStyle = 'rgba(110, 110, 255, 0.4)';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 5; i++) {
+    const r = size * 0.3 + i * 15;
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Sidewall text (Fake branding)
+  ctx.fillStyle = 'rgb(140, 140, 255)';
+  ctx.font = 'bold 36px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i < 4; i++) {
+    const angle = (i * Math.PI) / 2;
+    ctx.save();
+    ctx.translate(size / 2, size / 2);
+    ctx.rotate(angle);
+    ctx.fillText('DFYTWL SPORT 2026', 0, size * 0.42);
+    ctx.restore();
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+};
+
+let flakeNormalMap: THREE.CanvasTexture | null = null;
+let tireNormalMap: THREE.CanvasTexture | null = null;
 
 const createWrapTexture = (pattern: string, tint01: number) => {
   const size = 512;
@@ -720,8 +814,8 @@ const initPanel = (root: HTMLElement) => {
   let panelWidth = 420;
 
   const getHeights = () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const vv = (window as any).visualViewport?.height || window.innerHeight;
+    const vv =
+      (window as ExtendedWindow).visualViewport?.height || window.innerHeight;
     const collapsed = 88;
     const peek = Math.round(vv * 0.38);
     const half = Math.round(vv * 0.56);
@@ -1094,6 +1188,9 @@ const init = () => {
   const wheelColorInp = root.querySelector<HTMLInputElement>(
     '[data-sr-wheel-color]'
   );
+  const wheelStyleSel = root.querySelector<HTMLSelectElement>(
+    '[data-sr-wheel-style]'
+  );
   const trimColorInp = root.querySelector<HTMLInputElement>(
     '[data-sr-trim-color]'
   );
@@ -1243,6 +1340,9 @@ const init = () => {
   );
   const floorScrollChk = root.querySelector<HTMLInputElement>(
     '[data-sr-floor-scroll]'
+  );
+  const engineSoundChk = root.querySelector<HTMLInputElement>(
+    '[data-sr-engine-sound]'
   );
   const motionStyle = root.querySelector<HTMLSelectElement>(
     '[data-sr-motion-style]'
@@ -1890,6 +1990,51 @@ const init = () => {
   const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 600);
   camera.position.set(4.2, 1.4, 4.2);
 
+  // Audio Engine
+  let audioCtx: AudioContext | null = null;
+  let oscillator: OscillatorNode | null = null;
+  let gainNode: GainNode | null = null;
+
+  const initAudio = () => {
+    if (audioCtx) return;
+    try {
+      audioCtx = new (
+        window.AudioContext || (window as ExtendedWindow).webkitAudioContext
+      )();
+      oscillator = audioCtx.createOscillator();
+      gainNode = audioCtx.createGain();
+
+      oscillator.type = 'sawtooth';
+      oscillator.frequency.setValueAtTime(40, audioCtx.currentTime);
+
+      gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      oscillator.start();
+    } catch (e) {
+      console.warn('Audio context failed', e);
+    }
+  };
+
+  const updateAudio = () => {
+    if (!audioCtx || !oscillator || !gainNode) return;
+    const speed = runtime.motionSpeed;
+    const active =
+      runtime.engineSound && (runtime.wheelSpin || runtime.floorScroll);
+
+    if (!active || speed < 0.01) {
+      gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+      return;
+    }
+
+    const freq = 30 + speed * 120;
+    const vol = (0.02 + speed * 0.08) * 0.5; // Balanced volume
+
+    oscillator.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.1);
+    gainNode.gain.setTargetAtTime(vol, audioCtx.currentTime, 0.1);
+  };
+
   const controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
@@ -1972,6 +2117,8 @@ const init = () => {
     objectUrlToRevoke: null,
     gltf: null,
     animations: [],
+    brakeGlow: 0,
+    lastSpeed: 0,
   };
 
   // Model base transform (grounded placement after normalization)
@@ -2120,11 +2267,8 @@ const init = () => {
   const hapticTap = (ms = 10) => {
     if (!runtime.haptics) return;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const vib = (navigator as any).vibrate as
-        | undefined
-        | ((p: number) => void);
-      vib?.(ms);
+      const nav = navigator as unknown as { vibrate?: (p: number) => void };
+      nav.vibrate?.(ms);
     } catch {
       // ignore
     }
@@ -2345,6 +2489,7 @@ const init = () => {
     autorotate: Boolean(autorotate?.checked ?? false),
     wheelSpin: Boolean(wheelSpinChk?.checked ?? false),
     floorScroll: Boolean(floorScrollChk?.checked ?? false),
+    engineSound: Boolean(engineSoundChk?.checked ?? true),
     motionStyle: (motionStyle?.value || 'turntable').trim().toLowerCase(),
     motionSpeed: Number.parseFloat(motionSpeed?.value || '0.75') || 0.75,
     zoomT: Number.parseFloat(zoom?.value || '0.8') || 0.8,
@@ -2426,6 +2571,7 @@ const init = () => {
     glassMode: Boolean(glassModeChk?.checked ?? false),
     glassTint: Number.parseFloat(glassTintInp?.value || '0.35') || 0.35,
     wheelColorHex: parseHexColor(wheelColorInp?.value || '') || '#111827',
+    wheelStyle: (wheelStyleSel?.value || 'default').trim().toLowerCase(),
     trimColorHex: parseHexColor(trimColorInp?.value || '') || '#0b0f14',
     caliperColorHex: parseHexColor(caliperColorInp?.value || '') || '#ef4444',
     lightColorHex: parseHexColor(lightColorInp?.value || '') || '#ffffff',
@@ -2816,7 +2962,7 @@ const init = () => {
           autorotate: Boolean(autorotate?.checked ?? false),
           motionStyle: (motionStyle?.value || 'turntable').trim().toLowerCase(),
           motionSpeed: Number.parseFloat(motionSpeed?.value || '0.75') || 0.75,
-          bloomStrength: 0,
+          bloomStrength: Number.parseFloat(bloom?.value || '0') || 0,
           bloomThreshold:
             Number.parseFloat(bloomThreshold?.value || '0.9') || 0.9,
           bloomRadius: Number.parseFloat(bloomRadius?.value || '0') || 0,
@@ -2833,8 +2979,10 @@ const init = () => {
       if (motionStyle) motionStyle.value = 'turntable';
       if (motionSpeed) motionSpeed.value = '0.35';
 
-      // Bloom disabled.
-      if (bloom) bloom.value = '0';
+      // Commercial Bloom Look (Higher intensity, lower threshold)
+      if (bloom) bloom.value = '1.8';
+      if (bloomThreshold) bloomThreshold.value = '0.45';
+      if (bloomRadius) bloomRadius.value = '0.45';
 
       // Slight exposure lift.
       if (exposure) exposure.value = '1.35';
@@ -2842,6 +2990,10 @@ const init = () => {
       runtime.autorotate = true;
       runtime.motionStyle = 'turntable';
       runtime.motionSpeed = 0.35;
+      runtime.bloomStrength = 1.8;
+      runtime.bloomThreshold = 0.45;
+      runtime.bloomRadius = 0.45;
+      runtime.baseExposure = 1.35;
 
       applyMotion();
       applyPost();
@@ -2948,6 +3100,9 @@ const init = () => {
 
     runtime.wheelColorHex =
       parseHexColor(wheelColorInp?.value || '') || runtime.wheelColorHex;
+    runtime.wheelStyle = (wheelStyleSel?.value || 'default')
+      .trim()
+      .toLowerCase();
     runtime.trimColorHex =
       parseHexColor(trimColorInp?.value || '') || runtime.trimColorHex;
     runtime.caliperColorHex =
@@ -3111,8 +3266,25 @@ const init = () => {
         }
 
         const flags = classifyMeshByName(mesh.name || '', material.name || '');
-        if (flags.isWheel || flags.isCaliper || flags.isGlass || flags.isLight)
+        if (
+          flags.isWheel ||
+          flags.isCaliper ||
+          flags.isGlass ||
+          flags.isLight ||
+          flags.isTire
+        ) {
+          // Special handling for tires
+          if (flags.isTire) {
+            if (!tireNormalMap) tireNormalMap = createTireNormalMap();
+            material.roughness = 0.85;
+            material.metalness = 0.05;
+            if (material instanceof THREE.MeshStandardMaterial) {
+              material.normalMap = tireNormalMap;
+              material.normalScale.set(0.35, 0.35);
+            }
+          }
           continue;
+        }
 
         if (bodyMats.size && !bodyMats.has(material.uuid)) continue;
 
@@ -3139,6 +3311,15 @@ const init = () => {
           material.sheenRoughness = runtime.sheenRoughness;
           material.iridescence = runtime.iridescence;
           material.iridescenceIOR = runtime.iridescenceIOR;
+
+          // Phase 19: Metallic Flake
+          if (!flakeNormalMap) {
+            flakeNormalMap = createFlakeNormalMap();
+          }
+          if (flakeNormalMap) {
+            material.clearcoatNormalMap = flakeNormalMap;
+            material.clearcoatNormalScale.set(0.2, 0.2); // Subtle sparkle
+          }
         }
 
         if (grimeTintAmt > 0) material.color.lerp(grimeTint, grimeTintAmt);
@@ -3302,6 +3483,22 @@ const init = () => {
         const flags = classifyMeshByName(mesh.name || '', material.name || '');
         if (flags.isWheel) {
           material.color.copy(wheelColor);
+
+          const style = runtime.wheelStyle;
+          if (style === 'sport') {
+            material.roughness = 0.05;
+            material.metalness = 0.95;
+            material.color.set(0x050505); // Piano Black
+          } else if (style === 'chrome') {
+            material.roughness = 0.02;
+            material.metalness = 1.0;
+            material.color.set(0xffffff);
+          } else if (style === 'gold') {
+            material.roughness = 0.28;
+            material.metalness = 1.0;
+            material.color.set(0xaa8833);
+          }
+
           material.needsUpdate = true;
         } else if (flags.isTrim) {
           material.color.copy(trimColor);
@@ -3943,7 +4140,6 @@ const init = () => {
 
     const r = runtime.lastRadius;
     const dist = clamp(r * 2.3, 2.2, 18);
-    const t = controls.target.clone();
     const views: Record<string, THREE.Vector3> = {
       hero: new THREE.Vector3(dist, dist * 0.35, dist),
       front: new THREE.Vector3(dist, dist * 0.25, dist * 0.8),
@@ -3951,9 +4147,19 @@ const init = () => {
       side: new THREE.Vector3(dist, dist * 0.2, 0),
       top: new THREE.Vector3(0, dist * 1.2, 0.01),
       detail: new THREE.Vector3(dist * 0.55, dist * 0.25, dist * 0.4),
+      interior: new THREE.Vector3(dist * 0.05, dist * 0.1, dist * 0.05),
     };
     const offset = views[preset] || views.hero;
-    camera.position.copy(t).add(offset);
+
+    if (preset === 'interior') {
+      setInterior(true);
+      // Move target to common interior center (eye level slightly forward)
+      controls.target.set(0, r * 0.35, r * 0.15);
+    } else {
+      controls.target.set(0, 0, 0);
+    }
+
+    camera.position.copy(controls.target).add(offset);
     controls.update();
   };
 
@@ -4482,6 +4688,7 @@ const init = () => {
     runtime.autorotate = Boolean(autorotate?.checked);
     runtime.wheelSpin = Boolean(wheelSpinChk?.checked);
     runtime.floorScroll = Boolean(floorScrollChk?.checked);
+    runtime.engineSound = Boolean(engineSoundChk?.checked);
     runtime.motionStyle = (motionStyle?.value || 'turntable')
       .trim()
       .toLowerCase();
@@ -4491,6 +4698,7 @@ const init = () => {
   autorotate?.addEventListener('change', () => syncRuntimeMotionFromUi());
   wheelSpinChk?.addEventListener('change', () => syncRuntimeMotionFromUi());
   floorScrollChk?.addEventListener('change', () => syncRuntimeMotionFromUi());
+  engineSoundChk?.addEventListener('change', () => syncRuntimeMotionFromUi());
   motionStyle?.addEventListener('change', () => syncRuntimeMotionFromUi());
   motionSpeed?.addEventListener('input', () => syncRuntimeMotionFromUi());
 
@@ -4778,6 +4986,7 @@ const init = () => {
   glassTintInp?.addEventListener('input', () => applyLook());
 
   wheelColorInp?.addEventListener('input', () => applyLook());
+  wheelStyleSel?.addEventListener('change', () => applyLook());
   trimColorInp?.addEventListener('input', () => applyLook());
   caliperColorInp?.addEventListener('input', () => applyLook());
   lightColorInp?.addEventListener('input', () => applyLook());
@@ -5073,15 +5282,14 @@ const init = () => {
 
     try {
       // Use a one-frame pixelRatio boost (no layout resize) for a higher-res capture.
-      if (scale > 1) {
-        const boosted = clamp(oldPixelRatio * scale, 0.5, 8);
-        renderer.setPixelRatio(boosted);
-        composer?.setPixelRatio?.(boosted as never);
-        setSize();
+      const boosted = clamp(oldPixelRatio * scale, 0.5, 8);
+      renderer.setPixelRatio(boosted);
+      if (composer) composer.setPixelRatio(boosted as never);
+      setSize();
 
-        if (composer && runtime.bloomStrength > 0.001) composer.render();
-        else renderer.render(scene, camera);
-      }
+      // High-quality capture (force sync render)
+      if (composer && runtime.bloomStrength > 0.001) composer.render();
+      else renderer.render(scene, camera);
 
       const a = document.createElement('a');
       a.download =
@@ -5099,12 +5307,10 @@ const init = () => {
       window.setTimeout(() => setStatus(false, ''), 1200);
     } finally {
       // Restore renderer/composer pixel ratio + size.
-      if (scale > 1) {
-        renderer.setPixelRatio(oldPixelRatio);
-        composer?.setPixelRatio?.(oldPixelRatio as never);
-        currentPixelRatio = oldCurrent;
-        setSize();
-      }
+      renderer.setPixelRatio(oldPixelRatio);
+      if (composer) composer.setPixelRatio(oldPixelRatio as never);
+      currentPixelRatio = oldCurrent;
+      setSize();
     }
   };
   for (const btn of screenshotBtns)
@@ -5121,16 +5327,16 @@ const init = () => {
     const oldCurrent = currentPixelRatio;
 
     try {
-      if (scale > 1) {
-        const boosted = clamp(oldPixelRatio * scale, 0.5, 8);
-        renderer.setPixelRatio(boosted);
-        composer?.setPixelRatio?.(boosted as never);
-        currentPixelRatio = boosted;
-        setSize();
+      // Use a one-frame pixelRatio boost (no layout resize) for a higher-res capture.
+      const boosted = clamp(oldPixelRatio * scale, 0.5, 8);
+      renderer.setPixelRatio(boosted);
+      if (composer) composer.setPixelRatio(boosted as never);
+      currentPixelRatio = boosted;
+      setSize();
 
-        if (composer && runtime.bloomStrength > 0.001) composer.render();
-        else renderer.render(scene, camera);
-      }
+      // High-quality capture
+      if (composer && runtime.bloomStrength > 0.001) composer.render();
+      else renderer.render(scene, camera);
 
       const canvasEl = renderer.domElement;
       const blob = await new Promise<Blob>((resolve, reject) => {
@@ -5141,10 +5347,7 @@ const init = () => {
       });
 
       // ClipboardItem may be unavailable in some browsers.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const ClipboardItemCtor = (window as any).ClipboardItem as
-        | (new (items: Record<string, Blob>) => ClipboardItem)
-        | undefined;
+      const ClipboardItemCtor = (window as ExtendedWindow).ClipboardItem;
 
       if (!ClipboardItemCtor || !navigator.clipboard?.write) {
         throw new Error('Clipboard image write not supported');
@@ -5163,12 +5366,10 @@ const init = () => {
       setStatus(false, 'Copy failed.');
       window.setTimeout(() => setStatus(false, ''), 1200);
     } finally {
-      if (scale > 1) {
-        renderer.setPixelRatio(oldPixelRatio);
-        composer?.setPixelRatio?.(oldPixelRatio as never);
-        currentPixelRatio = oldCurrent;
-        setSize();
-      }
+      renderer.setPixelRatio(oldPixelRatio);
+      if (composer) composer.setPixelRatio(oldPixelRatio as never);
+      currentPixelRatio = oldCurrent;
+      setSize();
     }
   };
   screenshotCopyBtn?.addEventListener('click', () => {
@@ -5370,6 +5571,18 @@ const init = () => {
     const deltaS = Math.max(0, now - lastTick) / 1000;
     lastTick = now;
 
+    // Brake Glow Logic
+    if (loadState.lastSpeed > runtime.motionSpeed + 0.05) {
+      loadState.brakeGlow = clamp01(
+        loadState.brakeGlow + (loadState.lastSpeed - runtime.motionSpeed) * 3
+      );
+    }
+    loadState.brakeGlow = Math.max(0, loadState.brakeGlow - deltaS * 0.5);
+    loadState.lastSpeed = runtime.motionSpeed;
+
+    // Audio Update
+    updateAudio();
+
     // Motion (float / pendulum)
     const style = (runtime.motionStyle || 'turntable').trim().toLowerCase();
     if (loadState.gltf && runtime.autorotate && style === 'float') {
@@ -5386,23 +5599,43 @@ const init = () => {
 
     if (selectionBox) selectionBox.update();
 
-    // Wheel Spin
-    if (loadState.gltf && runtime.wheelSpin) {
-      const speed = runtime.motionSpeed * deltaS * 12;
+    // Wheel Spin & Brake Glow
+    if (loadState.gltf && (runtime.wheelSpin || loadState.brakeGlow > 0.001)) {
+      const rotSpeed = runtime.wheelSpin
+        ? runtime.motionSpeed * deltaS * 12
+        : 0;
       loadState.gltf.traverse(child => {
         if (!(child as THREE.Mesh).isMesh) return;
-        const n = child.name.toLowerCase();
-        // Look for wheel/rim/tire/brake components that should rotate
-        if (
+        const mesh = child as THREE.Mesh;
+        const n = mesh.name.toLowerCase();
+
+        const isWheelPart =
           n.includes('wheel') ||
           n.includes('rim') ||
           n.includes('tire') ||
-          n.includes('tyre')
-        ) {
-          // Avoid rotating stationary parts if possible (calipers usually don't rotate with wheel)
-          if (!n.includes('caliper') && !n.includes('brake')) {
-            child.rotateX(speed);
-          }
+          n.includes('tyre');
+        const isBrakePart = n.includes('brake') || n.includes('disc');
+        const isCaliperPart = n.includes('caliper');
+
+        if (isWheelPart && !isCaliperPart && !isBrakePart) {
+          child.rotateX(rotSpeed);
+        }
+
+        // Apply brake glow to discs/calipers
+        if (isBrakePart || isCaliperPart) {
+          const mats = Array.isArray(mesh.material)
+            ? mesh.material
+            : [mesh.material];
+          mats.forEach(m => {
+            if (m instanceof THREE.MeshStandardMaterial && m.emissive) {
+              const baseColor = isCaliperPart
+                ? new THREE.Color(runtime.caliperColorHex)
+                : new THREE.Color(0x000000);
+              const glowColor = new THREE.Color(0xff4400);
+              m.emissive.copy(baseColor).lerp(glowColor, loadState.brakeGlow);
+              m.emissiveIntensity = loadState.brakeGlow * 12;
+            }
+          });
         }
       });
     }
@@ -5422,6 +5655,7 @@ const init = () => {
     }
 
     updateLabels();
+    updateAudio();
 
     // Streamlines animation
     if (runtime.streamlines) {
@@ -7617,6 +7851,7 @@ const init = () => {
 
   // Click outside closes the quick menu.
   window.addEventListener('pointerdown', e => {
+    initAudio();
     if (!quick || !quickMenu || quickMenu.hidden) return;
     const t = e.target as Node | null;
     if (!t) return;
@@ -7935,20 +8170,21 @@ const init = () => {
         '[data-sr-section-pin]'
       );
       if (!pinBtn) {
-        pinBtn = document.createElement('button');
-        pinBtn.type = 'button';
-        pinBtn.className = 'sr-section__toggle sr-section__pin';
-        pinBtn.dataset.srSectionPin = '1';
-        actions.prepend(pinBtn);
-        pinBtn.addEventListener('click', () => {
+        const createdBtn = document.createElement('button');
+        createdBtn.type = 'button';
+        createdBtn.className = 'sr-section__toggle sr-section__pin';
+        createdBtn.dataset.srSectionPin = '1';
+        actions.prepend(createdBtn);
+        createdBtn.addEventListener('click', () => {
           const isPinned = pinnedSet.has(key);
           if (isPinned) pinnedSet.delete(key);
           else pinnedSet.add(key);
           writePinned();
-          pinBtn?.setAttribute('aria-pressed', !isPinned ? 'true' : 'false');
-          pinBtn.textContent = !isPinned ? 'Pinned' : 'Pin';
+          createdBtn.setAttribute('aria-pressed', !isPinned ? 'true' : 'false');
+          createdBtn.textContent = !isPinned ? 'Pinned' : 'Pin';
           applyPanelFilter(panelFilterInp?.value || '');
         });
+        pinBtn = createdBtn;
       }
 
       const isPinned = pinnedSet.has(key);
@@ -8517,6 +8753,9 @@ const init = () => {
       cameraDistance: camDist?.value,
       cameraFov: camFov?.value,
       autorotate: Boolean(autorotate?.checked ?? false),
+      wheelSpin: Boolean(wheelSpinChk?.checked ?? false),
+      floorScroll: Boolean(floorScrollChk?.checked ?? false),
+      engineSound: Boolean(engineSoundChk?.checked ?? true),
       motionStyle: (motionStyle?.value || '').trim(),
       motionSpeed: motionSpeed?.value,
       zoom: zoom?.value,
@@ -8646,6 +8885,9 @@ const init = () => {
     setVal(camFov, state.cameraFov);
 
     setChk(autorotate, state.autorotate);
+    setChk(wheelSpinChk, state.wheelSpin);
+    setChk(floorScrollChk, state.floorScroll);
+    setChk(engineSoundChk, state.engineSound);
     setVal(motionStyle, state.motionStyle);
     setVal(motionSpeed, state.motionSpeed);
     setVal(zoom, state.zoom);
@@ -9048,8 +9290,7 @@ const init = () => {
 
   const isDecalObject = (obj: THREE.Object3D | null | undefined) => {
     if (!obj) return false;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return Boolean((obj as any).userData?.srDecal);
+    return Boolean(obj.userData?.srDecal);
   };
 
   const placeDecalOnHit = (hit: THREE.Intersection) => {

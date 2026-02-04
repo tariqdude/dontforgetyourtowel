@@ -1304,6 +1304,16 @@ const galleryHref = `${base}gallery/`;
               </label>
 
               <label class="sr-field">
+                <span>Wheel style</span>
+                <select data-sr-wheel-style>
+                  <option value="default">Default</option>
+                  <option value="sport">Sport Black</option>
+                  <option value="chrome">Chrome Polish</option>
+                  <option value="gold">Satin Gold</option>
+                </select>
+              </label>
+
+              <label class="sr-field">
                 <span>Wheel color</span>
                 <input
                   type="color"
@@ -1889,6 +1899,7 @@ const galleryHref = `${base}gallery/`;
                   <option value="side">Side</option>
                   <option value="top">Top</option>
                   <option value="detail">Detail</option>
+                  <option value="interior">Interior</option>
                 </select>
               </label>
               <label class="sr-field">
@@ -2075,6 +2086,16 @@ const galleryHref = `${base}gallery/`;
                   type="checkbox"
                   aria-label="Floor scroll"
                   data-sr-floor-scroll
+                />
+              </label>
+
+              <label class="sr-field">
+                <span>Engine sound</span>
+                <input
+                  type="checkbox"
+                  aria-label="Engine sound"
+                  data-sr-engine-sound
+                  checked
                 />
               </label>
 
