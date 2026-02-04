@@ -345,15 +345,15 @@ const galleryHref = `${base}gallery/`;
           >
         </div>
 
-        <div class="sr__panelBody" data-sr-panel-body>
-          <input
-            type="file"
-            accept=".glb,.gltf,.fbx,model/gltf-binary"
-            aria-label="Import model file"
-            data-sr-model-file
-            hidden
-          />
+        <input
+          type="file"
+          accept=".glb,.gltf,.fbx,model/gltf-binary"
+          aria-label="Import model file"
+          data-sr-model-file
+          hidden
+        />
 
+        <div class="sr__panelChrome" aria-label="Panel navigation and tools">
           <div
             class="sr__jump sr__tabs"
             aria-label="Jump to section"
@@ -647,7 +647,9 @@ const galleryHref = `${base}gallery/`;
             </div>
             <span class="sr__panelCount" data-sr-panel-count></span>
           </div>
+        </div>
 
+        <div class="sr__panelBody" data-sr-panel-body data-sr-panel-scroll>
           <section
             class="sr-section"
             id="sr-sec-presets"
@@ -736,6 +738,9 @@ const galleryHref = `${base}gallery/`;
                   <option value="models/porsche-911-gt3rs.glb"
                     >Porsche GT3RS</option
                   >
+                  <option value="models/2020 Porsche 911 RSR.glb"
+                    >Porsche 911 RSR (2020)</option
+                  >
                   <option
                     value="models/free_porsche_911_carrera_4s_LOD3_low.glb"
                     >Porsche Carrera (Low)</option
@@ -762,10 +767,6 @@ const galleryHref = `${base}gallery/`;
                   >
                   <option value="models/mclaren_f1_gtr_longtail_ams2.glb"
                     >McLaren F1 GTR Longtail</option
-                  >
-                  <option
-                    value="models/uploads_files_4252681_RED+BULL+2022+F1+CAR.fbx"
-                    >F1 Car (FBX - experimental)</option
                   >
                 </select>
               </label>

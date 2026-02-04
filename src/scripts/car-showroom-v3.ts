@@ -182,19 +182,28 @@ const isExternalUrl = (value: string) =>
 
 const DEFAULT_MODEL_KEY = 'models/porsche-911-gt3rs.glb';
 
+const safeDecodePath = (value: string) => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
 const resolveModelUrl = (raw: string): string => {
   const v = (raw || '').trim();
   if (!v) return withBasePath(`/${DEFAULT_MODEL_KEY}`);
   if (isExternalUrl(v) || v.startsWith('blob:')) return v;
   const normalized = v.startsWith('/') ? v : `/${v}`;
-  return withBasePath(normalized);
+  // Ensure local filenames with spaces resolve correctly (fetch expects URI encoding).
+  return withBasePath(encodeURI(normalized));
 };
 
 const normalizeModelKey = (raw: string) => {
   const v = (raw || '').trim();
   if (!v) return '';
   if (isExternalUrl(v) || v.startsWith('blob:')) return v;
-  return v.replace(/^\/+/, '');
+  return safeDecodePath(v).replace(/^\/+/, '');
 };
 
 type ModelPreset = {
@@ -211,6 +220,11 @@ const MODEL_PRESETS: ModelPreset[] = [
   {
     key: 'models/porsche-911-gt3rs.glb',
     label: 'Porsche GT3RS',
+    defaults: { scaleMul: 1, yawDeg: 0, lift: 0 },
+  },
+  {
+    key: 'models/2020 Porsche 911 RSR.glb',
+    label: 'Porsche 911 RSR (2020)',
     defaults: { scaleMul: 1, yawDeg: 0, lift: 0 },
   },
   {
@@ -246,11 +260,6 @@ const MODEL_PRESETS: ModelPreset[] = [
   {
     key: 'models/mclaren_f1_gtr_longtail_ams2.glb',
     label: 'McLaren F1 GTR Longtail',
-    defaults: { scaleMul: 1, yawDeg: 0, lift: 0 },
-  },
-  {
-    key: 'models/uploads_files_4252681_RED+BULL+2022+F1+CAR.fbx',
-    label: 'F1 Car (FBX - experimental)',
     defaults: { scaleMul: 1, yawDeg: 0, lift: 0 },
   },
 ];
@@ -1632,7 +1641,9 @@ const init = () => {
     '[data-sr-decal-clear]'
   );
 
-  const panelBody = root.querySelector<HTMLElement>('[data-sr-panel-body]');
+  const panelBody =
+    root.querySelector<HTMLElement>('[data-sr-panel-scroll]') ||
+    root.querySelector<HTMLElement>('[data-sr-panel-body]');
   const panelFilterInp = root.querySelector<HTMLInputElement>(
     '[data-sr-panel-filter]'
   );
@@ -1666,7 +1677,6 @@ const init = () => {
     '[data-sr-panel-collapse-all]'
   );
   const panelCount = root.querySelector<HTMLElement>('[data-sr-panel-count]');
-  const jumpbar = root.querySelector<HTMLElement>('[data-sr-jumpbar]');
   const jumpBtns = Array.from(
     root.querySelectorAll<HTMLButtonElement>('[data-sr-jump]')
   );
@@ -2401,13 +2411,41 @@ const init = () => {
   let activeAction: THREE.AnimationAction | null = null;
   let animationEnabled = false;
 
+  type WheelSpinTarget = {
+    node: THREE.Object3D;
+    axis: THREE.Vector3;
+  };
+
+  type WheelRig = {
+    spinTargets: WheelSpinTarget[];
+    brakeMeshes: THREE.Mesh[];
+    caliperMeshes: THREE.Mesh[];
+  };
+
+  let wheelRig: WheelRig = {
+    spinTargets: [],
+    brakeMeshes: [],
+    caliperMeshes: [],
+  };
+
+  type ProceduralPartKind = 'doors' | 'hood' | 'trunk' | 'spoiler';
+  type ProceduralPartRig = {
+    targets: THREE.Object3D[];
+    baseQuatByUuid: Map<string, THREE.Quaternion>;
+    open: boolean;
+  };
+
+  let proceduralPartsAvailable = false;
+  const proceduralParts = new Map<ProceduralPartKind, ProceduralPartRig>();
+
   const setAnimationEnabled = (enabled: boolean) => {
     animationEnabled = enabled;
     if (animClipSel) animClipSel.disabled = !enabled;
     if (animPlayChk) animPlayChk.disabled = !enabled;
     if (animSpeed) animSpeed.disabled = !enabled;
     if (animRestartBtn) animRestartBtn.disabled = !enabled;
-    for (const btn of animActionBtns) btn.disabled = !enabled;
+    const allowPartToggles = enabled || proceduralPartsAvailable;
+    for (const btn of animActionBtns) btn.disabled = !allowPartToggles;
   };
 
   const stopAnimations = () => {
@@ -2463,6 +2501,183 @@ const init = () => {
     const best = scored[0];
     if (!best || best.score <= 0) return null;
     return best.name;
+  };
+
+  const getCombinedMeshName = (mesh: THREE.Mesh) => {
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    const matName = mats
+      .map(m =>
+        m && 'name' in m ? String((m as { name?: string }).name || '') : ''
+      )
+      .join(' ');
+    return normalizeName(`${mesh.name || ''} ${matName}`);
+  };
+
+  const buildWheelRig = (obj: THREE.Object3D) => {
+    const { radius } = getObjectCenterAndRadius(obj);
+    const modelR = Math.max(0.01, radius);
+
+    const wheelish = /(wheel|rim|tire|tyre|hub|spoke|whl)/;
+    const brakeish = /(brake|disc|rotor)/;
+    const caliperish = /caliper/;
+
+    const spinTargets: WheelSpinTarget[] = [];
+    const brakeMeshes: THREE.Mesh[] = [];
+    const caliperMeshes: THREE.Mesh[] = [];
+    const used = new Set<string>();
+
+    const pickAxisForNode = (node: THREE.Object3D) => {
+      const box = new THREE.Box3().setFromObject(node);
+      const size = box.getSize(new THREE.Vector3());
+      const ax = Math.abs(size.x);
+      const ay = Math.abs(size.y);
+      const az = Math.abs(size.z);
+      if (ax <= ay && ax <= az) return new THREE.Vector3(1, 0, 0);
+      if (ay <= ax && ay <= az) return new THREE.Vector3(0, 1, 0);
+      return new THREE.Vector3(0, 0, 1);
+    };
+
+    const looksLikeWheelByGeometry = (node: THREE.Object3D) => {
+      const box = new THREE.Box3().setFromObject(node);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      const dims = [Math.abs(size.x), Math.abs(size.y), Math.abs(size.z)].sort(
+        (a, b) => b - a
+      );
+      const d1 = dims[0] || 0;
+      const d2 = dims[1] || 0;
+      const d3 = dims[2] || 0;
+
+      // Must be a "thin-ish" cylinder-ish thing.
+      const roundish = d2 > 0 && d1 / d2 < 1.35;
+      const thin = d1 > 0 && d3 / d1 < 0.65;
+
+      // Reasonable size band relative to model.
+      const maxDim = Math.max(d1, d2, d3);
+      const sizeOk = maxDim > modelR * 0.06 && maxDim < modelR * 0.45;
+
+      // Wheels tend to be low.
+      const low = center.y < modelR * 0.55;
+
+      return roundish && thin && sizeOk && low;
+    };
+
+    const pickRotator = (start: THREE.Object3D) => {
+      let best: THREE.Object3D = start;
+      let cur: THREE.Object3D | null = start;
+      for (let i = 0; i < 4; i++) {
+        const parent: THREE.Object3D | null = cur ? cur.parent : null;
+        if (!parent) break;
+        if (parent === obj) break;
+        const pn = normalizeName(parent.name || '');
+        if (wheelish.test(pn)) best = parent;
+        cur = parent;
+      }
+      return best;
+    };
+
+    obj.traverse(child => {
+      const mesh = child as THREE.Mesh;
+      if (!mesh.isMesh) return;
+
+      const n = getCombinedMeshName(mesh);
+      const isBrake = brakeish.test(n);
+      const isCaliper = caliperish.test(n);
+      const isWheelNamed = wheelish.test(n);
+      const isWheelCandidate =
+        (isWheelNamed || looksLikeWheelByGeometry(mesh)) &&
+        !isBrake &&
+        !isCaliper;
+
+      if (isBrake) brakeMeshes.push(mesh);
+      if (isCaliper) caliperMeshes.push(mesh);
+
+      if (!isWheelCandidate) return;
+      const rotator = pickRotator(mesh);
+      if (used.has(rotator.uuid)) return;
+      used.add(rotator.uuid);
+      spinTargets.push({ node: rotator, axis: pickAxisForNode(rotator) });
+    });
+
+    wheelRig = { spinTargets, brakeMeshes, caliperMeshes };
+  };
+
+  const buildProceduralParts = (obj: THREE.Object3D) => {
+    proceduralParts.clear();
+
+    const defs: Array<{ kind: ProceduralPartKind; re: RegExp }> = [
+      { kind: 'doors', re: /(\bdoor\b|door_)/i },
+      { kind: 'hood', re: /(\bhood\b|\bbonnet\b)/i },
+      { kind: 'trunk', re: /(\btrunk\b|\bboot\b)/i },
+      { kind: 'spoiler', re: /(\bspoiler\b|\bwing\b)/i },
+    ];
+
+    const ignore = /(glass|window|windshield|windscreen|light|lamp|mirror)/i;
+
+    for (const def of defs) {
+      proceduralParts.set(def.kind, {
+        targets: [],
+        baseQuatByUuid: new Map(),
+        open: false,
+      });
+    }
+
+    obj.traverse(child => {
+      const mesh = child as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const combined = getCombinedMeshName(mesh);
+      if (ignore.test(combined)) return;
+
+      for (const { kind, re } of defs) {
+        if (!re.test(combined)) continue;
+        const rig = proceduralParts.get(kind);
+        if (!rig) continue;
+        if (rig.baseQuatByUuid.has(mesh.uuid)) continue;
+        rig.targets.push(mesh);
+        rig.baseQuatByUuid.set(mesh.uuid, mesh.quaternion.clone());
+      }
+    });
+
+    proceduralPartsAvailable = Array.from(proceduralParts.values()).some(
+      r => r.targets.length > 0
+    );
+  };
+
+  const setProceduralPartOpen = (kind: ProceduralPartKind, open: boolean) => {
+    const rig = proceduralParts.get(kind);
+    if (!rig || !loadState.gltf) return false;
+    if (!rig.targets.length) return false;
+    rig.open = open;
+
+    const axis =
+      kind === 'doors'
+        ? new THREE.Vector3(0, 1, 0)
+        : new THREE.Vector3(1, 0, 0);
+    const baseAngle = kind === 'doors' ? 0.95 : kind === 'spoiler' ? 0.35 : 0.6;
+    const angle = open ? baseAngle : 0;
+
+    for (const target of rig.targets) {
+      const base = rig.baseQuatByUuid.get(target.uuid);
+      if (!base) continue;
+
+      let signedAngle = angle;
+      if (kind === 'doors') {
+        const wp = new THREE.Vector3();
+        target.getWorldPosition(wp);
+        signedAngle = angle * (wp.x < 0 ? -1 : 1);
+      }
+
+      const q = new THREE.Quaternion().setFromAxisAngle(axis, signedAngle);
+      target.quaternion.copy(base).multiply(q);
+    }
+
+    return true;
+  };
+
+  const toggleProceduralPart = (kind: ProceduralPartKind) => {
+    const rig = proceduralParts.get(kind);
+    if (!rig) return false;
+    return setProceduralPartOpen(kind, !rig.open);
   };
 
   const clipToggleState = new Map<string, boolean>();
@@ -5024,6 +5239,12 @@ const init = () => {
       if (specTex) specTex.textContent = formatInt(uniqueTex.size);
       populateMeshSelect();
 
+      // Cache wheel/brake targets and build procedural part toggles for non-rigged models.
+      buildWheelRig(obj);
+      buildProceduralParts(obj);
+      // Keep part buttons usable even when there are no animation clips.
+      setAnimationEnabled(loadState.animations.length > 0);
+
       // Enable animation controls if clips exist
       if (loadState.animations.length && obj) {
         mixer = new THREE.AnimationMixer(obj);
@@ -6598,44 +6819,38 @@ const init = () => {
       const rotSpeed = runtime.wheelSpin
         ? runtime.motionSpeed * deltaS * 12
         : 0;
-      loadState.gltf.traverse(child => {
-        if (!(child as THREE.Mesh).isMesh) return;
-        const mesh = child as THREE.Mesh;
-        const n = mesh.name.toLowerCase();
 
-        const isWheelPart =
-          n.includes('wheel') ||
-          n.includes('rim') ||
-          n.includes('tire') ||
-          n.includes('tyre');
-        const isBrakePart = n.includes('brake') || n.includes('disc');
-        const isCaliperPart = n.includes('caliper');
-
-        if (isWheelPart && !isCaliperPart && !isBrakePart) {
-          child.rotateX(rotSpeed);
+      if (rotSpeed && wheelRig.spinTargets.length) {
+        for (const t of wheelRig.spinTargets) {
+          t.node.rotateOnAxis(t.axis, rotSpeed);
         }
+      }
 
-        // Apply brake glow to discs/calipers
-        if (isBrakePart || isCaliperPart) {
-          const mats = Array.isArray(mesh.material)
-            ? mesh.material
-            : [mesh.material];
-          mats.forEach(m => {
-            if (m instanceof THREE.MeshStandardMaterial && m.emissive) {
-              const baseColor = isCaliperPart
-                ? new THREE.Color(runtime.caliperColorHex)
-                : new THREE.Color(0x000000);
-              const glowColor = new THREE.Color(0xff4400);
-              const heat = clamp01(loadState.brakeGlow * (bv2?.tempMax ?? 1));
-              const curve = clamp(bv2?.tempToEmissiveCurve ?? 1.35, 0.5, 4);
-              const t = Math.pow(heat, curve);
-              m.emissive.copy(baseColor).lerp(glowColor, t);
-              const caliperMul = isCaliperPart ? 0.55 : 1;
-              m.emissiveIntensity = t * 18 * caliperMul;
-            }
-          });
-        }
-      });
+      // Apply brake glow to cached discs/calipers.
+      const applyGlow = (mesh: THREE.Mesh, isCaliperPart: boolean) => {
+        const mats = Array.isArray(mesh.material)
+          ? mesh.material
+          : [mesh.material];
+        mats.forEach(m => {
+          if (m instanceof THREE.MeshStandardMaterial && m.emissive) {
+            const baseColor = isCaliperPart
+              ? new THREE.Color(runtime.caliperColorHex)
+              : new THREE.Color(0x000000);
+            const glowColor = new THREE.Color(0xff4400);
+            const heat = clamp01(loadState.brakeGlow * (bv2?.tempMax ?? 1));
+            const curve = clamp(bv2?.tempToEmissiveCurve ?? 1.35, 0.5, 4);
+            const k = Math.pow(heat, curve);
+            m.emissive.copy(baseColor).lerp(glowColor, k);
+            const caliperMul = isCaliperPart ? 0.55 : 1;
+            m.emissiveIntensity = k * 18 * caliperMul;
+          }
+        });
+      };
+
+      if (loadState.brakeGlow > 0.001) {
+        for (const mesh of wheelRig.brakeMeshes) applyGlow(mesh, false);
+        for (const mesh of wheelRig.caliperMeshes) applyGlow(mesh, true);
+      }
     }
 
     // Floor Scroll
@@ -9422,23 +9637,9 @@ const init = () => {
   };
 
   const syncPanelStickyOffsets = () => {
-    // Mobile has a sticky jumpbar; ensure the sticky filter/tools dock below it.
-    if (!panelBody || !jumpbar) {
-      root.style.setProperty('--sr-panel-tools-top', '0px');
-      return;
-    }
-
-    if (!isMobile()) {
-      root.style.setProperty('--sr-panel-tools-top', '0px');
-      return;
-    }
-
-    // Measure from the scroll container top to the jumpbar bottom.
-    // This accounts for mobile negative margins on the sticky jumpbar.
-    const bodyRect = panelBody.getBoundingClientRect();
-    const jumpRect = jumpbar.getBoundingClientRect();
-    const h = Math.max(0, Math.round(jumpRect.bottom - bodyRect.top));
-    root.style.setProperty('--sr-panel-tools-top', `${h}px`);
+    // The panel chrome (jumpbar + tools) is no longer sticky within the scroll
+    // container, so the old offset math is unnecessary.
+    root.style.setProperty('--sr-panel-tools-top', '0px');
   };
 
   for (const btn of jumpBtns) {
@@ -9489,7 +9690,6 @@ const init = () => {
   initSoloMode();
 
   syncPanelStickyOffsets();
-  window.addEventListener('resize', syncPanelStickyOffsets, { passive: true });
 
   const observeActiveSection = () => {
     if (!panelBody || !sections.length) return;
@@ -10566,9 +10766,12 @@ const init = () => {
   for (const btn of animActionBtns) {
     btn.addEventListener('click', () => {
       const kind = (btn.getAttribute('data-sr-anim-action') || '').trim();
-      if (!kind || !mixer) return;
+      if (!kind) return;
 
-      if (animPlayChk) animPlayChk.checked = true;
+      // Prefer real animation clips when available.
+      if (mixer) {
+        if (animPlayChk) animPlayChk.checked = true;
+      }
 
       const map: Record<string, string[]> = {
         doors: ['door', 'doors'],
@@ -10578,14 +10781,32 @@ const init = () => {
       };
 
       const clip = findClipNameByKeywords(map[kind] || [kind]);
-      if (!clip) {
-        setStatus(false, 'No matching animation clip found.');
+
+      if (clip && mixer) {
+        hapticTap(10);
+        playClipToggle(clip);
+        return;
+      }
+
+      // Fallback: procedural part toggles for non-rigged models.
+      const proceduralKind = kind as ProceduralPartKind;
+      const ok =
+        proceduralKind === 'doors' ||
+        proceduralKind === 'hood' ||
+        proceduralKind === 'trunk' ||
+        proceduralKind === 'spoiler'
+          ? toggleProceduralPart(proceduralKind)
+          : false;
+
+      if (!ok) {
+        setStatus(false, 'No matching animation clip or part mesh found.');
         window.setTimeout(() => setStatus(false, ''), 1200);
         return;
       }
 
       hapticTap(10);
-      playClipToggle(clip);
+      setStatus(false, 'Toggled part.');
+      window.setTimeout(() => setStatus(false, ''), 900);
     });
   }
 
