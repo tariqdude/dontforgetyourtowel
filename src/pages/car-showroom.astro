@@ -479,6 +479,14 @@ const galleryHref = `${base}gallery/`;
               >
                 Pinned
               </button>
+              <button
+                type="button"
+                class="sr-chip"
+                data-sr-panel-solo
+                aria-pressed="false"
+              >
+                Solo
+              </button>
               <button type="button" class="sr-chip" data-sr-panel-top>
                 Top
               </button>
@@ -2117,8 +2125,9 @@ const galleryHref = `${base}gallery/`;
                   min="0"
                   max="2"
                   step="0.01"
-                  value="0.35"
+                  value="0"
                   data-sr-bloom
+                  disabled
                 />
               </label>
               <label class="sr-field">
@@ -2131,6 +2140,7 @@ const galleryHref = `${base}gallery/`;
                   step="0.01"
                   value="0.9"
                   data-sr-bloom-threshold
+                  disabled
                 />
               </label>
               <label class="sr-field">
@@ -2143,6 +2153,7 @@ const galleryHref = `${base}gallery/`;
                   step="0.01"
                   value="0"
                   data-sr-bloom-radius
+                  disabled
                 />
               </label>
 

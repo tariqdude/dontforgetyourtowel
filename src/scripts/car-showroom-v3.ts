@@ -1194,6 +1194,12 @@ const init = () => {
   const bloomRadius = root.querySelector<HTMLInputElement>(
     '[data-sr-bloom-radius]'
   );
+  if (bloom) {
+    bloom.value = '0';
+    bloom.disabled = true;
+  }
+  if (bloomThreshold) bloomThreshold.disabled = true;
+  if (bloomRadius) bloomRadius.disabled = true;
   const exposureResetBtn = root.querySelector<HTMLButtonElement>(
     '[data-sr-exposure-reset]'
   );
@@ -1279,6 +1285,9 @@ const init = () => {
   );
   const panelPinnedBtn = root.querySelector<HTMLButtonElement>(
     '[data-sr-panel-pinned]'
+  );
+  const panelSoloBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-panel-solo]'
   );
   const panelTopBtn = root.querySelector<HTMLButtonElement>(
     '[data-sr-panel-top]'
@@ -2627,7 +2636,7 @@ const init = () => {
           autorotate: Boolean(autorotate?.checked ?? false),
           motionStyle: (motionStyle?.value || 'turntable').trim().toLowerCase(),
           motionSpeed: Number.parseFloat(motionSpeed?.value || '0.75') || 0.75,
-          bloomStrength: Number.parseFloat(bloom?.value || '0.35') || 0.35,
+          bloomStrength: 0,
           bloomThreshold:
             Number.parseFloat(bloomThreshold?.value || '0.9') || 0.9,
           bloomRadius: Number.parseFloat(bloomRadius?.value || '0') || 0,
@@ -2644,10 +2653,8 @@ const init = () => {
       if (motionStyle) motionStyle.value = 'turntable';
       if (motionSpeed) motionSpeed.value = '0.35';
 
-      // Commercial-ish bloom preset.
-      if (bloom) bloom.value = '0.9';
-      if (bloomThreshold) bloomThreshold.value = '0.65';
-      if (bloomRadius) bloomRadius.value = '0.25';
+      // Bloom disabled.
+      if (bloom) bloom.value = '0';
 
       // Slight exposure lift.
       if (exposure) exposure.value = '1.35';
@@ -7117,6 +7124,7 @@ const init = () => {
       if (!section) return;
       const next = section.dataset.srCollapsed !== '1';
       setSectionCollapsed(section, next, true);
+      if (soloMode && next === false) collapseOthers(section);
     });
   }
 
@@ -7153,6 +7161,7 @@ const init = () => {
   const ESSENTIALS_KEY = 'sr3-panel-essentials-v1';
   const PINNED_KEY = 'sr3-panel-pinned-sections-v1';
   const PINNED_MODE_KEY = 'sr3-panel-pinned-mode-v1';
+  const SOLO_MODE_KEY = 'sr3-panel-solo-mode-v1';
   const essentialsSet = new Set<string>([
     'presets',
     'model',
@@ -7165,6 +7174,7 @@ const init = () => {
   let essentialsOn = false;
   let pinnedMode = false;
   let pinnedSet = new Set<string>();
+  let soloMode = false;
 
   const setEssentials = (next: boolean, persist: boolean) => {
     essentialsOn = next;
@@ -7237,6 +7247,35 @@ const init = () => {
       // ignore
     }
     setPinnedMode(saved, false);
+  };
+
+  const setSoloMode = (next: boolean, persist: boolean) => {
+    soloMode = next;
+    panelSoloBtn?.setAttribute('aria-pressed', next ? 'true' : 'false');
+    if (persist) {
+      try {
+        localStorage.setItem(SOLO_MODE_KEY, next ? '1' : '0');
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  const initSoloMode = () => {
+    let saved = false;
+    try {
+      saved = (localStorage.getItem(SOLO_MODE_KEY) || '') === '1';
+    } catch {
+      // ignore
+    }
+    setSoloMode(saved, false);
+  };
+
+  const collapseOthers = (active: HTMLElement) => {
+    for (const section of sections) {
+      if (section === active) continue;
+      setSectionCollapsed(section, true, true);
+    }
   };
 
   const ensureSectionPins = () => {
@@ -7369,6 +7408,10 @@ const init = () => {
     setPinnedMode(!pinnedMode, true);
   });
 
+  panelSoloBtn?.addEventListener('click', () => {
+    setSoloMode(!soloMode, true);
+  });
+
   panelTopBtn?.addEventListener('click', () => {
     panelApi.setSnap(isMobile() ? 'half' : 'peek', true);
     if (panelBody) {
@@ -7387,6 +7430,7 @@ const init = () => {
     if (!key) return;
     panelApi.setSnap(isMobile() ? 'half' : 'peek', true);
     setSectionCollapsed(section, false, true);
+    if (soloMode) collapseOthers(section);
     scrollPanelToSection(section);
     setJumpActive(key);
   };
@@ -7455,6 +7499,7 @@ const init = () => {
       if (!section) return;
 
       setSectionCollapsed(section, false, true);
+      if (soloMode) collapseOthers(section);
       scrollPanelToSection(section);
       setJumpActive(key);
     });
@@ -7470,6 +7515,7 @@ const init = () => {
       );
       if (!section) return;
       setSectionCollapsed(section, false, true);
+      if (soloMode) collapseOthers(section);
       scrollPanelToSection(section);
       setQuickOpen(false);
     });
@@ -7481,6 +7527,7 @@ const init = () => {
   pinnedSet = readPinned();
   ensureSectionPins();
   initPinnedMode();
+  initSoloMode();
 
   const observeActiveSection = () => {
     if (!panelBody || !sections.length) return;
