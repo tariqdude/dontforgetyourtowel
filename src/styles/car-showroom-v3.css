@@ -771,6 +771,13 @@
   display: none !important;
 }
 
+.sr-match {
+  box-shadow: 0 0 0 1px rgba(255, 62, 0, 0.35);
+  border-radius: 10px;
+  padding: 4px;
+  margin: -4px;
+}
+
 .sr-tab[aria-pressed='true'] {
   background: rgba(255, 62, 0, 0.18);
   border-color: rgba(255, 62, 0, 0.55);
@@ -858,6 +865,12 @@
   font-weight: 750;
   letter-spacing: 0.02em;
   white-space: nowrap;
+}
+
+.sr-section__pin[aria-pressed='true'] {
+  background: rgba(255, 62, 0, 0.18);
+  border-color: rgba(255, 62, 0, 0.55);
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .sr-section[data-sr-collapsed='1'] {

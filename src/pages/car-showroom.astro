@@ -455,6 +455,30 @@ const galleryHref = `${base}gallery/`;
               <button type="button" class="sr-chip" data-sr-panel-filter-clear>
                 Clear
               </button>
+              <button type="button" class="sr-chip" data-sr-undo> Undo </button>
+              <button type="button" class="sr-chip" data-sr-redo> Redo </button>
+              <button type="button" class="sr-chip" data-sr-panel-prev>
+                Prev
+              </button>
+              <button type="button" class="sr-chip" data-sr-panel-next>
+                Next
+              </button>
+              <button
+                type="button"
+                class="sr-chip"
+                data-sr-panel-essentials
+                aria-pressed="false"
+              >
+                Essentials
+              </button>
+              <button
+                type="button"
+                class="sr-chip"
+                data-sr-panel-pinned
+                aria-pressed="false"
+              >
+                Pinned
+              </button>
               <button type="button" class="sr-chip" data-sr-panel-top>
                 Top
               </button>
@@ -609,6 +633,9 @@ const galleryHref = `${base}gallery/`;
                 >
                   Compact
                 </button>
+                <button type="button" class="sr-chip" data-sr-layout-reset>
+                  Reset
+                </button>
               </div>
 
               <div class="sr-grid">
@@ -701,6 +728,28 @@ const galleryHref = `${base}gallery/`;
                     type="checkbox"
                     aria-label="Compact controls"
                     data-sr-layout-compact
+                  />
+                </label>
+
+                <label class="sr-field">
+                  <span>Auto-hide UI</span>
+                  <input
+                    type="checkbox"
+                    aria-label="Auto-hide UI"
+                    data-sr-layout-idle
+                  />
+                </label>
+
+                <label class="sr-field">
+                  <span>Idle delay (sec)</span>
+                  <input
+                    type="range"
+                    min="2"
+                    max="10"
+                    step="1"
+                    value="5"
+                    aria-label="Idle delay"
+                    data-sr-layout-idle-delay
                   />
                 </label>
               </div>
@@ -2160,49 +2209,55 @@ const galleryHref = `${base}gallery/`;
               <h3>Keyboard</h3>
               <ul>
                 <li>
-                  <kbd>Ctrl</kbd> / <kbd>Cmd</kbd> + <kbd>K</kbd> or <kbd>/</kbd
-                  > — Search settings
+                  <kbd>Ctrl</kbd> / <kbd>Cmd</kbd> + <kbd>K</kbd> — Command palette
                 </li>
-                <li><kbd>Ctrl</kbd> / <kbd>Cmd</kbd> + <kbd>Z</kbd> — Undo</li>
+                <li><kbd>/</kbd> — Search settings (panel filter)</li>
                 <li>
-                  <kbd>Ctrl</kbd> / <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd
-                    >Z</kbd
-                  > (or <kbd>Ctrl</kbd> + <kbd>Y</kbd>) — Redo
+                  <kbd>J</kbd>/<kbd>K</kbd> — Next/previous section • <kbd
+                    >E</kbd
+                  > — Essentials
                 </li>
-                <li><kbd>?</kbd> — Open this help</li>
-                <li>
-                  <kbd>P</kbd> — Toggle panel • <kbd>F</kbd> — Frame • <kbd
-                    >R</kbd
-                  > — Re-ground • <kbd>S</kbd> — Screenshot
-                </li>
+                <li><kbd>T</kbd> — Scroll to top</li>
               </ul>
+              <li><kbd>Ctrl</kbd> / <kbd>Cmd</kbd> + <kbd>Z</kbd> — Undo</li>
+              <li>
+                <kbd>Ctrl</kbd> / <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd
+                  >Z</kbd
+                > (or <kbd>Ctrl</kbd> + <kbd>Y</kbd>) — Redo
+              </li>
+              <li><kbd>?</kbd> — Open this help</li>
+              <li>
+                <kbd>P</kbd> — Toggle panel • <kbd>F</kbd> — Frame • <kbd>G</kbd
+                >
+                — Focus • <kbd>R</kbd> — Re-ground • <kbd>S</kbd> — Screenshot
+              </li>
             </div>
+          </div>
 
-            <div class="sr__helpSection">
-              <h3>Touch / mouse</h3>
-              <ul>
-                <li>Drag to rotate • Scroll / pinch to zoom</li>
-                <li>
-                  Use the <strong>Quick</strong> menu for one-handed toggles
-                </li>
-              </ul>
-            </div>
+          <div class="sr__helpSection">
+            <h3>Touch / mouse</h3>
+            <ul>
+              <li>Drag to rotate • Scroll / pinch to zoom</li>
+              <li>
+                Use the <strong>Quick</strong> menu for one-handed toggles
+              </li>
+            </ul>
           </div>
         </div>
       </div>
-
-      <button
-        type="button"
-        class="sr__fab"
-        data-sr-panel-fab
-        aria-label="Open settings"
-      >
-        Settings
-      </button>
     </div>
 
-    <script>
-      import '../scripts/car-showroom-v3';
-    </script>
+    <button
+      type="button"
+      class="sr__fab"
+      data-sr-panel-fab
+      aria-label="Open settings"
+    >
+      Settings
+    </button>
   </section>
+
+  <script>
+    import '../scripts/car-showroom-v3';
+  </script>
 </MarketingLayout>

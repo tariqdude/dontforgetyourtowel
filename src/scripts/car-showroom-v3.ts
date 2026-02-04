@@ -1266,6 +1266,20 @@ const init = () => {
   const panelFilterClearBtn = root.querySelector<HTMLButtonElement>(
     '[data-sr-panel-filter-clear]'
   );
+  const panelUndoBtn = root.querySelector<HTMLButtonElement>('[data-sr-undo]');
+  const panelRedoBtn = root.querySelector<HTMLButtonElement>('[data-sr-redo]');
+  const panelPrevBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-panel-prev]'
+  );
+  const panelNextBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-panel-next]'
+  );
+  const panelEssentialsBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-panel-essentials]'
+  );
+  const panelPinnedBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-panel-pinned]'
+  );
   const panelTopBtn = root.querySelector<HTMLButtonElement>(
     '[data-sr-panel-top]'
   );
@@ -1462,8 +1476,17 @@ const init = () => {
   const layoutGlassRange = root.querySelector<HTMLInputElement>(
     '[data-sr-layout-glass]'
   );
+  const layoutIdleChk = root.querySelector<HTMLInputElement>(
+    '[data-sr-layout-idle]'
+  );
+  const layoutIdleDelayRange = root.querySelector<HTMLInputElement>(
+    '[data-sr-layout-idle-delay]'
+  );
   const layoutPresetBtns = Array.from(
     root.querySelectorAll<HTMLButtonElement>('[data-sr-layout-preset]')
+  );
+  const layoutResetBtn = root.querySelector<HTMLButtonElement>(
+    '[data-sr-layout-reset]'
   );
 
   const LAYOUT_KEY = 'sr3-layout-v1';
@@ -1477,7 +1500,18 @@ const init = () => {
     compact: boolean;
     uiScale: number;
     glass: number;
+    idleEnabled: boolean;
+    idleDelay: number;
   };
+
+  const idleConfig = {
+    enabled: true,
+    delayMs: 5000,
+  };
+  let idleController: null | {
+    setEnabled: (next: boolean) => void;
+    setDelay: (nextMs: number) => void;
+  } = null;
 
   const applyLayout = (state: LayoutState, persist: boolean) => {
     root.dataset.srPanelSide = state.panelSide;
@@ -1493,6 +1527,11 @@ const init = () => {
     root.style.setProperty('--sr-panel-alpha', panelAlpha.toFixed(2));
     root.style.setProperty('--sr-glass-alpha', glassAlpha.toFixed(3));
 
+    idleConfig.enabled = state.idleEnabled;
+    idleConfig.delayMs = Math.round(state.idleDelay * 1000);
+    idleController?.setEnabled(idleConfig.enabled);
+    idleController?.setDelay(idleConfig.delayMs);
+
     if (panelSideSel) panelSideSel.value = state.panelSide;
     if (panelWidthRange)
       panelWidthRange.value = String(Math.round(state.panelWidth));
@@ -1505,6 +1544,9 @@ const init = () => {
       layoutScaleRange.value = String(state.uiScale.toFixed(2));
     if (layoutGlassRange)
       layoutGlassRange.value = String(state.glass.toFixed(2));
+    if (layoutIdleChk) layoutIdleChk.checked = state.idleEnabled;
+    if (layoutIdleDelayRange)
+      layoutIdleDelayRange.value = String(Math.round(state.idleDelay));
 
     panelApi.setWidth(state.panelWidth, persist);
 
@@ -1540,6 +1582,10 @@ const init = () => {
         ? Number(saved.uiScale)
         : 1,
       glass: Number.isFinite(saved.glass ?? NaN) ? Number(saved.glass) : 0.7,
+      idleEnabled: saved.idleEnabled ?? true,
+      idleDelay: Number.isFinite(saved.idleDelay ?? NaN)
+        ? Number(saved.idleDelay)
+        : 5,
     };
   };
 
@@ -1600,6 +1646,20 @@ const init = () => {
     applyLayout({ ...readLayout(), glass: next }, true);
   });
 
+  layoutIdleChk?.addEventListener('change', () => {
+    applyLayout({ ...readLayout(), idleEnabled: layoutIdleChk.checked }, true);
+  });
+
+  layoutIdleDelayRange?.addEventListener('input', () => {
+    const next = Number.parseFloat(layoutIdleDelayRange.value || '5') || 5;
+    applyLayout({ ...readLayout(), idleDelay: next }, false);
+  });
+
+  layoutIdleDelayRange?.addEventListener('change', () => {
+    const next = Number.parseFloat(layoutIdleDelayRange.value || '5') || 5;
+    applyLayout({ ...readLayout(), idleDelay: next }, true);
+  });
+
   for (const btn of layoutPresetBtns) {
     btn.addEventListener('click', () => {
       const preset = (btn.dataset.srLayoutPreset || '').trim().toLowerCase();
@@ -1616,6 +1676,8 @@ const init = () => {
             compact: false,
             uiScale: 1,
             glass: 0.8,
+            idleEnabled: true,
+            idleDelay: 5,
           },
           true
         );
@@ -1636,6 +1698,8 @@ const init = () => {
             compact: true,
             uiScale: 0.96,
             glass: 0.65,
+            idleEnabled: true,
+            idleDelay: 5,
           },
           true
         );
@@ -1655,6 +1719,8 @@ const init = () => {
           compact: false,
           uiScale: 1,
           glass: 0.7,
+          idleEnabled: true,
+          idleDelay: 5,
         },
         true
       );
@@ -4924,6 +4990,14 @@ const init = () => {
     return { schedule, undo, redo, init, isApplying };
   })();
 
+  panelUndoBtn?.addEventListener('click', () => {
+    pushHistoryAfterUiChange.undo();
+  });
+
+  panelRedoBtn?.addEventListener('click', () => {
+    pushHistoryAfterUiChange.redo();
+  });
+
   // Debounced history snapshots for undo/redo.
   root.addEventListener(
     'input',
@@ -5317,11 +5391,21 @@ const init = () => {
       }
     }
 
+    if (e.key === '/') {
+      if (panelFilterInp) {
+        e.preventDefault();
+        panelApi.setSnap(isMobile() ? 'half' : 'peek', true);
+        panelFilterInp.focus();
+        panelFilterInp.select();
+        return;
+      }
+    }
+
     if (e.key === 'c' || e.key === 'C') {
       const next = !runtime.cinematic;
       if (cinematicChk) cinematicChk.checked = next;
       setCinematic(next);
-    } else if (e.key === 'f' || e.key === 'F') {
+    } else if (e.key === 'g' || e.key === 'G') {
       setFocus(!focusOn, true);
     } else if (e.key === 'Escape' && runtime.cinematic) {
       if (cinematicChk) cinematicChk.checked = false;
@@ -5442,17 +5526,22 @@ const init = () => {
   initRangeValueReadouts();
 
   const initIdleFade = () => {
-    const idleMs = 5000;
     let idleTimer = 0;
+    let enabled = idleConfig.enabled;
+    let delayMs = idleConfig.delayMs;
 
     const setIdle = (next: boolean) => {
       root.dataset.srIdle = next ? '1' : '0';
     };
 
     const bump = () => {
+      if (!enabled) {
+        setIdle(false);
+        return;
+      }
       setIdle(false);
       if (idleTimer) window.clearTimeout(idleTimer);
-      idleTimer = window.setTimeout(() => setIdle(true), idleMs);
+      idleTimer = window.setTimeout(() => setIdle(true), delayMs);
     };
 
     const events: Array<keyof WindowEventMap> = [
@@ -5464,10 +5553,20 @@ const init = () => {
 
     for (const ev of events)
       window.addEventListener(ev, bump, { passive: true });
-    bump();
+
+    return {
+      setEnabled: (next: boolean) => {
+        enabled = next;
+        bump();
+      },
+      setDelay: (nextMs: number) => {
+        delayMs = Math.max(1000, Math.round(nextMs));
+        bump();
+      },
+    };
   };
 
-  initIdleFade();
+  idleController = initIdleFade();
 
   const CMDK_RECENTS_KEY = 'sr3-cmdk-recents-v1';
 
@@ -6620,6 +6719,27 @@ const init = () => {
       return;
     }
 
+    if (key === 'j') {
+      e.preventDefault();
+      panelNextBtn?.click();
+      return;
+    }
+    if (key === 'k') {
+      e.preventDefault();
+      panelPrevBtn?.click();
+      return;
+    }
+    if (key === 'e') {
+      e.preventDefault();
+      panelEssentialsBtn?.click();
+      return;
+    }
+    if (key === 't') {
+      e.preventDefault();
+      panelTopBtn?.click();
+      return;
+    }
+
     if (key === 'f') {
       e.preventDefault();
       camFrame?.click();
@@ -7011,6 +7131,16 @@ const init = () => {
     }
   };
 
+  const getVisibleSections = () =>
+    sections.filter(section => !section.classList.contains('sr-hidden'));
+
+  const getActiveSectionIndex = (list: HTMLElement[]) => {
+    const activeIdx = list.findIndex(
+      section => section.dataset.srActive === '1'
+    );
+    return activeIdx >= 0 ? activeIdx : 0;
+  };
+
   const updatePanelCount = (visible: number, total: number, query: string) => {
     if (!panelCount) return;
     if (!query) {
@@ -7018,6 +7148,134 @@ const init = () => {
       return;
     }
     panelCount.textContent = `${visible}/${total} match “${query}”`;
+  };
+
+  const ESSENTIALS_KEY = 'sr3-panel-essentials-v1';
+  const PINNED_KEY = 'sr3-panel-pinned-sections-v1';
+  const PINNED_MODE_KEY = 'sr3-panel-pinned-mode-v1';
+  const essentialsSet = new Set<string>([
+    'presets',
+    'model',
+    'look',
+    'environment',
+    'camera',
+    'performance',
+    'tools',
+  ]);
+  let essentialsOn = false;
+  let pinnedMode = false;
+  let pinnedSet = new Set<string>();
+
+  const setEssentials = (next: boolean, persist: boolean) => {
+    essentialsOn = next;
+    if (panelEssentialsBtn)
+      panelEssentialsBtn.setAttribute('aria-pressed', next ? 'true' : 'false');
+    root.dataset.srEssentials = next ? '1' : '0';
+    if (persist) {
+      try {
+        localStorage.setItem(ESSENTIALS_KEY, next ? '1' : '0');
+      } catch {
+        // ignore
+      }
+    }
+    applyPanelFilter(panelFilterInp?.value || '');
+  };
+
+  const initEssentials = () => {
+    let saved = false;
+    try {
+      saved = (localStorage.getItem(ESSENTIALS_KEY) || '') === '1';
+    } catch {
+      // ignore
+    }
+    setEssentials(saved, false);
+  };
+
+  const readPinned = (): Set<string> => {
+    try {
+      const raw = (localStorage.getItem(PINNED_KEY) || '').trim();
+      if (!raw) return new Set();
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) return new Set();
+      return new Set(
+        parsed
+          .map(String)
+          .map(s => s.trim())
+          .filter(Boolean)
+      );
+    } catch {
+      return new Set();
+    }
+  };
+
+  const writePinned = () => {
+    try {
+      localStorage.setItem(PINNED_KEY, JSON.stringify(Array.from(pinnedSet)));
+    } catch {
+      // ignore
+    }
+  };
+
+  const setPinnedMode = (next: boolean, persist: boolean) => {
+    pinnedMode = next;
+    panelPinnedBtn?.setAttribute('aria-pressed', next ? 'true' : 'false');
+    if (persist) {
+      try {
+        localStorage.setItem(PINNED_MODE_KEY, next ? '1' : '0');
+      } catch {
+        // ignore
+      }
+    }
+    applyPanelFilter(panelFilterInp?.value || '');
+  };
+
+  const initPinnedMode = () => {
+    let saved = false;
+    try {
+      saved = (localStorage.getItem(PINNED_MODE_KEY) || '') === '1';
+    } catch {
+      // ignore
+    }
+    setPinnedMode(saved, false);
+  };
+
+  const ensureSectionPins = () => {
+    for (const section of sections) {
+      const key = String(section.dataset.srSection || '').trim();
+      if (!key) continue;
+      const head = section.querySelector<HTMLElement>('.sr-section__head');
+      if (!head) continue;
+      let actions = head.querySelector<HTMLElement>('.sr-section__headActions');
+      if (!actions) {
+        actions = document.createElement('div');
+        actions.className = 'sr-section__headActions';
+        head.appendChild(actions);
+      }
+
+      let pinBtn = actions.querySelector<HTMLButtonElement>(
+        '[data-sr-section-pin]'
+      );
+      if (!pinBtn) {
+        pinBtn = document.createElement('button');
+        pinBtn.type = 'button';
+        pinBtn.className = 'sr-section__toggle sr-section__pin';
+        pinBtn.dataset.srSectionPin = '1';
+        actions.prepend(pinBtn);
+        pinBtn.addEventListener('click', () => {
+          const isPinned = pinnedSet.has(key);
+          if (isPinned) pinnedSet.delete(key);
+          else pinnedSet.add(key);
+          writePinned();
+          pinBtn?.setAttribute('aria-pressed', !isPinned ? 'true' : 'false');
+          pinBtn.textContent = !isPinned ? 'Pinned' : 'Pin';
+          applyPanelFilter(panelFilterInp?.value || '');
+        });
+      }
+
+      const isPinned = pinnedSet.has(key);
+      pinBtn.setAttribute('aria-pressed', isPinned ? 'true' : 'false');
+      pinBtn.textContent = isPinned ? 'Pinned' : 'Pin';
+    }
   };
 
   const applyPanelFilter = (raw: string) => {
@@ -7035,12 +7293,30 @@ const init = () => {
         )
       );
 
-      if (!query) {
+      const key = String(section.dataset.srSection || '').trim();
+      const essentialsOk = !essentialsOn || essentialsSet.has(key);
+      const pinnedOk = !pinnedMode || pinnedSet.has(key);
+      const jumpBtn = jumpBtns.find(
+        btn => String(btn.dataset.srJump || '').trim() === key
+      );
+
+      if (!query && essentialsOk && pinnedOk) {
         section.classList.remove('sr-hidden');
-        for (const target of targets) target.classList.remove('sr-hidden');
+        for (const target of targets) {
+          target.classList.remove('sr-hidden');
+          target.classList.remove('sr-match');
+        }
+        if (jumpBtn) jumpBtn.classList.remove('sr-hidden');
         visibleCount += 1;
         if (!firstVisibleKey)
           firstVisibleKey = String(section.dataset.srSection || '').trim();
+        continue;
+      }
+
+      if (!essentialsOk || !pinnedOk) {
+        section.classList.add('sr-hidden');
+        for (const target of targets) target.classList.add('sr-hidden');
+        if (jumpBtn) jumpBtn.classList.add('sr-hidden');
         continue;
       }
 
@@ -7049,10 +7325,12 @@ const init = () => {
         const text = (target.textContent || '').toLowerCase();
         const isMatch = text.includes(query);
         target.classList.toggle('sr-hidden', !isMatch);
+        target.classList.toggle('sr-match', isMatch);
         if (isMatch) matched = true;
       }
 
       section.classList.toggle('sr-hidden', !matched);
+      if (jumpBtn) jumpBtn.classList.toggle('sr-hidden', !matched);
       if (matched) {
         visibleCount += 1;
         setSectionCollapsed(section, false, false);
@@ -7083,6 +7361,14 @@ const init = () => {
     for (const section of sections) setSectionCollapsed(section, true, true);
   });
 
+  panelEssentialsBtn?.addEventListener('click', () => {
+    setEssentials(!essentialsOn, true);
+  });
+
+  panelPinnedBtn?.addEventListener('click', () => {
+    setPinnedMode(!pinnedMode, true);
+  });
+
   panelTopBtn?.addEventListener('click', () => {
     panelApi.setSnap(isMobile() ? 'half' : 'peek', true);
     if (panelBody) {
@@ -7090,6 +7376,56 @@ const init = () => {
     } else {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
+  });
+
+  const jumpToIndex = (nextIndex: number) => {
+    const list = getVisibleSections();
+    if (!list.length) return;
+    const idx = Math.max(0, Math.min(list.length - 1, nextIndex));
+    const section = list[idx];
+    const key = String(section.dataset.srSection || '').trim();
+    if (!key) return;
+    panelApi.setSnap(isMobile() ? 'half' : 'peek', true);
+    setSectionCollapsed(section, false, true);
+    scrollPanelToSection(section);
+    setJumpActive(key);
+  };
+
+  panelPrevBtn?.addEventListener('click', () => {
+    const list = getVisibleSections();
+    const idx = getActiveSectionIndex(list);
+    jumpToIndex(idx - 1);
+  });
+
+  panelNextBtn?.addEventListener('click', () => {
+    const list = getVisibleSections();
+    const idx = getActiveSectionIndex(list);
+    jumpToIndex(idx + 1);
+  });
+
+  layoutResetBtn?.addEventListener('click', () => {
+    try {
+      localStorage.removeItem(LAYOUT_KEY);
+    } catch {
+      // ignore
+    }
+    applyLayout(
+      {
+        panelSide: 'right',
+        panelWidth: 420,
+        showTop: true,
+        showHud: true,
+        showSpecbar: true,
+        showDock: true,
+        compact: false,
+        uiScale: 1,
+        glass: 0.7,
+        idleEnabled: true,
+        idleDelay: 5,
+      },
+      true
+    );
+    panelApi.setSnap(isMobile() ? 'half' : 'peek', true);
   });
 
   const scrollPanelToSection = (section: HTMLElement) => {
@@ -7141,6 +7477,10 @@ const init = () => {
 
   initSectionCollapse();
   updatePanelCount(sections.length, sections.length, '');
+  initEssentials();
+  pinnedSet = readPinned();
+  ensureSectionPins();
+  initPinnedMode();
 
   const observeActiveSection = () => {
     if (!panelBody || !sections.length) return;
