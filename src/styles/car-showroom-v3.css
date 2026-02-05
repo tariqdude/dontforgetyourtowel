@@ -64,6 +64,9 @@ body.car-showroom-fullscreen astro-dev-toolbar {
   --sr-safe-right: 0px;
   --sr-safe-top: 0px;
   --sr-safe-bottom: 0px;
+  /* UI chrome can sit closer to the panel than the canvas safe area. */
+  --sr-ui-safe-left: 0px;
+  --sr-ui-safe-right: 0px;
 }
 
 .sr__grid {
@@ -76,8 +79,8 @@ body.car-showroom-fullscreen astro-dev-toolbar {
 .sr__top {
   position: fixed;
   top: 16px;
-  left: calc(16px + var(--sr-safe-left, 0px));
-  right: calc(16px + var(--sr-safe-right, 0px));
+  left: calc(16px + var(--sr-ui-safe-left, 0px));
+  right: calc(16px + var(--sr-ui-safe-right, 0px));
   z-index: 40;
   display: flex;
   align-items: flex-start;
@@ -90,7 +93,51 @@ body.car-showroom-fullscreen astro-dev-toolbar {
   background: var(--sr-panel-bg);
   backdrop-filter: blur(20px);
   box-shadow: var(--sr-shadow);
-  transition: opacity 320ms var(--sr-ease);
+  transition:
+    opacity 320ms var(--sr-ease),
+    left 420ms var(--sr-ease),
+    right 420ms var(--sr-ease);
+}
+
+/* Bridge the visual gap so the top bar feels docked to the panel. */
+[data-sr-root]:not([data-sr-panel-snap='collapsed']) .sr__top::after,
+[data-sr-root][data-sr-panel-side='left']:not([data-sr-panel-snap='collapsed'])
+  .sr__top::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 16px;
+  background: var(--sr-panel-bg);
+  backdrop-filter: blur(20px);
+  pointer-events: none;
+}
+
+/* Square off the connecting edge so bar + connector read as one piece. */
+[data-sr-root]:not([data-sr-panel-snap='collapsed']) .sr__top {
+  border-right: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+[data-sr-root][data-sr-panel-side='left']:not([data-sr-panel-snap='collapsed'])
+  .sr__top {
+  border-left: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+[data-sr-root]:not([data-sr-panel-snap='collapsed']) .sr__top::after {
+  right: -17px;
+  border-top: 1px solid var(--sr-border);
+  border-bottom: 1px solid var(--sr-border);
+}
+
+[data-sr-root][data-sr-panel-side='left']:not([data-sr-panel-snap='collapsed'])
+  .sr__top::before {
+  left: -17px;
+  border-top: 1px solid var(--sr-border);
+  border-bottom: 1px solid var(--sr-border);
 }
 
 .sr__title h1 {
@@ -177,6 +224,7 @@ body.car-showroom-fullscreen astro-dev-toolbar {
 /* When the settings panel is open, reserve space so it does not cover the 3D view. */
 [data-sr-root]:not([data-sr-panel-snap='collapsed']) {
   --sr-safe-right: calc(var(--sr-panel-w) + 32px);
+  --sr-ui-safe-right: calc(var(--sr-panel-w) + 16px);
 }
 
 [data-sr-root][data-sr-panel-side='left']:not(
@@ -184,6 +232,8 @@ body.car-showroom-fullscreen astro-dev-toolbar {
   ) {
   --sr-safe-left: calc(var(--sr-panel-w) + 32px);
   --sr-safe-right: 0px;
+  --sr-ui-safe-left: calc(var(--sr-panel-w) + 16px);
+  --sr-ui-safe-right: 0px;
 }
 
 /* Fullscreen menu (gallery-style) */
@@ -539,7 +589,7 @@ body.car-showroom-fullscreen astro-dev-toolbar {
 
 .sr__hud {
   position: fixed;
-  right: calc(16px + var(--sr-safe-right, 0px));
+  right: calc(16px + var(--sr-ui-safe-right, 0px));
   top: 92px;
   display: flex;
   flex-direction: column;
@@ -1625,8 +1675,8 @@ body.car-showroom-fullscreen astro-dev-toolbar {
 
   .sr__top {
     top: 10px;
-    left: calc(10px + var(--sr-safe-left, 0px));
-    right: calc(10px + var(--sr-safe-right, 0px));
+    left: calc(10px + var(--sr-ui-safe-left, 0px));
+    right: calc(10px + var(--sr-ui-safe-right, 0px));
     padding: 8px 10px;
     gap: 10px;
     justify-content: flex-start;
@@ -1739,6 +1789,18 @@ body.car-showroom-fullscreen astro-dev-toolbar {
   .sr__panelHead {
     padding: 10px;
     touch-action: none;
+  }
+
+  .sr__panelHeadActions {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    max-width: min(100%, 520px);
+  }
+
+  .sr__panelHeadActions::-webkit-scrollbar {
+    display: none;
   }
 
   .sr__panelBody {
